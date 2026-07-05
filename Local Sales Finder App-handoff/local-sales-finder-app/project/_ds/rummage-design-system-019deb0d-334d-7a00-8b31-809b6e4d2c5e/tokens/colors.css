@@ -1,0 +1,96 @@
+/* ============================================================
+   Rummage — Color tokens
+   Warm "paper" foundation, terracotta primary, teal secondary.
+   Maps-first utility: high legibility on cream, distinct sale-type
+   categories, soft warm-tinted depth.
+   ============================================================ */
+:root {
+  /* ---- Paper / neutral surfaces (warm stone) ---- */
+  --paper:        #FAF6EE;  /* app background — the "cream" */
+  --paper-2:      #F3ECDF;  /* sunken / grouped sections */
+  --surface:      #FFFFFF;  /* cards, sheets */
+  --surface-tint: #FFFDF8;  /* faintly warm white */
+
+  /* ---- Ink (warm near-black → stone grays) ---- */
+  --ink-900: #1C1917;
+  --ink-800: #292524;
+  --ink-700: #44403C;
+  --ink-600: #57534E;
+  --ink-500: #78716C;
+  --ink-400: #A8A29E;
+  --ink-300: #D6CFC1;
+  --ink-200: #E7E0D2;
+  --ink-100: #F1ECE1;
+  --line:    #E5DDCE;  /* hairline border on paper */
+
+  /* ---- Brand: terracotta / rust (primary) ---- */
+  --brand-50:  #FDF2EA;
+  --brand-100: #FAE1D1;
+  --brand-200: #F4C3A4;
+  --brand-300: #EC9D70;
+  --brand-400: #E2733B;
+  --brand-500: #EA580C;
+  --brand-600: #C2410C;  /* primary */
+  --brand-700: #9A3412;
+  --brand-800: #7C2D12;
+
+  /* ---- Teal (secondary / "saved" + thrift accents) ---- */
+  --teal-50:  #E9F4F2;
+  --teal-100: #CCE7E3;
+  --teal-300: #5EAFA7;
+  --teal-500: #0D9488;
+  --teal-600: #0F766E;  /* secondary */
+  --teal-700: #115E59;
+
+  /* ---- Semantic ---- */
+  --green-600:  #15803D;  --green-bg:  #E6F1E7;
+  --amber-600:  #B45309;  --amber-bg:  #FAEACC;
+  --red-600:    #BE123C;  --red-bg:    #FBE4E7;
+
+  /* ---- Sale-type categories (soft bg / dark fg pairs) ---- */
+  --type-estate-fg: #6D28D9; --type-estate-bg: #ECE6FB;  /* Estate sale  */
+  --type-yard-fg:   #15803D; --type-yard-bg:   #E4F1E5;  /* Yard sale    */
+  --type-thrift-fg: #0F766E; --type-thrift-bg: #DBEDEA;  /* Thrift store */
+  --type-moving-fg: #B45309; --type-moving-bg: #FAE8CD;  /* Moving sale  */
+  --type-auction-fg:#BE123C; --type-auction-bg:#FBE3E7;  /* Auction      */
+
+  /* ============================================================
+     Semantic aliases — reference these in components, not raw scales
+     ============================================================ */
+  --text-primary:   var(--ink-900);
+  --text-secondary: var(--ink-600);
+  --text-muted:     var(--ink-500);
+  --text-faint:     var(--ink-400);
+  --text-inverse:   var(--paper);
+  --text-accent:    var(--brand-600);
+  --text-link:      var(--teal-600);
+
+  --surface-app:    var(--paper);
+  --surface-card:   var(--surface);
+  --surface-sunken: var(--paper-2);
+  --surface-raised: var(--surface-tint);
+
+  --border-default: var(--line);
+  --border-strong:  var(--ink-300);
+  --border-accent:  var(--brand-200);
+
+  --accent:         var(--brand-600);
+  --accent-hover:   var(--brand-700);
+  --accent-press:   var(--brand-800);
+  --accent-soft:    var(--brand-50);
+  --accent-soft-bd: var(--brand-100);
+
+  --secondary:      var(--teal-600);
+  --secondary-soft: var(--teal-50);
+
+  --focus-ring:     var(--brand-500);
+
+  --success:  var(--green-600);  --success-bg: var(--green-bg);
+  --warning:  var(--amber-600);  --warning-bg: var(--amber-bg);
+  --danger:   var(--red-600);    --danger-bg:  var(--red-bg);
+
+  /* On-map pin & live indicators */
+  --pin:      var(--brand-600);
+  --pin-saved:var(--teal-600);
+  --live:     var(--green-600);
+}

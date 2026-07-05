@@ -1,0 +1,6 @@
+<svg width="300" height="64" viewBox="0 0 300 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rummage">
+  <path d="M28 6c-10.6 0-18.8 8-18.8 18.3 0 5.4 2.6 10.5 6.5 15.4 3.4 4.3 7.7 8 10.8 10.6a2.4 2.4 0 0 0 3 0c3.1-2.6 7.4-6.3 10.8-10.6 3.9-4.9 6.5-10 6.5-15.4C46.8 14 38.6 6 28 6Z" fill="#C2410C"></path>
+  <circle cx="28" cy="23.6" r="8.1" fill="#FAF6EE"></circle>
+  <circle cx="28" cy="23.6" r="2.9" fill="#0F766E"></circle>
+  <text x="64" y="43" font-family="Newsreader, Georgia, serif" font-size="40" font-weight="600" letter-spacing="-0.5" fill="#1C1917">Rummage</text>
+</svg>

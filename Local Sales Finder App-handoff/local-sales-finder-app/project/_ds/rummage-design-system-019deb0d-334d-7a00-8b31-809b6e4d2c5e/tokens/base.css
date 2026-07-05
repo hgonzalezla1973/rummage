@@ -1,0 +1,45 @@
+/* ============================================================
+   Rummage — light base layer. Element defaults that make the
+   tokens render correctly; intentionally minimal (no heavy reset).
+   ============================================================ */
+:root {
+  color-scheme: light;
+  -webkit-text-size-adjust: 100%;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: var(--leading-normal);
+  color: var(--text-primary);
+  background: var(--surface-app);
+}
+
+/* Headlines default to the serif display face */
+h1, h2, h3, h4 {
+  font-family: var(--font-display);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--tracking-snug);
+  line-height: var(--leading-snug);
+  margin: 0;
+}
+
+/* Numeric data convenience class */
+.rmg-data { font-family: var(--font-mono); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+
+/* Eyebrow / overline convenience class */
+.rmg-eyebrow {
+  font-family: var(--font-sans);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--tracking-caps);
+  text-transform: uppercase;
+  font-size: var(--text-2xs);
+  color: var(--text-muted);
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+button { font-family: inherit; }

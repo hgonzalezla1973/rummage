@@ -6,31 +6,30 @@
 <title>Rummage — Find the good stuff nearby</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inder&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
   /* Warm neutral backgrounds */
-  --paper:#FFFBF7; --paper-2:#FFF4EB; --surface:#FFFFFF; --surface-tint:#FFFEFE;
+  --paper:#E6F5F4; --paper-2:#FFF4EB; --surface:#FFFFFF; --surface-tint:#FFFEFE;
 
   /* Warm charcoal ink */
   --ink-900:#1C1917; --ink-800:#292524; --ink-700:#44403C; --ink-600:#57534E;
   --ink-500:#78716C; --ink-400:#A8A29E; --ink-300:#D6D3D1; --ink-200:#E7E5E4; --ink-100:#F5F5F4; --line:#EDE8E3;
 
-  /* Primary — warm orange */
-  --brand-50:#FFF7ED; --brand-100:#FFEDD5; --brand-200:#FED7AA; --brand-300:#FDBA74;
-  --brand-400:#FB923C; --brand-500:#F97316; --brand-600:#EA6C12; --brand-700:#C2580E; --brand-800:#9A440A;
+  /* Primary — olive */
+  --brand-50:#F4F4F2; --brand-100:#E4E5DF; --brand-200:#C6C7BB; --brand-300:#A7A795;
+  --brand-400:#7A7B5F; --brand-500:#4E4F2A; --brand-600:#424324; --brand-700:#37371D; --brand-800:#2B2B17;
 
   /* Supporting colors */
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
   --green-600:#16A34A; --green-bg:#DCFCE7; --amber-600:#D97706; --amber-bg:#FEF3C7; --red-600:#DC2626; --red-bg:#FEE2E2;
-  --coral:#F97316; --coral-bg:#FFF7ED;
+  --coral:#4E4F2A; --coral-bg:#F4F4F2;
 
   /* Sale type colors */
   --type-estate-fg:#7C3AED; --type-estate-bg:#F5F3FF;
   --type-yard-fg:#15803D;   --type-yard-bg:#F0FDF4;
-  --type-thrift-fg:#C2410C; --type-thrift-bg:#FFF7ED;
   --type-moving-fg:#B45309; --type-moving-bg:#FFFBEB;
 
   /* Semantic aliases */
@@ -45,8 +44,8 @@
   --danger:var(--red-600); --danger-bg:var(--red-bg);
   --pin:var(--brand-500); --pin-saved:var(--coral); --live:var(--green-600);
 
-  --font-display:'Plus Jakarta Sans',system-ui,sans-serif;
-  --font-sans:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:'Inder',system-ui,sans-serif;
+  --font-sans:'Inder',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-mono:'Spline Sans Mono',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
@@ -66,8 +65,8 @@
   --shadow-md:0 8px 24px rgba(28,25,23,.10),0 2px 6px rgba(28,25,23,.06);
   --shadow-lg:0 20px 48px rgba(28,25,23,.14),0 6px 14px rgba(28,25,23,.08);
   --shadow-sheet:0 -8px 40px rgba(28,25,23,.12);
-  --shadow-pin:0 6px 16px rgba(249,115,22,.35);
-  --shadow-focus:0 0 0 3px rgba(249,115,22,.28);
+  --shadow-pin:0 6px 16px rgba(78,79,42,.35);
+  --shadow-focus:0 0 0 3px rgba(78,79,42,.28);
 
   --safe-top:59px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -85,9 +84,15 @@ input[type=range]{-webkit-appearance:none;appearance:none}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;background:var(--surface-card);border:2px solid var(--accent);box-shadow:var(--shadow-md);cursor:pointer}
 input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;background:var(--surface-card);border:2px solid var(--accent);box-shadow:var(--shadow-md);cursor:pointer}
 @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 @keyframes slideUp{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
 @keyframes heart-pop{0%{transform:scale(1)}20%{transform:scale(1.55)}55%{transform:scale(.88)}75%{transform:scale(1.15)}100%{transform:scale(1)}}
 .heart-pop{animation:heart-pop .5s cubic-bezier(.34,1.56,.64,1) forwards}
+@keyframes tutBounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes tutPulseRing{0%{transform:scale(.5);opacity:.7}100%{transform:scale(2.1);opacity:0}}
+@keyframes tutTap{0%,100%{transform:scale(1)}50%{transform:scale(.82)}}
+@keyframes tutDraw{from{stroke-dashoffset:140}to{stroke-dashoffset:0}}
+@keyframes tutFloat{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-8px) rotate(4deg)}}
 </style>
 </head>
 <body>
@@ -143,7 +148,10 @@ function parseSaleStart(dateLabel, timeLabel) {
     const mo = MO[full[1].toLowerCase().slice(0,3)];
     if (mo !== undefined) {
       const d = new Date(now.getFullYear(), mo, parseInt(full[2]), h, m, 0);
-      if (d < now) d.setFullYear(now.getFullYear() + 1);
+      // Only assume "next year" if the date is clearly a past day, not just
+      // today with a start time earlier than the current time (i.e. a sale
+      // that's already underway today is still today, not next year).
+      if (d.getTime() < now.getTime() - 24*60*60*1000) d.setFullYear(now.getFullYear() + 1);
       return d;
     }
   }
@@ -158,6 +166,46 @@ function parseSaleStart(dateLabel, timeLabel) {
     }
   }
   return null;
+}
+
+// Whether a sale is happening right now, computed from its actual date/time
+// rather than a static flag (which would go stale the moment time passes).
+function isSaleLive(dateLabel, timeLabel) {
+  const start = parseSaleStart(dateLabel, timeLabel);
+  if (!start) return false;
+  const allTimes = (timeLabel || '').match(/(\d+)(?::(\d+))?\s*(am|pm)/gi) || [];
+  let end = null;
+  if (allTimes.length >= 2) {
+    const last = allTimes[allTimes.length - 1].match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
+    if (last) {
+      let h = parseInt(last[1]), m = last[2] ? parseInt(last[2]) : 0;
+      const ap = last[3].toLowerCase();
+      if (ap === 'pm' && h !== 12) h += 12;
+      if (ap === 'am' && h === 12) h = 0;
+      end = new Date(start); end.setHours(h, m, 0, 0);
+      if (end <= start) end.setDate(end.getDate() + 1);
+    }
+  }
+  const now = Date.now();
+  if (now < start.getTime()) return false;
+  return end ? now < end.getTime() : false;
+}
+
+const SORT_MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+// Sortable timestamp for a sale's start date, parsed from its display label
+// (e.g. "Sat, Jul 4 – Sun, Jul 5" → the Jul 4 start). Sales with no
+// parseable date sort to the very end rather than the very start.
+function saleSortDate(dateLabel) {
+  const label = dateLabel || '';
+  if (!label) return Infinity;
+  const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
+    .filter(m => SORT_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
+  if (!hits.length) return Infinity;
+  const m = hits[0];
+  const mo = SORT_MO_IDX[m[1].toLowerCase().slice(0,3)];
+  const day = parseInt(m[2]);
+  const year = m[3] ? parseInt(m[3]) : new Date().getFullYear();
+  return new Date(year, mo, day).getTime();
 }
 
 function getReminders() {
@@ -198,58 +246,46 @@ function restoreReminders(allSales) {
 const CAT = {
   estate: { label:'Estate Sale', glyph:'Armchair' },
   yard:   { label:'Yard Sale',   glyph:'Tent' },
-  thrift: { label:'Thrift Store',glyph:'Store' },
   moving: { label:'Moving Sale', glyph:'Truck' },
-
 };
 const FILTER_TYPES = [
   {key:'estate',label:'Estate'},{key:'yard',label:'Yard'},
-  {key:'thrift',label:'Thrift'},{key:'moving',label:'Moving'},
+  {key:'moving',label:'Moving'},
 ];
+
+// Sale `items` may be plain strings (legacy/scraped) or richer objects — normalize to one shape.
+function normalizeItem(it, i, saleId) {
+  if (typeof it === 'string') {
+    return { id:`${saleId}-item-${i}`, name:it, category:null, price:null, originalPrice:null, sold:false, image:null, condition:null, size:null, description:null };
+  }
+  return {
+    id: it.id || `${saleId}-item-${i}`, name: it.name || it.label || 'Item',
+    category: it.category || null, price: it.price ?? null, originalPrice: it.originalPrice ?? null,
+    sold: !!it.sold, image: it.image || null, condition: it.condition || null,
+    size: it.size || null, description: it.description || null,
+  };
+}
 
 const AVATARS = [
-  {id:'invader',  emoji:'👾',  label:'Space Invader'},
-  {id:'joystick', emoji:'🕹️',  label:'Joystick'},
-  {id:'vhs',      emoji:'📼',  label:'VHS Tape'},
-  {id:'boombox',  emoji:'📻',  label:'Boombox'},
-  {id:'floppy',   emoji:'💾',  label:'Floppy Disk'},
-  {id:'gamepad',  emoji:'🎮',  label:'Game Controller'},
-  {id:'cassette', emoji:'📀',  label:'Cassette'},
-  {id:'guitar',   emoji:'🎸',  label:'Guitar'},
-  {id:'robot',    emoji:'🤖',  label:'Robot'},
-  {id:'pizza',    emoji:'🍕',  label:'Pizza'},
-  {id:'shades',   emoji:'🕶️',  label:'Sunglasses'},
-  {id:'palm',     emoji:'🌴',  label:'Palm Tree'},
-  {id:'mic',      emoji:'🎤',  label:'Microphone'},
-  {id:'purple',   emoji:'💜',  label:'Purple Heart'},
-  {id:'unicorn',  emoji:'🦄',  label:'Unicorn'},
-  {id:'skate',    emoji:'⛸️',  label:'Skates'},
-  {id:'walkman',  emoji:'🎧',  label:'Headphones'},
-  {id:'lion',     emoji:'🦁',  label:'Lion'},
-  {id:'surfer',   emoji:'🏄',  label:'Surfer'},
-  {id:'gem',      emoji:'💎',  label:'Gem'},
+  {id:'a1',  emoji:'/assets/avatars/avatar_1_1.png', label:'Avatar 1'},
+  {id:'a2',  emoji:'/assets/avatars/avatar_1_2.png', label:'Avatar 2'},
+  {id:'a3',  emoji:'/assets/avatars/avatar_1_3.png', label:'Avatar 3'},
+  {id:'a4',  emoji:'/assets/avatars/avatar_2_1.png', label:'Avatar 4'},
+  {id:'a5',  emoji:'/assets/avatars/avatar_2_2.png', label:'Avatar 5'},
+  {id:'a6',  emoji:'/assets/avatars/avatar_2_3.png', label:'Avatar 6'},
+  {id:'a7',  emoji:'/assets/avatars/avatar_3_1.png', label:'Avatar 7'},
+  {id:'a8',  emoji:'/assets/avatars/avatar_3_2.png', label:'Avatar 8'},
+  {id:'a9',  emoji:'/assets/avatars/avatar_3_3.png', label:'Avatar 9'},
+  {id:'a10', emoji:'/assets/avatars/avatar_4_1.png', label:'Avatar 10'},
+  {id:'a11', emoji:'/assets/avatars/avatar_4_2.png', label:'Avatar 11'},
+  {id:'a12', emoji:'/assets/avatars/avatar_4_3.png', label:'Avatar 12'},
+  {id:'a13', emoji:'/assets/avatars/avatar_5_1.png', label:'Avatar 13'},
+  {id:'a14', emoji:'/assets/avatars/avatar_5_2.png', label:'Avatar 14'},
+  {id:'a15', emoji:'/assets/avatars/avatar_5_3.png', label:'Avatar 15'},
 ];
 
-// ── Sale data (Whittier, CA 90601) ───────────────────────────────────────────
-const ALL_SALES = [
-  {id:'s2',type:'yard',title:'Multi-family block sale — twelve houses, one street',address:'Bright Ave at Camilla St',neighborhood:'Uptown Whittier',distanceMi:0.8,dateLabel:'Sat, Jun 20',timeLabel:'9am–2pm',photoCount:5,live:false,x:48,y:40,host:'The Bright Ave neighbors',price:'Free–$40',items:['Kids bikes','Books','Garden tools','Kitchenware'],blurb:'Twelve households up and down Bright Ave. Kids gear, books, plants, and plenty of odds and ends. Early birds welcome.'},
-  {id:'s4',type:'thrift',title:'Second Chapter Thrift — half-off weekend',address:'6740 Greenleaf Ave',neighborhood:'Uptown Whittier',distanceMi:0.9,dateLabel:'Sat, Jun 20',timeLabel:'10am–7pm',photoCount:8,live:true,x:56,y:48,host:'Second Chapter Thrift',price:'$2–$60',items:['Denim','Records','Houseware','Coats'],blurb:'Everything in the store is half off all weekend. The new denim wall just dropped, and the book room is overflowing.'},
-  {id:'s7',type:'estate',title:'Craftsman bungalow estate — quilts & oak',address:'6512 Friends Ave',neighborhood:'Uptown Whittier',distanceMi:1.0,dateLabel:'Sat, Jun 21',timeLabel:'9am–4pm',photoCount:11,live:false,x:38,y:55,host:'Greenleaf Estate Sales',price:'$1–$180',items:['Oak dresser','Hand-stitched quilts','Depression glass','Garden statuary'],blurb:'A 1920s bungalow full of oak furniture, quilts, and glassware. Everything goes — Sunday is half-price day.'},
-  {id:'s3',type:'estate',title:'Estate sale — tools, fine art & Persian rugs',address:'13502 Philadelphia St',neighborhood:'Uptown Whittier',distanceMi:1.1,dateLabel:'Sat, Jun 21',timeLabel:'9am–3pm',photoCount:24,live:false,x:43,y:32,host:'Quaker City Estate Sales',price:'$1–$400',items:['Power tools','Oil paintings','Persian rugs','Sterling silver'],blurb:'Oil paintings, Persian rugs, sterling silver, and a full garage of tools. Cash and cards accepted.'},
-  {id:'s1',type:'estate',title:'Mid-century estate — 50 years in College Hills',address:'13721 Earlham Dr',neighborhood:'College Hills',distanceMi:1.4,dateLabel:'Sun, Jun 22',timeLabel:'8am–3pm',photoCount:14,live:false,x:62,y:28,host:'Hadley Estate Services',price:'$1–$240',items:['Teak credenza','Eames-style chairs','Vinyl records','Brass lamps','Vintage barware'],blurb:'Half a century in one College Hills home — mid-century furniture, lighting, and a garage full of surprises. Numbers at the door from 7:30am. Cash and cards.'},
-  {id:'s8',type:'moving',title:'Garage cleanout — tools, camping & fishing',address:'8121 Milton Ave',neighborhood:'Michigan Park',distanceMi:1.9,dateLabel:'Sun, Jun 22',timeLabel:'7am–12pm',photoCount:4,live:false,x:30,y:66,host:'The Romeros',price:'Free–$80',items:['Hand tools','Fishing rods','Camp stove','Coolers'],blurb:'Garage cleanout before the move — tools, camping gear, and fishing tackle. Everything cheap, some of it free.'},
-  {id:'s5',type:'moving',title:'Friendly Hills moving sale — priced to go',address:'8932 Janine Dr',neighborhood:'Friendly Hills',distanceMi:2.7,dateLabel:'Fri, Jun 19',timeLabel:'11am–5pm',photoCount:9,live:true,x:72,y:60,host:'Dana & Rob',price:'$5–$300',items:['Sectional sofa','Standing desk','Plants','Bar cart'],blurb:'Moving out of state and the truck is smaller than the house. Furniture, plants, and kitchen — make an offer on the big stuff.'},
-  {id:'s6',type:'yard',title:'Garage sale — vintage cameras & vinyl',address:'841 Hillside St',neighborhood:'La Habra Heights',distanceMi:6.2,dateLabel:'Sat, Jun 27',timeLabel:'8am–1pm',photoCount:6,live:false,x:82,y:20,host:'Pete K.',price:'$1–$120',items:['Film cameras','LPs','Receivers'],blurb:'Decades of cameras, records, and audio gear coming out of the garage. Serious collectors, come early.'},
-  {id:'w1',type:'estate',title:'Anaheim Hills estate sale — by Heritage',address:'Anaheim, CA 92807',neighborhood:'Anaheim Hills',distanceMi:12.4,dateLabel:'Sat, Jun 20',timeLabel:'from 8am',photoCount:211,live:false,x:70,y:74,host:'Heritage Estate Services',price:'Contact for details',items:null,blurb:'Full household estate sale in Anaheim Hills hosted by Heritage Estate Services.'},
-  {id:'w2',type:'estate',title:'Three-day Grasons estate sale in Yorba Linda',address:'Yorba Linda, CA 92886',neighborhood:'Yorba Linda',distanceMi:13.8,dateLabel:'Thu, Jun 25',timeLabel:'9am–4pm',photoCount:403,live:false,x:84,y:66,host:'Grasons Co Elite of North OC',price:'Contact for details',items:null,blurb:'Three-day estate sale hosted by Grasons Co. Furniture, collectibles, and household items throughout.'},
-  {id:'w3',type:'estate',title:'Yorba Linda blowout — jewelry, antiques, art & more',address:'Yorba Linda, CA 92886',neighborhood:'Yorba Linda',distanceMi:14.2,dateLabel:'Fri, Jun 19',timeLabel:'from 9am',photoCount:190,live:false,x:88,y:52,host:'HRURCollections Estate Services',price:'Contact for details',items:['Jewelry','Antiques','Art','Fishing gear','Dining table','Hutch','Guitar','Piano'],blurb:'Big single-house blowout — jewelry, antiques, art, instruments, and more. Contact the host for the address.'},
-  {id:'w4',type:'estate',title:'Jack-of-all-trades flash sale — one day only',address:'Hawthorne, CA 90250',neighborhood:'Hawthorne',distanceMi:17.8,dateLabel:'Sat, Jun 21',timeLabel:'9am–3pm',photoCount:58,live:false,x:16,y:50,host:'Caring Transitions South Bay/PV',price:'Contact for details',items:null,blurb:'One-day flash estate sale in Hawthorne. Hosted by Caring Transitions South Bay. Contact host for address.'},
-  {id:'w5',type:'yard',title:'Garage purge in Claremont',address:'Claremont, CA 91711',neighborhood:'Claremont',distanceMi:19.5,dateLabel:'Sat, Jun 20',timeLabel:'from 7:30am',photoCount:83,live:false,x:88,y:10,host:'Owner',price:'Contact for details',items:null,blurb:'A whole garage worth of finds in Claremont. Contact the host for the exact address.'},
-  {id:'w6',type:'estate',title:'Three-day Redondo Beach estate sale',address:'Redondo Beach, CA 90277',neighborhood:'Redondo Beach',distanceMi:21.3,dateLabel:'Fri, Jun 19',timeLabel:'from 8am',photoCount:339,live:false,x:10,y:70,host:'Grasons Co South Bay Beachside',price:'Contact for details',items:null,blurb:'Three-day in-person estate sale in Redondo Beach. Hosted by Grasons Co South Bay.'},
-  {id:'w7',type:'estate',title:'Vintage everything sale in Costa Mesa',address:'Costa Mesa, CA 92627',neighborhood:'Costa Mesa',distanceMi:21.6,dateLabel:'Sun, Jun 22',timeLabel:'from 8am',photoCount:59,live:false,x:58,y:88,host:'Owner',price:'Contact for details',items:null,blurb:'Owner-run sale with a houseful of vintage items. Contact for address and details.'},
-  {id:'w8',type:'estate',title:'Mid-century marvel estate sale — Palos Verdes',address:'Palos Verdes Peninsula, CA 90275',neighborhood:'Palos Verdes',distanceMi:23.1,dateLabel:'Sat, Jun 21',timeLabel:'from 9am',photoCount:44,live:false,x:8,y:84,host:'Caring Transitions South Bay/PV',price:'Contact for details',items:null,blurb:'Mid-century furniture and décor from a Palos Verdes estate. Hosted by Caring Transitions South Bay.'},
-  {id:'w9',type:'estate',title:'Historic Beverly Hills estate sale',address:'Beverly Hills, CA 90210',neighborhood:'Beverly Hills',distanceMi:24.8,dateLabel:'Fri, Jun 19',timeLabel:'from 9am',photoCount:126,live:false,x:8,y:14,host:'Diamond Estate Services',price:'Contact for details',items:null,blurb:'Estate sale at a historic Beverly Hills home. Hosted by Diamond Estate Services. Contact for address.'},
-];
+// No mock data — all listings come from the live API
+const ALL_SALES = [];
 
 // ── Design system components ──────────────────────────────────────────────────
 function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClick, children, style }) {
@@ -258,14 +294,14 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
     gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
     fontWeight:700, letterSpacing:'-0.01em', whiteSpace:'nowrap',
     transition:`all var(--dur-fast) var(--ease-out)`,
-    borderRadius:'var(--radius-pill)', width: fullWidth?'100%':'auto',
+    borderRadius:16, width: fullWidth?'100%':'auto',
   };
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
            : size==='sm' ? {height:36,padding:'0 16px',fontSize:13}
            : {height:48,padding:'0 24px',fontSize:15};
-  const v = variant==='primary'  ? {background:'var(--accent)',color:'#FFFFFF',border:'none',boxShadow:'0 6px 20px rgba(249,115,22,.38)'}
-          : variant==='secondary'? {background:'var(--brand-50)',color:'var(--accent)',border:'2px solid var(--brand-200)'}
-          : {background:'transparent',color:'var(--text-primary)',border:'none'};
+  const v = variant==='primary'  ? {background:'#1E2020',color:'#FFFFFF',border:'1px solid #E5D6C1',boxShadow:'0 6px 20px rgba(30,32,32,.28)'}
+          : variant==='secondary'? {background:'#1E2020',color:'#FFFFFF',border:'1px solid #E5D6C1'}
+          : {background:'#1E2020',color:'#FFFFFF',border:'1px solid #E5D6C1'};
   return (
     <button onClick={onClick} style={{...base,...sz,...v,...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
@@ -293,6 +329,10 @@ function Card({ padded=true, interactive, onClick, children, style, elevation })
 function Badge({ tone, children }) {
   const colors = tone==='live'
     ? {background:'var(--success-bg)',color:'var(--success)'}
+    : tone==='success'
+    ? {background:'var(--success-bg)',color:'var(--success)'}
+    : tone==='accent'
+    ? {background:'var(--accent)',color:'#fff'}
     : {background:'var(--surface-sunken)',color:'var(--text-secondary)'};
   return (
     <span style={{
@@ -311,7 +351,6 @@ function SaleTypeTag({ type, size }) {
   const c = {
     estate:{fg:'var(--type-estate-fg)',bg:'var(--type-estate-bg)'},
     yard:{fg:'var(--type-yard-fg)',bg:'var(--type-yard-bg)'},
-    thrift:{fg:'var(--type-thrift-fg)',bg:'var(--type-thrift-bg)'},
     moving:{fg:'var(--type-moving-fg)',bg:'var(--type-moving-bg)'},
   }[type] || {fg:'var(--text-muted)',bg:'var(--surface-sunken)'};
   return (
@@ -331,15 +370,18 @@ function SaleTypeTag({ type, size }) {
 
 function Avatar({ name='?', size=44, emoji=null }) {
   if (emoji) {
+    const isImg = typeof emoji === 'string' && (emoji.startsWith('/') || emoji.startsWith('http') || /\.(png|jpe?g|webp|svg)$/i.test(emoji));
     return (
       <div style={{
         width:size, height:size, borderRadius:'50%', flexShrink:0,
         background:'var(--ink-100)',
-        border:'none',
+        border:'none', overflow:'hidden',
         display:'flex', alignItems:'center', justifyContent:'center',
         fontSize: Math.round(size * 0.52),
         lineHeight:1, userSelect:'none',
-      }}>{emoji}</div>
+      }}>
+        {isImg ? <img src={emoji} alt={name} style={{width:'100%',height:'100%',objectFit:'cover'}} /> : emoji}
+      </div>
     );
   }
   const initials = name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase();
@@ -360,13 +402,13 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
       padding:'9px 18px', borderRadius:'var(--radius-pill)',
-      border: 'none',
-      background: selected ? 'var(--accent)' : 'var(--surface-card)',
+      border: selected ? '1px solid #E5D6C1' : 'none',
+      background: selected ? '#1E2020' : 'var(--surface-card)',
       color: selected ? '#fff' : 'var(--text-secondary)',
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(249,115,22,.38)' : 'var(--shadow-sm)',
+      boxShadow: selected ? '0 4px 14px rgba(30,32,32,.28)' : 'var(--shadow-sm)',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -375,7 +417,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
   );
 }
 
-function SegmentedControl({ options, value, onChange, style }) {
+function SegmentedControl({ options, value, onChange, style, activeBg='#fff', activeFg='var(--ink-900)', activeBorder='none' }) {
   return (
     <div style={{
       display:'inline-flex', background:'var(--ink-100)',
@@ -386,9 +428,10 @@ function SegmentedControl({ options, value, onChange, style }) {
         return (
           <button key={o.value} type="button" onClick={() => onChange(o.value)} style={{
             flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
-            padding:'8px 18px', borderRadius:'var(--radius-pill)', border:'none',
-            background: active ? '#fff' : 'transparent',
-            color: active ? 'var(--ink-900)' : 'var(--text-muted)',
+            padding:'8px 18px', borderRadius:'var(--radius-pill)',
+            border: active ? activeBorder : 'none',
+            background: active ? activeBg : 'transparent',
+            color: active ? activeFg : 'var(--text-muted)',
             fontFamily:'var(--font-sans)', fontWeight: active ? 700 : 500, fontSize:14,
             boxShadow: active ? 'var(--shadow-sm)' : 'none',
             cursor:'pointer', transition:'all var(--dur-base) var(--ease-spring)',
@@ -479,7 +522,7 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
               background: active ? 'var(--accent)' : 'var(--surface-card)',
               color: active ? '#fff' : 'var(--text-secondary)',
               fontFamily:'var(--font-mono)', fontWeight:600, fontSize:'var(--text-sm)', cursor:'pointer',
-              boxShadow: active ? '0 4px 12px rgba(249,115,22,.35)' : 'var(--shadow-xs)',
+              boxShadow: active ? '0 4px 12px rgba(78,79,42,.35)' : 'var(--shadow-xs)',
               transition:'all var(--dur-fast)',
             }}>{p} mi</button>
           );
@@ -530,7 +573,7 @@ function TabBar({ items, active, onChange }) {
   return (
     <nav style={{
       display:'flex', alignItems:'stretch', width:'100%',
-      background:'rgba(255,253,249,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
+      background:'rgba(230,245,244,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
       borderTop:'1px solid var(--line)', paddingBottom:20,
     }}>
       {items.map(it => {
@@ -564,7 +607,7 @@ function TabBar({ items, active, onChange }) {
 function FauxMap({ sales, selectedId, onSelect }) {
   const typeColor = {
     estate:'var(--type-estate-fg)', yard:'var(--type-yard-fg)',
-    thrift:'var(--type-thrift-fg)', moving:'var(--type-moving-fg)',
+    moving:'var(--type-moving-fg)',
   };
   return (
     <div style={{position:'absolute',inset:0,overflow:'hidden',background:'#F2EDE5'}}>
@@ -573,7 +616,7 @@ function FauxMap({ sales, selectedId, onSelect }) {
       <div style={{position:'absolute',left:'12%',bottom:'-8%',width:'30%',height:'26%',background:'#E0D8CE',borderRadius:26}} />
       <div style={{position:'absolute',inset:0,opacity:0.5,backgroundImage:'repeating-linear-gradient(0deg,transparent 0 52px,rgba(255,255,255,.6) 52px 57px),repeating-linear-gradient(90deg,transparent 0 64px,rgba(255,255,255,.6) 64px 69px)'}} />
       <div style={{position:'absolute',inset:0,opacity:0.4,backgroundImage:'repeating-linear-gradient(28deg,transparent 0 120px,rgba(255,255,255,.4) 120px 128px)'}} />
-      <div style={{position:'absolute',left:'50%',top:'50%',width:220,height:220,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'2px dashed rgba(249,115,22,.30)',background:'rgba(249,115,22,.05)'}} />
+      <div style={{position:'absolute',left:'50%',top:'50%',width:220,height:220,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'2px dashed rgba(78,79,42,.30)',background:'rgba(78,79,42,.05)'}} />
       <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)'}}>
         <div style={{width:18,height:18,borderRadius:'50%',background:'#3B82F6',border:'3px solid #fff',boxShadow:'0 2px 8px rgba(59,130,246,.5)'}} />
       </div>
@@ -598,7 +641,7 @@ function FauxMap({ sales, selectedId, onSelect }) {
                 {Icon(CAT[s.type]?.glyph||'Tag', 16, {stroke:'currentColor',sw:2.2})}
               </span>
             </span>
-            {s.live && !sel && (
+            {isSaleLive(s.dateLabel, s.timeLabel) && !sel && (
               <span style={{position:'absolute',top:-2,right:-2,width:9,height:9,borderRadius:'50%',background:'var(--live)',border:'1.5px solid #fff'}} />
             )}
           </button>
@@ -608,19 +651,10 @@ function FauxMap({ sales, selectedId, onSelect }) {
   );
 }
 
-// ── Real-coordinates lookup for mock listings ────────────────────────────────
-const MOCK_LATLNG = {
-  's2':[33.9800,-118.0352], 's4':[33.9774,-118.0290], 's7':[33.9751,-118.0320],
-  's3':[33.9798,-118.0420], 's9':[33.9312,-117.9462], 's8':[33.9628,-118.0351],
-  's5':[33.9573,-117.9930], 's6':[33.9614,-117.9620], 'w1':[33.8353,-117.7522],
-  'w2':[33.8886,-117.8131], 'w3':[33.9167,-117.9003], 'w4':[33.9164,-118.3525],
-  'w5':[34.0964,-117.7198], 'w6':[33.8492,-118.3884], 'w7':[33.6411,-117.9187],
-  'w8':[33.7440,-118.3870], 'w9':[34.0736,-118.4004],
-};
 
 // ── Leaflet real map ──────────────────────────────────────────────────────────
 const TYPE_COLOR_HEX = {
-  estate:'#7C3AED', yard:'#15803D', thrift:'#C2410C', moving:'#B45309',
+  estate:'#7C3AED', yard:'#15803D', moving:'#B45309',
 };
 
 function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-118.0328, zoom=13, interactive=true }) {
@@ -662,8 +696,10 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
     Object.values(markersRef.current).forEach(m => m.remove());
     markersRef.current = {};
 
+    const points = [];
     sales.forEach(s => {
       if (s.lat == null || s.lng == null) return;
+      points.push([s.lat, s.lng]);
       const sel   = s.id === selectedId;
       const color = TYPE_COLOR_HEX[s.type] || '#888';
       const size  = sel ? 38 : 28;
@@ -685,12 +721,18 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       markersRef.current[s.id] = marker;
     });
 
-    // Pan to selected marker
     if (selectedId && markersRef.current[selectedId]) {
+      // A specific pin is selected — pan to just that one.
       const target = sales.find(s => s.id === selectedId);
       if (target?.lat && interactive) {
         map.panTo([target.lat, target.lng], { animate: true, duration: 0.4 });
       }
+    } else if (interactive && points.length) {
+      // Nothing selected — fit the view so every pin is visible at once,
+      // instead of opening at a fixed zoom/center that can leave most of a
+      // wide-radius search off-screen.
+      const bounds = L.latLngBounds([...points, [centerLat, centerLng]]);
+      map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
     }
   }, [sales, selectedId]);
 
@@ -703,18 +745,70 @@ function proxyImgUrl(url) {
   try {
     const h = new URL(url).hostname;
     if (h === 'estatesales.org' || h.endsWith('.estatesales.org') ||
+        h === 'estatesales.net' || h.endsWith('.estatesales.net') ||
         h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
-        h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev')
-      return `http://localhost:3002/api/img?url=${encodeURIComponent(url)}`;
+        h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
+        h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
+        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com'))
+      return `/api/img?url=${encodeURIComponent(url)}`;
   } catch(_) {}
   return url;
 }
 
-function PhotoPlaceholder({ height, big }) {
+// Type-specific placeholder — looks intentional, not broken
+const PLACEHOLDER_STYLES = {
+  estate:  { bg: 'linear-gradient(135deg,#EDE9FE 0%,#C4B5FD 100%)', icon: 'Home',  color: '#7C3AED' },
+  yard:    { bg: 'linear-gradient(135deg,#DCFCE7 0%,#86EFAC 100%)', icon: 'Tag',   color: '#16A34A' },
+  moving:  { bg: 'linear-gradient(135deg,#FEF3C7 0%,#FCD34D 100%)', icon: 'Truck', color: '#D97706' },
+  auction: { bg: 'linear-gradient(135deg,#DBEAFE 0%,#93C5FD 100%)', icon: 'Gavel', color: '#2563EB' },
+};
+function PhotoPlaceholder({ height, type = 'yard', blurb, title }) {
+  const s = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
+  const tall = height > 120;
+  const snippet = blurb || title || '';
   return (
-    <div style={{height,background:'linear-gradient(135deg,var(--paper-2),var(--ink-100))',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-      {Icon('Image', big?40:22, {stroke:'var(--ink-300)',sw:1.5})}
+    <div style={{height, background: s.bg, display:'flex', flexDirection:'column',
+      alignItems: snippet && tall ? 'flex-start' : 'center',
+      justifyContent: snippet && tall ? 'flex-end' : 'center',
+      gap: 6, flexShrink: 0, padding: snippet && tall ? '14px 16px' : 0, boxSizing: 'border-box', overflow: 'hidden'}}>
+      {!(snippet && tall) && Icon(s.icon, tall ? 34 : 22, { stroke: s.color, strokeWidth: 1.5 })}
+      {snippet && tall && (
+        <p style={{margin:0, fontFamily:'var(--font-sans)', fontSize: height > 200 ? 14 : 12,
+          lineHeight: 1.45, color: s.color, fontWeight: 500,
+          display:'-webkit-box', WebkitLineClamp: height > 200 ? 5 : 3,
+          WebkitBoxOrient:'vertical', overflow:'hidden'}}>
+          {snippet}
+        </p>
+      )}
     </div>
+  );
+}
+
+// A small non-interactive map centered on the sale's location — shown in place
+// of a photo when a listing has no images (but does have coordinates).
+function MapPlaceholder({ height, width, lat, lng, type='yard', id='ph', zoom=15 }) {
+  return (
+    <div style={{position:'relative', height, width: width || '100%', flexShrink:0, overflow:'hidden', background:'var(--surface-sunken)'}}>
+      <RealMap sales={[{ id, lat, lng, type }]} selectedId={id} onSelect={()=>{}}
+        centerLat={lat} centerLng={lng} zoom={zoom} interactive={false} />
+    </div>
+  );
+}
+
+// Image with automatic fallback to a location map (or a generic placeholder if
+// there are no coordinates either) on load error.
+function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }) {
+  const [failed, setFailed] = React.useState(false);
+  if (!src || failed) {
+    if (lat != null && lng != null) return <MapPlaceholder height={height} width={width} lat={lat} lng={lng} type={type} id={id} />;
+    return <PhotoPlaceholder height={height} type={type} blurb={blurb} title={title} />;
+  }
+  return (
+    <img
+      src={proxyImgUrl(src)}
+      onError={() => setFailed(true)}
+      style={{ width: width || '100%', height, objectFit: 'cover', display: 'block', ...style }}
+    />
   );
 }
 
@@ -787,19 +881,20 @@ function useCountdown(dateLabel, timeLabel) {
 }
 
 // ── Photo gallery ─────────────────────────────────────────────────────────────
-function PhotoGallery({ images, type, height=280, onBack, saved, onSave, sale }) {
+function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, onShare }) {
   const GRADS = {
     estate:['linear-gradient(135deg,#F5F3FF 0%,#DDD6FE 100%)','linear-gradient(135deg,#EDE9FE 0%,#A78BFA 100%)','linear-gradient(135deg,#C4B5FD 0%,#7C3AED 100%)'],
     yard:  ['linear-gradient(135deg,#F0FDF4 0%,#BBF7D0 100%)','linear-gradient(135deg,#DCFCE7 0%,#4ADE80 100%)','linear-gradient(135deg,#A7F3D0 0%,#16A34A 100%)'],
-    thrift:['linear-gradient(135deg,#FFF7ED 0%,#FED7AA 100%)','linear-gradient(135deg,#FFEDD5 0%,#FB923C 100%)','linear-gradient(135deg,#FED7AA 0%,#C2410C 100%)'],
     moving:['linear-gradient(135deg,#FFFBEB 0%,#FDE68A 100%)','linear-gradient(135deg,#FEF3C7 0%,#FCD34D 100%)','linear-gradient(135deg,#FDE68A 0%,#D97706 100%)'],
   };
-  const slides = (images && images.length) ? images : (GRADS[type]||GRADS.estate);
+  const hasCoords = sale?.lat != null && sale?.lng != null;
+  const slides = (images && images.length) ? images : (hasCoords ? ['__MAP__'] : (GRADS[type]||GRADS.estate));
   const total = slides.length;
   const [idx, setIdx] = useState(0);
   const [dragStart, setDragStart] = useState(null);
   const [dragDelta, setDragDelta] = useState(0);
   const [dragging, setDragging] = useState(false);
+  const thumbsRef = useRef(null);
   const clamp = n => Math.max(0, Math.min(total-1, n));
   const isUrl = s => typeof s==='string' && (s.startsWith('http') || s.startsWith('data:'));
 
@@ -810,79 +905,93 @@ function PhotoGallery({ images, type, height=280, onBack, saved, onSave, sale })
     setDragStart(null); setDragDelta(0); setDragging(false);
   };
 
+  // Scroll active thumbnail into view — scroll only the strip, not outer containers
+  React.useEffect(() => {
+    if (!thumbsRef.current || !isUrl(slides[0])) return;
+    const el = thumbsRef.current.children[idx];
+    if (!el) return;
+    const strip = thumbsRef.current;
+    const target = el.offsetLeft - (strip.offsetWidth - el.offsetWidth) / 2;
+    strip.scrollTo({ left: target, behavior: 'smooth' });
+  }, [idx]);
+
+  const hasPhotos = isUrl(slides[0]);
+
   return (
-    <div style={{position:'relative',height,overflow:'hidden',background:'var(--paper-2)',flexShrink:0}}>
-      <div
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
-        style={{display:'flex',width:total*100+'%',height:'100%',
-          transform:'translateX(calc('+(-idx*(100/total))+'% + '+(dragDelta/total)+'px))',
-          transition:dragging?'none':'transform .32s var(--ease-out)',userSelect:'none'}}>
-        {slides.map((slide,i) => (
-          <div key={i} style={{width:(100/total)+'%',height:'100%',flexShrink:0,
-            background:isUrl(slide)?'#000':slide,overflow:'hidden'}}>
-            {isUrl(slide) && <img src={proxyImgUrl(slide)} style={{width:'100%',height:'100%',objectFit:'cover',display:'block',pointerEvents:'none'}} />}
-            {!isUrl(slide) && (
-              <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center',opacity:.35}}>
-                {Icon('Image',52,{stroke:'#fff',sw:1})}
-              </div>
-            )}
-          </div>
-        ))}
-      </div>
-      <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(0,0,0,.32) 0%,transparent 30%,transparent 65%,rgba(0,0,0,.18) 100%)',pointerEvents:'none'}} />
-      <div style={{position:'absolute',top:'var(--safe-top)',left:14,right:14,display:'flex',justifyContent:'space-between'}}>
-        <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
-        <div style={{display:'flex',gap:8}}>
-          <IconButton icon={Icon('Share',19)} shape="circle" aria-label="Share" onClick={async ()=>{
-            const s = sale;
-            if (!s) return;
-            const text = [s.title, s.dateLabel, s.timeLabel, s.address].filter(Boolean).join(' · ');
-            try {
-              if (navigator.share) {
-                await navigator.share({ title: s.title, text, url: s.url || window.location.href });
-              } else {
-                await navigator.clipboard.writeText(text);
-              }
-            } catch(e) { if (e.name !== 'AbortError') console.warn('share failed', e); }
-          }} />
-          <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
+    <div style={{flexShrink:0, width:'100%', overflow:'hidden'}}>
+      {/* Main carousel */}
+      <div style={{position:'relative',height,overflow:'hidden',background:'var(--paper-2)'}}>
+        <div
+          onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+          style={{display:'flex',width:total*100+'%',height:'100%',
+            transform:'translateX(calc('+(-idx*(100/total))+'% + '+(dragDelta/total)+'px))',
+            transition:dragging?'none':'transform .32s var(--ease-out)',userSelect:'none'}}>
+          {slides.map((slide,i) => (
+            <div key={i} style={{width:(100/total)+'%',height:'100%',flexShrink:0,overflow:'hidden',
+              background:isUrl(slide)?'#111':'transparent'}}>
+              {isUrl(slide)
+                ? <SaleImg src={slide} height="100%" type={type} blurb={sale?.blurb} title={sale?.title} style={{width:'100%',height:'100%',pointerEvents:'none'}} />
+                : slide==='__MAP__'
+                ? <div style={{width:'100%',height:'100%',pointerEvents:'none'}}><MapPlaceholder height="100%" width="100%" lat={sale.lat} lng={sale.lng} type={type} id={sale.id} /></div>
+                : <div style={{width:'100%',height:'100%',background:slide,display:'flex',alignItems:'flex-end',padding:'0 20px 24px',boxSizing:'border-box'}}>
+                    {sale?.blurb ? <p style={{margin:0,fontFamily:'var(--font-sans)',fontSize:14,lineHeight:1.5,color:'rgba(0,0,0,.65)',fontWeight:500,display:'-webkit-box',WebkitLineClamp:4,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{sale.blurb}</p> : null}
+                  </div>}
+            </div>
+          ))}
         </div>
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(0,0,0,.32) 0%,transparent 30%,transparent 65%,rgba(0,0,0,.18) 100%)',pointerEvents:'none'}} />
+        <div style={{position:'absolute',top:'var(--safe-top)',left:14,right:14,display:'flex',justifyContent:'space-between'}}>
+          <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
+          <div style={{display:'flex',gap:8}}>
+            <IconButton icon={Icon('Share',19)} shape="circle" aria-label="Share" onClick={()=>onShare && onShare()} />
+            <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
+          </div>
+        </div>
+        {idx>0 && (
+          <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
+            {Icon('ChevronLeft',18,{stroke:'var(--ink-900)'})}
+          </button>
+        )}
+        {idx<total-1 && (
+          <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
+            {Icon('ChevronRight',18,{stroke:'var(--ink-900)'})}
+          </button>
+        )}
+        {hasPhotos && (
+          <div style={{position:'absolute',bottom:10,right:14,background:'rgba(0,0,0,.52)',backdropFilter:'blur(4px)',color:'#fff',borderRadius:'var(--radius-pill)',padding:'3px 10px',fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
+            {idx+1} / {total}
+          </div>
+        )}
       </div>
-      {idx>0 && (
-        <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-          {Icon('ChevronLeft',18,{stroke:'var(--ink-900)'})}
-        </button>
-      )}
-      {idx<total-1 && (
-        <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-          {Icon('ChevronRight',18,{stroke:'var(--ink-900)'})}
-        </button>
-      )}
-      {total>1 && (
-        <div style={{position:'absolute',bottom:14,left:0,right:0,display:'flex',justifyContent:'center',gap:5,pointerEvents:'none'}}>
-          {slides.map((_,i)=>(
-            <span key={i} style={{height:5,width:i===idx?20:5,borderRadius:3,background:i===idx?'#fff':'rgba(255,255,255,.5)',transition:'all .3s var(--ease-spring)'}} />
+
+      {/* Thumbnail strip — only shown when there are real photos */}
+      {hasPhotos && total > 1 && (
+        <div ref={thumbsRef} style={{display:'flex',gap:4,overflowX:'auto',padding:'6px 8px',background:'var(--surface-app)',scrollbarWidth:'none',WebkitOverflowScrolling:'touch'}}>
+          {slides.map((slide, i) => (
+            <button key={i} onClick={()=>setIdx(i)} style={{
+              flexShrink:0, width:62, height:62, borderRadius:8, overflow:'hidden', padding:0, border:'none',
+              outline: i===idx ? '2.5px solid var(--accent)' : '2.5px solid transparent',
+              opacity: i===idx ? 1 : 0.62, cursor:'pointer', transition:'opacity .18s,outline .18s',
+            }}>
+              <SaleImg src={slide} height={62} type={type} />
+            </button>
           ))}
         </div>
       )}
-      <div style={{position:'absolute',bottom:14,right:14,background:'rgba(0,0,0,.5)',backdropFilter:'blur(4px)',color:'#fff',borderRadius:'var(--radius-pill)',padding:'3px 10px',fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-        {idx+1} / {total}
-      </div>
     </div>
   );
 }
 
-function SaleCard({ type='estate',title,address,distanceMi,dateLabel,timeLabel,photoCount,images,live=false,saved=false,onSave,onClick,layout='full' }) {
+function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLabel,photoCount,images,blurb='',saved=false,onSave,onClick,layout='full',inTrip=false,onToggleTrip,lat,lng }) {
   const countdown = useCountdown(dateLabel, timeLabel);
+  const live = countdown.status==='live';
   const thumb = images && images.length ? images[0] : null;
   if (layout==='row') {
     return (
       <Card interactive onClick={onClick} padded={false} elevation="sm">
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
-            {thumb
-              ? <img src={proxyImgUrl(thumb)} style={{width:'100%',height:88,objectFit:'cover',display:'block'}} />
-              : <PhotoPlaceholder height={88} />}
+            <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
           </div>
           <div style={{flex:1,minWidth:0,padding:'12px 14px',display:'flex',flexDirection:'column',gap:5}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
@@ -893,7 +1002,7 @@ function SaleCard({ type='estate',title,address,distanceMi,dateLabel,timeLabel,p
             <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)'}}>
               <span style={{fontFamily:'var(--font-mono)'}}>{distanceMi} mi</span>
               <span>·</span>
-              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{dateLabel}</span>
+              <span style={{overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{dateLabel}{timeLabel ? ' · '+timeLabel : ''}</span>
             </div>
           </div>
         </div>
@@ -903,9 +1012,7 @@ function SaleCard({ type='estate',title,address,distanceMi,dateLabel,timeLabel,p
   return (
     <Card interactive onClick={onClick} padded={false} elevation="md">
       <div style={{position:'relative',overflow:'hidden'}}>
-        {thumb
-          ? <img src={proxyImgUrl(thumb)} style={{width:'100%',height:168,objectFit:'cover',display:'block'}} />
-          : <PhotoPlaceholder height={168} />}
+        <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12}}><SaleTypeTag type={type} /></div>
         <div style={{position:'absolute',top:12,right:12}}><HeartBtn saved={saved} onSave={onSave} /></div>
         {live && <div style={{position:'absolute',bottom:12,left:12}}><Badge tone="live">Happening now</Badge></div>}
@@ -923,18 +1030,83 @@ function SaleCard({ type='estate',title,address,distanceMi,dateLabel,timeLabel,p
             {dateLabel}{timeLabel ? ` · ${timeLabel}` : ''}
           </div>
         )}
-        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
-          <span style={{fontSize:13,fontWeight:700,color:'var(--brand-600)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
-          {countdown.label && countdown.status!=='ended' && (
-            <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
-              background: countdown.status==='live' ? 'var(--success-bg)' : 'var(--brand-50)',
-              color: countdown.status==='live' ? 'var(--success)' : 'var(--brand-600)',
-              fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-              {Icon(countdown.status==='live'?'Clock':'Timer',10,{stroke:'currentColor'})}
-              {countdown.label}
-            </div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flex:1,minWidth:0}}>
+            <span style={{fontSize:13,fontWeight:700,color:'var(--brand-600)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
+            {countdown.status==='live' && countdown.label && (
+              <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
+                background:'var(--success-bg)',color:'var(--success)',
+                fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
+                {Icon('Clock',10,{stroke:'currentColor'})}
+                {countdown.label}
+              </div>
+            )}
+          </div>
+          {onToggleTrip && (
+            <button type="button"
+              onClick={e=>{e.stopPropagation();onToggleTrip();}}
+              style={{display:'inline-flex',alignItems:'center',gap:4,height:28,padding:'0 10px',borderRadius:'var(--radius-pill)',
+                background: inTrip ? 'var(--brand-500)' : 'var(--surface-sunken)',
+                border: inTrip ? 'none' : '1.5px solid var(--border-default)',
+                cursor:'pointer',color: inTrip ? '#fff' : 'var(--text-muted)',
+                fontSize:11,fontWeight:700,flexShrink:0,transition:'all .15s'}}>
+              {inTrip ? Icon('Check',11,{stroke:'#fff'}) : Icon('Plus',11,{stroke:'currentColor'})}
+              {inTrip ? 'In trip' : 'Add to trip'}
+            </button>
           )}
         </div>
+      </div>
+    </Card>
+  );
+}
+
+// 2-column grid card — visual language borrowed from the items gallery screen
+// (square photo, capsule badges floated over it, name + meta line below).
+function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLabel, neighborhood, images, saved=false, onSave, onClick, inTrip=false, onToggleTrip, lat, lng }) {
+  const [imgFailed, setImgFailed] = useState(false);
+  const thumb = images && images.length ? images[0] : null;
+  const ps = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
+  const showMap = (!thumb || imgFailed) && lat != null && lng != null;
+  const live = useCountdown(dateLabel, timeLabel).status==='live';
+  return (
+    <Card interactive onClick={onClick} padded={false} elevation="xs">
+      <div style={{position:'relative',aspectRatio:'1',background: thumb && !imgFailed ? 'var(--surface-sunken)' : ps.bg}}>
+        {thumb && !imgFailed ? (
+          <img src={proxyImgUrl(thumb)} onError={()=>setImgFailed(true)}
+            style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+        ) : showMap ? (
+          <MapPlaceholder height="100%" width="100%" lat={lat} lng={lng} type={type} id={id} />
+        ) : (
+          <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {Icon(ps.icon,28,{stroke:ps.color,strokeWidth:1.5})}
+          </div>
+        )}
+        <div style={{position:'absolute',top:8,left:8}}><SaleTypeTag type={type} size="sm" /></div>
+        <div style={{position:'absolute',top:6,right:6}}><HeartBtn saved={saved} onSave={onSave} /></div>
+        {live && <div style={{position:'absolute',bottom:8,left:8}}><Badge tone="live">Now</Badge></div>}
+      </div>
+      <div style={{padding:'9px 10px 11px'}}>
+        <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,lineHeight:1.25,color:'var(--text-primary)',
+          display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',minHeight:'2.5em'}}>{title}</div>
+        <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+          {distanceMi} mi{neighborhood ? ` · ${neighborhood}` : ''}
+        </div>
+        {dateLabel && (
+          <div style={{fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-faint)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {dateLabel}
+          </div>
+        )}
+        {onToggleTrip && (
+          <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} style={{
+            display:'inline-flex',alignItems:'center',gap:4,height:26,padding:'0 9px',marginTop:7,borderRadius:'var(--radius-pill)',
+            background: inTrip ? 'var(--brand-500)' : 'var(--surface-sunken)',
+            border: inTrip ? 'none' : '1.5px solid var(--border-default)',
+            cursor:'pointer',color: inTrip ? '#fff' : 'var(--text-muted)',
+            fontSize:11,fontWeight:700}}>
+            {inTrip ? Icon('Check',11,{stroke:'#fff'}) : Icon('Plus',11,{stroke:'currentColor'})}
+            {inTrip ? 'In trip' : 'Add to trip'}
+          </button>
+        )}
       </div>
     </Card>
   );
@@ -943,10 +1115,10 @@ function SaleCard({ type='estate',title,address,distanceMi,dateLabel,timeLabel,p
 // ── Wordmark SVG ──────────────────────────────────────────────────────────────
 const WORDMARK = (
   <svg width="200" height="48" viewBox="0 0 260 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M28 6c-10.6 0-18.8 8-18.8 18.3 0 5.4 2.6 10.5 6.5 15.4 3.4 4.3 7.7 8 10.8 10.6a2.4 2.4 0 0 0 3 0c3.1-2.6 7.4-6.3 10.8-10.6 3.9-4.9 6.5-10 6.5-15.4C46.8 14 38.6 6 28 6Z" fill="#F97316"/>
+    <path d="M28 6c-10.6 0-18.8 8-18.8 18.3 0 5.4 2.6 10.5 6.5 15.4 3.4 4.3 7.7 8 10.8 10.6a2.4 2.4 0 0 0 3 0c3.1-2.6 7.4-6.3 10.8-10.6 3.9-4.9 6.5-10 6.5-15.4C46.8 14 38.6 6 28 6Z" fill="#4E4F2A"/>
     <circle cx="28" cy="23.6" r="8.1" fill="#FFFFFF"/>
     <circle cx="28" cy="23.6" r="2.9" fill="#1C1917"/>
-    <text x="64" y="43" fontFamily="Plus Jakarta Sans, sans-serif" fontSize="40" fontWeight="800" letterSpacing="-1" fill="#1C1917">Rummage</text>
+    <text x="64" y="43" fontFamily="Inder, sans-serif" fontSize="40" fontWeight="800" letterSpacing="-1" fill="#1C1917">Rummage</text>
   </svg>
 );
 
@@ -986,14 +1158,14 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{position:'relative',flex:1,overflow:'hidden'}}>
         <FauxMap sales={sales.slice(0,5)} selectedId="s1" onSelect={()=>{}} />
-        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(255,251,247,.05) 0%,rgba(255,251,247,.6) 58%,var(--surface-app) 100%)'}} />
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(230,245,244,.05) 0%,rgba(230,245,244,.6) 58%,var(--surface-app) 100%)'}} />
         <div style={{position:'absolute',top:'calc(var(--safe-top) + 24px)',left:0,right:0,display:'flex',justifyContent:'center'}}>
           <div style={{transform:'scale(0.7)'}}>{WORDMARK}</div>
         </div>
       </div>
       <div style={{padding:'8px 24px 0',textAlign:'center'}}>
         <h1 style={{fontWeight:900,letterSpacing:'-0.03em',fontSize:34,lineHeight:1.05,color:'var(--ink-900)'}}>Great deals are<br/>right around the corner</h1>
-        <p style={{fontFamily:'var(--font-sans)',fontSize:16,lineHeight:1.5,color:'var(--text-secondary)',margin:'12px auto 0',maxWidth:320}}>Rummage finds estate sales, yard sales, thrift stores and moving sales near you. Turn on location to see what's nearby.</p>
+        <p style={{fontFamily:'var(--font-sans)',fontSize:16,lineHeight:1.5,color:'var(--text-secondary)',margin:'12px auto 0',maxWidth:320}}>Rummage finds estate sales, yard sales, and moving sales near you. Turn on location to see what's nearby.</p>
       </div>
       <div style={{padding:'22px 24px 36px',display:'flex',flexDirection:'column',gap:10}}>
         <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation',18)} onClick={onAllow}>Use my location</Btn>
@@ -1005,18 +1177,21 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
 }
 
 function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, apiStatus,
-    activeTypes, setActiveTypes, openNow, setOpenNow, keyword, onClearKeyword }) {
+    activeTypes, setActiveTypes, openNow, setOpenNow, keyword, onClearKeyword, tripIds=[], onToggleTrip }) {
   const [view, setView] = useState('list');
-  const [selected, setSelected] = useState(sales[0]?.id);
+  const [selected, setSelected] = useState(null);
+  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
   const shown = sales
     .filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type))
-    .filter(s => !openNow || s.live)
-    .slice().sort((a, b) => (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
-  const sel = shown.find(s=>s.id===selected) || shown[0];
+    .filter(s => !openNow || isSaleLive(s.dateLabel, s.timeLabel))
+    .slice().sort((a, b) => sortBy === 'date'
+      ? saleSortDate(a.dateLabel) - saleSortDate(b.dateLabel)
+      : (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
+  const sel = shown.find(s=>s.id===selected) || null;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,253,249,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--accent)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
@@ -1025,14 +1200,15 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <span style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(249,115,22,.18)'}}>{radiusMi} mi</span>
+            <span style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)'}}>{radiusMi} mi</span>
             {apiStatus==='loading' && <span style={{fontFamily:'var(--font-sans)',fontSize:10,color:'var(--text-faint)',display:'flex',alignItems:'center',gap:3}}><span style={{width:6,height:6,borderRadius:'50%',background:'var(--accent)',display:'inline-block',animation:'pulse 1s infinite'}} />Live</span>}
             {apiStatus==='ok'      && <span style={{fontFamily:'var(--font-sans)',fontSize:10,color:'var(--green-600)',display:'flex',alignItems:'center',gap:3}}><span style={{width:6,height:6,borderRadius:'50%',background:'var(--green-600)',display:'inline-block'}} />Live</span>}
             {apiStatus==='error'   && <span style={{fontFamily:'var(--font-sans)',fontSize:10,color:'var(--text-faint)'}}>Offline</span>}
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
-          <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView} />
+          <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
+            activeBg="#1E2020" activeFg="#fff" activeBorder="1px solid #E5D6C1" />
         </div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
           <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
@@ -1050,6 +1226,12 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <FilterChip leadingIcon={Icon('Clock',15)} selected={openNow} onClick={()=>setOpenNow(p=>!p)}>Open now</FilterChip>
         </div>
       </div>
+      {apiStatus==='loading' && (
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#1E2020',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(30,32,32,.28)'}}>
+          <span style={{display:'inline-flex',animation:'spin 1s linear infinite'}}>{Icon('Loader2',16,{stroke:'#fff'})}</span>
+          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
+        </div>
+      )}
       {view==='map' ? (
         <div style={{position:'relative',flex:1,overflow:'hidden'}}>
           <RealMap sales={shown} selectedId={sel?.id} onSelect={setSelected} />
@@ -1059,8 +1241,9 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           </div>
           {sel && (
             <div style={{position:'absolute',left:14,right:14,bottom:104}}>
-              <SaleCard layout="row" type={sel.type} title={sel.title} address={sel.neighborhood}
-                distanceMi={sel.distanceMi} dateLabel={`${sel.dateLabel} · ${sel.timeLabel}`} live={sel.live}
+              <SaleCard id={sel.id} layout="row" type={sel.type} title={sel.title} address={sel.neighborhood}
+                distanceMi={sel.distanceMi} dateLabel={sel.dateLabel} timeLabel={sel.timeLabel}
+                lat={sel.lat} lng={sel.lng}
                 onClick={()=>onOpenSale(sel.id)} />
             </div>
           )}
@@ -1069,9 +1252,11 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         <div style={{flex:1,overflowY:'auto',padding:'14px 16px 24px'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:15,color:'var(--text-primary)'}}>{shown.length} {shown.length===1?'sale':'sales'} nearby</span>
-            <span style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text-muted)'}}>{Icon('ArrowUpDown',14)} Closest</span>
+            <button type="button" onClick={()=>setSortBy(s=>s==='date'?'distance':'date')} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:0,fontFamily:'inherit'}}>
+              {Icon('ArrowUpDown',14)} {sortBy==='date' ? 'Soonest' : 'Closest'}
+            </button>
           </div>
-          {shown.length===0 ? (
+          {shown.length===0 && apiStatus!=='loading' ? (
             <div style={{textAlign:'center',padding:'48px 16px'}}>
               <div style={{fontSize:72,lineHeight:1,marginBottom:4}}>🔍</div>
               <div style={{fontSize:32,lineHeight:1,marginBottom:12,marginTop:-8}}>😕</div>
@@ -1079,11 +1264,13 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
               <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Try adjusting your filters or expanding your search radius.</p>
             </div>
           ) : (
-          <div style={{display:'flex',flexDirection:'column',gap:14}}>
+          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
             {shown.map(s=>(
-              <SaleCard key={s.id} type={s.type} title={s.title} address={s.address} distanceMi={s.distanceMi}
-                dateLabel={s.dateLabel} timeLabel={s.timeLabel} photoCount={s.photoCount} images={s.images} live={s.live}
-                saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)} />
+              <SaleGridCard key={s.id} id={s.id} type={s.type} title={s.title} distanceMi={s.distanceMi}
+                dateLabel={s.dateLabel} timeLabel={s.timeLabel} neighborhood={s.neighborhood} images={s.images}
+                lat={s.lat} lng={s.lng}
+                saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)}
+                inTrip={tripIds.includes(s.id)} onToggleTrip={onToggleTrip ? ()=>onToggleTrip(s.id) : undefined} />
             ))}
           </div>
           )}
@@ -1093,7 +1280,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
   );
 }
 
-function SavedScreen({ sales, onOpenSale, onToggleSave }) {
+function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip }) {
   const [tab, setTab] = useState('upcoming');
   const saved = sales.filter(s=>s.saved);
   const now = new Date();
@@ -1115,7 +1302,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave }) {
 
   const upcoming  = saved.filter(s => { const d=saleEndDate(s); return !d || d >= now; });
   const past      = saved.filter(s => { const d=saleEndDate(s); return d && d < now; });
-  const happening = upcoming.filter(s => s.live);
+  const happening = upcoming.filter(s => isSaleLive(s.dateLabel, s.timeLabel));
   const shown     = tab==='happening' ? happening : tab==='past' ? past : upcoming;
 
   const EmptyState = ({icon, title, body}) => (
@@ -1152,9 +1339,11 @@ function SavedScreen({ sales, onOpenSale, onToggleSave }) {
             ? <EmptyState icon="📦" title="No past sales" body="Sales you've attended will appear here." />
             : <EmptyState icon="🗓️" title="No upcoming saves" body="Heart a sale on the Explore tab to save it." />
         ) : shown.map(s=>(
-          <SaleCard key={s.id} type={s.type} title={s.title} address={s.address} distanceMi={s.distanceMi}
-            dateLabel={s.dateLabel} timeLabel={s.timeLabel} photoCount={s.photoCount} images={s.images} live={s.live}
-            saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)} />
+          <SaleCard key={s.id} id={s.id} type={s.type} title={s.title} address={s.address} distanceMi={s.distanceMi}
+            dateLabel={s.dateLabel} timeLabel={s.timeLabel} photoCount={s.photoCount} images={s.images} blurb={s.blurb}
+            lat={s.lat} lng={s.lng}
+            saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)}
+            inTrip={tripIds.includes(s.id)} onToggleTrip={onToggleTrip ? ()=>onToggleTrip(s.id) : undefined} />
         ))}
         {saved.length>0 && shown.length>0 && (
           <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'center',padding:'8px 0',fontSize:13,color:'var(--text-muted)'}}>
@@ -1295,7 +1484,7 @@ function AuthScreen({ onAuth }) {
 
   const sendCode = () => {
     setResendTimer(30);
-    return fetch('http://localhost:3002/api/send-verification', {
+    return fetch('/api/send-verification', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email: email.trim() }),
     }).then(r => r.json());
@@ -1345,7 +1534,7 @@ function AuthScreen({ onAuth }) {
     const code = codeDigits.join('');
     if (code.length < 6) { setCodeError('Enter all 6 digits'); return; }
     setLoading(true);
-    fetch('http://localhost:3002/api/check-code', {
+    fetch('/api/check-code', {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email: email.trim(), code }),
     }).then(r=>r.json()).then(res => {
@@ -1359,7 +1548,7 @@ function AuthScreen({ onAuth }) {
     const isDevMode = authStep === 'verify-dev';
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:72,height:72,borderRadius:22,background:'linear-gradient(135deg,var(--brand-500),var(--brand-300))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(249,115,22,.30)'}}>
+        <div style={{width:72,height:72,borderRadius:22,background:'linear-gradient(135deg,var(--brand-500),var(--brand-300))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(78,79,42,.30)'}}>
           {Icon('Mail',34,{stroke:'#fff',sw:1.75})}
         </div>
         <h1 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 8px'}}>Check your email</h1>
@@ -1412,7 +1601,7 @@ function AuthScreen({ onAuth }) {
 
       {/* Branding */}
       <div style={{padding:'24px 24px 20px',textAlign:'center'}}>
-        <div style={{width:64,height:64,borderRadius:20,background:'linear-gradient(135deg,var(--brand-600) 0%,var(--brand-400) 100%)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',boxShadow:'0 8px 28px rgba(249,115,22,.32)'}}>
+        <div style={{width:64,height:64,borderRadius:20,background:'linear-gradient(135deg,var(--brand-600) 0%,var(--brand-400) 100%)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px',boxShadow:'0 8px 28px rgba(78,79,42,.32)'}}>
           {Icon('ShoppingBag',30,{stroke:'#fff',sw:1.75})}
         </div>
         <div style={{fontWeight:900,fontSize:26,letterSpacing:'-0.03em',color:'var(--ink-900)',lineHeight:1.1}}>
@@ -1429,9 +1618,10 @@ function AuthScreen({ onAuth }) {
           {[{value:'signin',label:'Sign In'},{value:'signup',label:'Create Account'}].map(opt=>(
             <button key={opt.value} type="button"
               onClick={()=>{setMode(opt.value);setErrors({});}}
-              style={{flex:1,height:40,border:'none',cursor:'pointer',borderRadius:'calc(var(--radius-lg) - 2px)',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,
-                background: mode===opt.value ? 'var(--surface-card)' : 'transparent',
-                color: mode===opt.value ? 'var(--ink-900)' : 'var(--text-muted)',
+              style={{flex:1,height:40,cursor:'pointer',borderRadius:'calc(var(--radius-lg) - 2px)',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,
+                border: mode===opt.value ? '1px solid #E5D6C1' : 'none',
+                background: mode===opt.value ? '#1E2020' : 'transparent',
+                color: mode===opt.value ? '#fff' : 'var(--text-muted)',
                 boxShadow: mode===opt.value ? 'var(--shadow-sm)' : 'none',
                 transition:'all var(--dur-base) var(--ease-spring)',
               }}>
@@ -1451,15 +1641,15 @@ function AuthScreen({ onAuth }) {
               {AVATARS.map(av => {
                 const on = selAvatar===av.id;
                 return (
-                  <button key={av.id} type="button" onClick={()=>setSelAvatar(av.id)} style={{
-                    flexShrink:0,width:52,height:52,borderRadius:'var(--radius-lg)',
+                  <button key={av.id} type="button" onClick={()=>setSelAvatar(av.id)} aria-label={av.label} style={{
+                    flexShrink:0,width:52,height:52,borderRadius:'50%',overflow:'hidden',
                     border:'2.5px solid '+(on?'var(--accent)':'transparent'),
                     background:on?'var(--brand-50)':'var(--surface-sunken)',
-                    fontSize:26,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
+                    padding:0,fontSize:26,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
                     boxShadow:on?'var(--shadow-focus)':'none',
                     transition:'all var(--dur-base) var(--ease-spring)',
                   }}>
-                    {av.emoji}
+                    <img src={av.emoji} alt={av.label} style={{width:'100%',height:'100%',objectFit:'cover'}} />
                   </button>
                 );
               })}
@@ -1522,7 +1712,7 @@ function HelpScreen({ onBack }) {
   const [open, setOpen] = useState(null);
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,253,249,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Help & FAQ</h1>
@@ -1585,7 +1775,7 @@ function FeedbackScreen({ onBack }) {
   if (sent) {
     return (
       <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 28px',textAlign:'center'}}>
-        <div style={{width:80,height:80,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(249,115,22,.20)'}}>
+        <div style={{width:80,height:80,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(78,79,42,.20)'}}>
           {Icon('CheckCircle',40,{stroke:'var(--accent)'})}
         </div>
         <h2 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>Thanks for your feedback!</h2>
@@ -1599,7 +1789,7 @@ function FeedbackScreen({ onBack }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,253,249,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Send Feedback</h1>
@@ -1621,7 +1811,7 @@ function FeedbackScreen({ onBack }) {
                   display:'flex',alignItems:'center',gap:10,padding:'14px 16px',
                   background: on ? 'var(--accent)' : 'var(--surface-card)',
                   borderRadius:'var(--radius-xl)',border:'none',cursor:'pointer',textAlign:'left',
-                  boxShadow: on ? '0 4px 14px rgba(249,115,22,.35)' : 'var(--shadow-sm)',
+                  boxShadow: on ? '0 4px 14px rgba(78,79,42,.35)' : 'var(--shadow-sm)',
                   transition:'all var(--dur-fast)',
                 }}>
                   <span style={{display:'inline-flex',color: on ? '#fff' : 'var(--accent)'}}>
@@ -1674,7 +1864,7 @@ function PrivacyScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,253,249,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Privacy Policy</h1>
@@ -1716,11 +1906,11 @@ function PrivacyScreen({ onBack }) {
 }
 
 // ── Account Screen ─────────────────────────────────────────────────────────────
-function AccountScreen({ radiusMi, setRadiusMi, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0 }) {
+function AccountScreen({ radiusMi, setRadiusMi, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough }) {
   const [name, setName] = useState(authUser?.name || 'Rummager');
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
   const [zip, setZip] = useState('90601');
-  const [saleTypes, setSaleTypes] = useState({estate:true,yard:true,thrift:true,moving:true});
+  const [saleTypes, setSaleTypes] = useState({estate:true,yard:true,moving:true});
   const [push, setPush] = useState(true);
   const [newSales, setNewSales] = useState(true);
   const [reminders, setReminders] = useState(true);
@@ -1810,6 +2000,9 @@ function AccountScreen({ radiusMi, setRadiusMi, authUser, onSignOut, onUpdateUse
           <ListRow first icon={Icon('Bell',18)} label="Push notifications" trailing={<Switch checked={push} onChange={setPush} />} />
           <ListRow icon={Icon('Sparkles',18)} label="New sales nearby" sublabel="Within your radius" trailing={<Switch checked={newSales} onChange={setNewSales} />} />
           <ListRow icon={Icon('Clock',18)} label="Sale reminders" sublabel="1 hour before saved sales" trailing={<Switch checked={reminders} onChange={setReminders} />} />
+          {onOpenNotifications && (
+            <ListRow icon={Icon('BellRing',18)} label="View notifications" trailing={chev} onClick={onOpenNotifications} />
+          )}
         </Card>
 
         {/* My Listings */}
@@ -1872,6 +2065,9 @@ function AccountScreen({ radiusMi, setRadiusMi, authUser, onSignOut, onUpdateUse
           <ListRow first icon={Icon('CircleHelp',18)} label="Help & FAQ" trailing={chev} onClick={()=>setPage('help')} />
           <ListRow icon={Icon('MessageSquare',18)} label="Send feedback" trailing={chev} onClick={()=>setPage('feedback')} />
           <ListRow icon={Icon('Shield',18)} label="Privacy" trailing={chev} onClick={()=>setPage('privacy')} />
+          {onReplayWalkthrough && (
+            <ListRow icon={Icon('Sparkles',18)} label="Replay app tutorial" trailing={chev} onClick={onReplayWalkthrough} />
+          )}
         </Card>
         <div style={{marginTop:16}}>
           <Card padded={false}>
@@ -1942,14 +2138,13 @@ function AccountScreen({ radiusMi, setRadiusMi, authUser, onSignOut, onUpdateUse
                       transition:'outline var(--dur-fast)',
                     }}>
                     <span style={{
-                      width:48,height:48,borderRadius:'50%',
+                      width:48,height:48,borderRadius:'50%',overflow:'hidden',
                       background: sel ? 'var(--accent-soft)' : 'var(--surface-sunken)',
                       display:'flex',alignItems:'center',justifyContent:'center',
                       fontSize:26,lineHeight:1,
                       border: sel ? '2px solid var(--accent)' : '2px solid var(--border-default)',
                       transition:'all var(--dur-fast)',
-                    }}>{av.emoji}</span>
-                    <span style={{fontFamily:'var(--font-sans)',fontSize:10,color: sel?'var(--accent)':'var(--text-faint)',fontWeight: sel?700:400}}>{av.label}</span>
+                    }}><img src={av.emoji} alt={av.label} style={{width:'100%',height:'100%',objectFit:'cover'}} /></span>
                   </button>
                 );
               })}
@@ -2069,46 +2264,791 @@ function FiltersSheet({ onClose, radiusMi, setRadiusMi, count }) {
   );
 }
 
-function DetailScreen({ sale, onBack, onToggleSave }) {
-  const s = sale;
-  const [reminded, setReminded] = useState(() => !!getReminders()[sale.id]);
-  const [toast, setToast] = useState(null);
-  const countdown = useCountdown(s.dateLabel, s.timeLabel);
+// ── Trip routing helpers ──────────────────────────────────────────────────────
+function fmtDist(m) {
+  const ft = Math.round(m * 3.281);
+  if (ft < 1000) return `${ft} ft`;
+  return `${(m / 1609.34).toFixed(1)} mi`;
+}
+function fmtTime(s) {
+  const m = Math.round(s / 60);
+  if (m < 60) return `${m} min`;
+  return `${Math.floor(m / 60)}h ${m % 60}m`;
+}
+function maneuverIcon(type, modifier) {
+  if (type === 'arrive') return 'MapPin';
+  if (type === 'depart') return 'Navigation';
+  if (type === 'roundabout' || type === 'rotary') return 'RefreshCw';
+  if (modifier === 'uturn') return 'RotateCcw';
+  if (modifier === 'slight left' || modifier === 'left' || modifier === 'sharp left') return 'ArrowLeft';
+  if (modifier === 'slight right' || modifier === 'right' || modifier === 'sharp right') return 'ArrowRight';
+  return 'ArrowUp';
+}
+function maneuverText(step) {
+  const { type, modifier } = step.maneuver;
+  const road = step.name || 'the road';
+  if (type === 'depart') return `Head ${modifier || 'forward'} on ${road}`;
+  if (type === 'arrive') return 'Arrive at stop';
+  if (type === 'turn') return `Turn ${modifier || ''} onto ${road}`;
+  if (type === 'new name') return `Continue onto ${road}`;
+  if (type === 'continue') return `Continue on ${road}`;
+  if (type === 'merge') return `Merge onto ${road}`;
+  if (type === 'fork') return `Keep ${modifier || 'straight'} toward ${road}`;
+  if (type === 'end of road') return `Turn ${modifier || ''} onto ${road}`;
+  if (type === 'roundabout' || type === 'rotary') {
+    const exit = step.maneuver.exit ? ` (exit ${step.maneuver.exit})` : '';
+    return `Take the roundabout${exit} onto ${road}`;
+  }
+  return `Continue on ${road}`;
+}
 
-  const openDirections = () => {
-    const addr = [s.address, s.neighborhood].filter(Boolean).join(', ');
-    const q = encodeURIComponent(addr);
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-    window.open(isIOS ? `maps://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
+async function fetchOsrmRoute(waypoints) {
+  // waypoints: [{lat,lng}, ...]
+  const coords = waypoints.map(p => `${p.lng},${p.lat}`).join(';');
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('OSRM error');
+  const data = await r.json();
+  if (!data.routes?.length) throw new Error('No route');
+  const route = data.routes[0];
+  return {
+    geometry: route.geometry.coordinates,   // [[lng,lat], ...]
+    legs: route.legs,
+    totalDist: route.distance,
+    totalTime: route.duration,
+  };
+}
+
+// Distance in meters between two {lat,lng} points
+function geoDistM(a, b) {
+  const R = 6371000, rad = Math.PI / 180;
+  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
+  const sin = Math.sin(dLat / 2), cos = Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2);
+  return 2 * R * Math.asin(Math.sqrt(sin * sin + cos * cos));
+}
+
+// ── Trip Map (Leaflet) ────────────────────────────────────────────────────────
+function TripMap({ stops, userLoc, livePos, routeCoords, height = 260, interactive = true }) {
+  const divRef = useRef(null);
+  const mapRef = useRef(null);
+  const liveDotRef = useRef(null);
+
+  // Init map once
+  useEffect(() => {
+    if (!divRef.current || !window.L || mapRef.current) return;
+    mapRef.current = window.L.map(divRef.current, { zoomControl: false, attributionControl: false, dragging: interactive, scrollWheelZoom: interactive });
+    window.L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapRef.current);
+    return () => { if (mapRef.current) { mapRef.current.remove(); mapRef.current = null; } };
+  }, []);
+
+  // Redraw stops + route when data changes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !window.L) return;
+    map.eachLayer(l => { if (!(l instanceof window.L.TileLayer)) map.removeLayer(l); });
+    liveDotRef.current = null;
+
+    const bounds = [];
+
+    // Route polyline (real roads)
+    if (routeCoords?.length > 1) {
+      const latlngs = routeCoords.map(([lng, lat]) => [lat, lng]);
+      window.L.polyline(latlngs, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(map);
+      latlngs.forEach(p => bounds.push(p));
+    }
+
+    // Origin dot (initial userLoc, greyed when live tracking)
+    if (userLoc && !livePos) {
+      window.L.circleMarker([userLoc.lat, userLoc.lng], {
+        radius: 9, fillColor: '#3b82f6', color: '#fff', weight: 2.5, fillOpacity: 1
+      }).addTo(map);
+      bounds.push([userLoc.lat, userLoc.lng]);
+    }
+
+    // Stop markers
+    stops.forEach((s, i) => {
+      if (!s.lat || !s.lng) return;
+      const icon = window.L.divIcon({
+        html: `<div style="background:#f97316;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-family:sans-serif">${i + 1}</div>`,
+        iconSize: [30, 30], iconAnchor: [15, 15], className: ''
+      });
+      window.L.marker([s.lat, s.lng], { icon }).addTo(map);
+      bounds.push([s.lat, s.lng]);
+    });
+
+    // Live GPS dot
+    if (livePos) {
+      liveDotRef.current = window.L.circleMarker([livePos.lat, livePos.lng], {
+        radius: 10, fillColor: '#3b82f6', color: '#fff', weight: 2.5, fillOpacity: 1
+      }).addTo(map);
+      bounds.push([livePos.lat, livePos.lng]);
+    }
+
+    if (bounds.length > 0) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 });
+    else map.setView([33.979, -118.032], 12);
+  }, [stops, userLoc, routeCoords]);
+
+  // Smoothly move live dot without redrawing everything
+  useEffect(() => {
+    if (!liveDotRef.current || !livePos) return;
+    liveDotRef.current.setLatLng([livePos.lat, livePos.lng]);
+    mapRef.current?.panTo([livePos.lat, livePos.lng], { animate: true, duration: 0.8 });
+  }, [livePos?.lat, livePos?.lng]);
+
+  return <div ref={divRef} style={{ width: '100%', height, borderRadius: 'var(--radius-xl)', overflow: 'hidden' }} />;
+}
+
+// ── Trip Planner Panel ────────────────────────────────────────────────────────
+function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClose, onOpenSale, asTab=false }) {
+  const [userLoc, setUserLoc]       = useState(null);
+  const [livePos, setLivePos]       = useState(null);
+  const [locError, setLocError]     = useState(null);
+  const [route, setRoute]           = useState(null);   // {geometry, legs, totalDist, totalTime}
+  const [routeLoading, setRouteLoading] = useState(false);
+  const [routeError, setRouteError] = useState(null);
+  const [tab, setTab]               = useState('stops'); // 'stops' | 'directions'
+  const [navMode, setNavMode]       = useState(false);
+  const [voiceOn, setVoiceOn]       = useState(true);
+  const [currentLeg, setCurrentLeg] = useState(0);
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
+  const [arrived, setArrived]       = useState(false);
+  const watchRef                    = useRef(null);
+  const routeRef                    = useRef(null);
+  const legRef                      = useRef(0);
+  const stepRef                     = useRef(0);
+  const arrivedRef                  = useRef(false);
+  const voiceRef                    = useRef(true);
+  const approachAnnouncedRef        = useRef(-1); // step idx of last approach announcement
+
+  // Keep voice ref in sync so GPS callback can read it without stale closure
+  useEffect(() => { voiceRef.current = voiceOn; }, [voiceOn]);
+
+  // Short two-note "arrival" chime, synthesized so no external audio file is needed.
+  const audioCtxRef = useRef(null);
+  const playArrivalChime = () => {
+    try {
+      const Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      const ctx = audioCtxRef.current || (audioCtxRef.current = new Ctx());
+      if (ctx.state === 'suspended') ctx.resume();
+      const now = ctx.currentTime;
+      [{freq:880, start:0}, {freq:1318.5, start:0.14}].forEach(({freq, start}) => {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        gain.gain.setValueAtTime(0, now + start);
+        gain.gain.linearRampToValueAtTime(0.28, now + start + 0.02);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + start + 0.45);
+        osc.connect(gain).connect(ctx.destination);
+        osc.start(now + start);
+        osc.stop(now + start + 0.5);
+      });
+    } catch (_) {}
   };
 
+  const speak = (text) => {
+    if (!voiceRef.current || !window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const voices = window.speechSynthesis.getVoices();
+    const female =
+      voices.find(v => /\bsamantha\b/i.test(v.name)) ||
+      voices.find(v => /\bkaren\b/i.test(v.name)) ||
+      voices.find(v => /female/i.test(v.name)) ||
+      voices.find(v => /\b(victoria|moira|tessa|fiona|allison|ava|susan|zira)\b/i.test(v.name)) ||
+      voices.find(v => /google us english/i.test(v.name)) ||
+      voices.find(v => v.lang === 'en-US') ||
+      null;
+    if (female) u.voice = female;
+    u.rate = 1.05; u.pitch = 1.1; u.volume = 1.0;
+    window.speechSynthesis.speak(u);
+  };
+
+  const tripSales = allSales.filter(s => tripIds.includes(s.id));
+  const ordered   = userLoc
+    ? [...tripSales].sort((a, b) =>
+        Math.hypot((a.lat||0)-userLoc.lat,(a.lng||0)-userLoc.lng) -
+        Math.hypot((b.lat||0)-userLoc.lat,(b.lng||0)-userLoc.lng))
+    : tripSales;
+
+  // Get user location once on open
+  useEffect(() => {
+    if (!navigator.geolocation) { setLocError('Location unavailable'); return; }
+    navigator.geolocation.getCurrentPosition(
+      pos => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      ()  => setLocError('Could not get your location')
+    );
+    return () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current); };
+  }, []);
+
+  // Fetch OSRM route whenever stops or userLoc change
+  useEffect(() => {
+    const stops = ordered.filter(s => s.lat && s.lng);
+    if (stops.length < 1) { setRoute(null); return; }
+    const waypoints = userLoc ? [userLoc, ...stops] : stops;
+    if (waypoints.length < 2) { setRoute(null); return; }
+    setRouteLoading(true); setRouteError(null);
+    fetchOsrmRoute(waypoints)
+      .then(r => { setRoute(r); routeRef.current = r; setRouteLoading(false); })
+      .catch(() => { setRouteError('Could not load route'); setRouteLoading(false); });
+  }, [tripIds, userLoc?.lat, userLoc?.lng]);
+
+  // Keep refs in sync so the GPS callback can read current values without stale closure
+  useEffect(() => { legRef.current = currentLeg; }, [currentLeg]);
+  useEffect(() => { stepRef.current = currentStepIdx; }, [currentStepIdx]);
+  useEffect(() => { arrivedRef.current = arrived; }, [arrived]);
+
+  // Start/stop GPS watch when navMode changes
+  useEffect(() => {
+    if (!navMode) {
+      if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
+      window.speechSynthesis?.cancel();
+      setLivePos(null); setCurrentLeg(0); setCurrentStepIdx(0); setArrived(false);
+      approachAnnouncedRef.current = -1;
+      return;
+    }
+    if (!navigator.geolocation) return;
+    // Announce navigation start
+    if (ordered[0]) speak(`Starting navigation. Heading to ${ordered[0].title}.`);
+
+    watchRef.current = navigator.geolocation.watchPosition(pos => {
+      const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      setLivePos(p);
+      if (arrivedRef.current) return;
+
+      const r = routeRef.current;
+      const leg = r?.legs?.[legRef.current];
+      if (!leg) return;
+
+      // Approach announcement: within 300m of next step, speak "In X, [instruction]"
+      const nextStep = leg.steps[stepRef.current + 1];
+      if (nextStep && approachAnnouncedRef.current !== stepRef.current + 1) {
+        const [nlng, nlat] = nextStep.maneuver.location;
+        const dist = geoDistM(p, { lat: nlat, lng: nlng });
+        if (dist < 320 && dist > 35) {
+          approachAnnouncedRef.current = stepRef.current + 1;
+          speak(`In ${fmtDist(dist)}, ${maneuverText(nextStep)}`);
+        }
+        // Advance step when within 30m
+        if (dist < 30) {
+          const newIdx = stepRef.current + 1;
+          stepRef.current = newIdx;
+          approachAnnouncedRef.current = newIdx;
+          setCurrentStepIdx(newIdx);
+          // Speak the step we just entered
+          const stepAfter = leg.steps[newIdx + 1];
+          if (stepAfter) speak(maneuverText(leg.steps[newIdx]));
+        }
+      }
+
+      // Detect arrival at the stop (within 80m)
+      const dest = ordered[legRef.current];
+      if (dest?.lat && dest?.lng && geoDistM(p, { lat: dest.lat, lng: dest.lng }) < 80) {
+        arrivedRef.current = true;
+        setArrived(true);
+        playArrivalChime();
+        const next = ordered[legRef.current + 1];
+        if (next) speak(`You have arrived at ${dest.title || 'your stop'}. Your next stop is ${next.title}.`);
+        else speak(`You have arrived at ${dest.title || 'your final stop'}. Trip complete!`);
+      }
+    }, () => {}, { enableHighAccuracy: true, maximumAge: 3000 });
+    return () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current); };
+  }, [navMode]);
+
+  const goToNextStop = () => {
+    const nextLeg = currentLeg + 1;
+    if (nextLeg < ordered.length) {
+      setCurrentLeg(nextLeg);          legRef.current = nextLeg;
+      setCurrentStepIdx(0);            stepRef.current = 0;
+      setArrived(false);               arrivedRef.current = false;
+      approachAnnouncedRef.current = -1;
+      speak(`Heading to stop ${nextLeg + 1}, ${ordered[nextLeg]?.title || ''}.`);
+    } else {
+      setNavMode(false);
+    }
+  };
+
+  const legSteps    = route?.legs?.[currentLeg]?.steps || [];
+  const currentStep = legSteps[currentStepIdx] || legSteps[0];
+
+  // ── Navigate mode (full-screen map + HUD) ────────────────────────────────
+  if (navMode) {
+    const destStop   = ordered[currentLeg];
+    const nextStop   = ordered[currentLeg + 1];
+    const legDist    = route?.legs?.[currentLeg]?.distance;
+    const legTime    = route?.legs?.[currentLeg]?.duration;
+    const tripDone   = arrived && currentLeg >= ordered.length - 1;
+    // All remaining steps from the current position onward
+    const remaining  = legSteps.slice(currentStepIdx).filter(s => s.distance > 0 || s.maneuver.type === 'arrive');
+
+    return (
+      <div style={{ position: 'absolute', inset: 0, zIndex: 65, display: 'flex', flexDirection: 'column' }}>
+
+        {/* ── Map (top ~55%) ── */}
+        <div style={{ flex: '0 0 55%', position: 'relative' }}>
+          <TripMap stops={ordered} userLoc={userLoc} livePos={livePos} routeCoords={route?.geometry} height="100%" interactive />
+
+          {/* ── Map overlay buttons — zIndex 1100 beats Leaflet's max 1000 ── */}
+          {/* Back / exit */}
+          <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 1100 }}>
+            <button type="button" onClick={() => setNavMode(false)}
+              style={{ width: 44, height: 44, borderRadius: '50%', background: '#fff', border: '2px solid rgba(0,0,0,.15)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 12px rgba(0,0,0,.3)' }}>
+              {Icon('ChevronDown', 24, { stroke: '#000', strokeWidth: 2.5 })}
+            </button>
+          </div>
+
+          {/* Voice toggle */}
+          <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 1100 }}>
+            <button type="button"
+              onClick={() => {
+                const next = !voiceOn;
+                setVoiceOn(next);
+                if (next) { voiceRef.current = true; speak(currentStep ? maneuverText(currentStep) : `Heading to stop ${currentLeg + 1}`); }
+                else window.speechSynthesis?.cancel();
+              }}
+              style={{ width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 12px rgba(0,0,0,.3)',
+                background: voiceOn ? 'var(--brand-500)' : '#fff',
+                border: voiceOn ? '2px solid var(--brand-600)' : '2px solid rgba(0,0,0,.15)',
+                color: voiceOn ? '#fff' : '#000' }}>
+              {Icon(voiceOn ? 'Volume2' : 'VolumeX', 22, { stroke: 'currentColor', strokeWidth: 2.5 })}
+            </button>
+          </div>
+
+          {/* Current instruction banner */}
+          {!arrived && (
+            <div style={{ position: 'absolute', top: 66, left: 14, right: 14, zIndex: 1050 }}>
+              <div style={{ background: 'rgba(255,251,247,.96)', backdropFilter: 'blur(16px)', borderRadius: 'var(--radius-xl)', padding: '11px 14px', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 10 }}>
+                <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--brand-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {Icon(maneuverIcon(currentStep?.maneuver?.type, currentStep?.maneuver?.modifier), 18, { stroke: '#fff' })}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink-900)', lineHeight: 1.2 }}>
+                    {currentStep ? maneuverText(currentStep) : `Head to Stop ${currentLeg + 1}`}
+                  </div>
+                  {currentStep?.distance > 0 && (
+                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--brand-600)', marginTop: 2 }}>{fmtDist(currentStep.distance)}</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Stop counter pill */}
+          <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 10 }}>
+            <div style={{ background: 'rgba(28,25,23,.7)', backdropFilter: 'blur(8px)', color: '#fff', borderRadius: 'var(--radius-pill)', padding: '4px 12px', fontSize: 12, fontWeight: 700 }}>
+              Stop {currentLeg + 1} of {ordered.length}
+            </div>
+          </div>
+        </div>
+
+        {/* ── Bottom panel (remaining ~45%) ── */}
+        <div style={{ flex: 1, background: 'var(--paper)', borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+
+          {/* Destination header */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px 10px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
+            {destStop?.images?.[0]
+              ? <img src={proxyImgUrl(destStop.images[0])} style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }} />
+              : <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{Icon('MapPin', 18, { stroke: 'var(--text-faint)' })}</div>
+            }
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-600)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 1 }}>
+                {arrived ? (tripDone ? 'Trip complete' : 'Arrived') : `Heading to Stop ${currentLeg + 1}`}
+              </div>
+              <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{destStop?.title}</div>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-muted)' }}>
+                {arrived ? destStop?.address || destStop?.neighborhood : legDist != null ? `${fmtDist(legDist)} · about ${fmtTime(legTime)}` : destStop?.dateLabel}
+              </div>
+            </div>
+            {arrived && (
+              <button type="button" onClick={() => setNavMode(false)}
+                style={{ padding: '6px 12px', borderRadius: 'var(--radius-pill)', background: 'var(--surface-sunken)', border: '1.5px solid var(--border-default)', fontWeight: 700, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0 }}>
+                End
+              </button>
+            )}
+          </div>
+
+          {/* Arrived card OR step list */}
+          {arrived ? (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 20px 28px', gap: 14 }}>
+              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--green-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {Icon('CircleCheck', 28, { stroke: 'var(--green-600)' })}
+              </div>
+              {tripDone ? (
+                <>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 900, fontSize: 20, color: 'var(--ink-900)', letterSpacing: '-0.02em' }}>Trip complete!</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>You visited all {ordered.length} stops.</div>
+                  </div>
+                  <Btn variant="primary" size="lg" fullWidth onClick={() => setNavMode(false)}>Done</Btn>
+                </>
+              ) : (
+                <>
+                  <div style={{ textAlign: 'center' }}>
+                    <div style={{ fontWeight: 900, fontSize: 20, color: 'var(--ink-900)', letterSpacing: '-0.02em' }}>You've arrived!</div>
+                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>
+                      Next: <strong>{nextStop?.title}</strong>
+                      {route?.legs?.[currentLeg + 1] && ` · ${fmtDist(route.legs[currentLeg + 1].distance)}`}
+                    </div>
+                  </div>
+                  <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation', 18)} onClick={goToNextStop}>
+                    Head to Stop {currentLeg + 2}
+                  </Btn>
+                </>
+              )}
+            </div>
+          ) : (
+            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 24px' }}>
+              {remaining.map((step, i) => {
+                const isCurrent = i === 0;
+                return (
+                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '9px 0',
+                    borderBottom: i < remaining.length - 1 ? '1px solid var(--border-default)' : 'none',
+                    opacity: isCurrent ? 1 : 0.55 }}>
+                    <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      background: isCurrent ? 'var(--brand-500)' : 'var(--surface-sunken)',
+                      marginTop: 1 }}>
+                      {Icon(maneuverIcon(step.maneuver.type, step.maneuver.modifier), 15,
+                        { stroke: isCurrent ? '#fff' : 'var(--text-muted)' })}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, paddingTop: 3 }}>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: isCurrent ? 700 : 500, color: isCurrent ? 'var(--ink-900)' : 'var(--text-secondary)', lineHeight: 1.3 }}>
+                        {maneuverText(step)}
+                      </div>
+                    </div>
+                    {step.distance > 0 && (
+                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrent ? 'var(--brand-600)' : 'var(--text-faint)', paddingTop: 5, flexShrink: 0 }}>
+                        {fmtDist(step.distance)}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // ── Plan mode ────────────────────────────────────────────────────────────
+  const planContent = (
+    <>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: asTab ? '8px 16px 8px' : '16px 16px 8px' }}>
+        <div>
+          {asTab && <div className="rmg-eyebrow" style={{ marginBottom: 2 }}>Navigate your day</div>}
+          <div style={{ fontWeight: 900, fontSize: asTab ? 28 : 20, letterSpacing: '-0.03em', color: 'var(--ink-900)', lineHeight: 1.05 }}>My Trip</div>
+          <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text-muted)', marginTop: 1 }}>
+            {routeLoading ? 'Calculating route…'
+              : route ? `${fmtDist(route.totalDist)} · ${fmtTime(route.totalTime)} · ${ordered.length} stops`
+              : ordered.length === 0 ? 'Add sales to plan a route'
+              : `${ordered.length} ${ordered.length === 1 ? 'stop' : 'stops'} · sorted nearest first`}
+          </div>
+        </div>
+        {!asTab && <IconButton icon={Icon('X', 20)} variant="ghost" aria-label="Close" onClick={onClose} />}
+      </div>
+
+        {/* Map */}
+        <div style={{ padding: '0 14px 10px' }}>
+          {tripSales.length > 0
+            ? <TripMap stops={ordered} userLoc={userLoc} routeCoords={route?.geometry} />
+            : <div style={{ height: 200, borderRadius: 'var(--radius-xl)', background: 'var(--surface-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 8 }}>
+                {Icon('Route', 36, { stroke: 'var(--text-faint)' })}
+                <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--text-muted)' }}>Your route will appear here</div>
+              </div>
+          }
+        </div>
+
+        {/* Tabs (only when stops exist) */}
+        {tripSales.length > 0 && (
+          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-default)', margin: '0 14px' }}>
+            {[['stops','Stops'],['directions','Directions']].map(([k,label]) => (
+              <button key={k} type="button" onClick={() => setTab(k)}
+                style={{ flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
+                  fontWeight: 700, fontSize: 14,
+                  color: tab === k ? 'var(--brand-600)' : 'var(--text-muted)',
+                  borderBottom: tab === k ? '2px solid var(--brand-500)' : '2px solid transparent',
+                  marginBottom: -1 }}>
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Content */}
+        <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px' }}>
+          {tripSales.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '24px 0 28px' }}>
+              <div style={{ fontSize: 40, marginBottom: 8 }}>🗺️</div>
+              <div style={{ fontWeight: 700, fontSize: 16, color: 'var(--ink-900)', marginBottom: 4 }}>No stops yet</div>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                Tap <strong>Add to trip</strong> on any sale card to build your route.
+              </div>
+            </div>
+
+          ) : tab === 'stops' ? (
+            ordered.map((s, i) => (
+              <div key={s.id} onClick={() => { onOpenSale(s.id); onClose(); }}
+                style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
+                <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--brand-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{i + 1}</div>
+                {s.images?.[0]
+                  ? <img src={proxyImgUrl(s.images[0])} style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }} />
+                  : <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Icon('Image', 18, { stroke: 'var(--text-faint)' })}</div>
+                }
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
+                    {route?.legs?.[i] ? `${fmtDist(route.legs[i].distance)} · ${fmtTime(route.legs[i].duration)}` : `${s.distanceMi} mi away`} · {s.dateLabel}
+                  </div>
+                </div>
+                <button type="button" onClick={e => { e.stopPropagation(); onToggleTrip(s.id); }}
+                  style={{ width: 30, height: 30, borderRadius: '50%', border: '1.5px solid var(--border-strong)', background: 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 }}>
+                  {Icon('X', 13, { stroke: 'var(--text-muted)' })}
+                </button>
+              </div>
+            ))
+
+          ) : routeError ? (
+            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: 14 }}>
+              {routeError}
+            </div>
+          ) : routeLoading ? (
+            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: 14 }}>
+              Loading directions…
+            </div>
+          ) : (
+            // Directions tab: steps grouped by leg
+            route?.legs?.map((leg, li) => (
+              <div key={li}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 6px' }}>
+                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--brand-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0 }}>{li + 1}</div>
+                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink-900)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ordered[li]?.title || `Stop ${li + 1}`}</div>
+                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{fmtDist(leg.distance)} · {fmtTime(leg.duration)}</div>
+                </div>
+                {leg.steps.filter(step => step.distance > 0 || step.maneuver.type === 'arrive').map((step, si) => (
+                  <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0 7px 8px', borderLeft: '2px solid var(--border-default)' }}>
+                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: step.maneuver.type === 'arrive' ? 'var(--brand-50)' : 'var(--surface-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      {Icon(maneuverIcon(step.maneuver.type, step.maneuver.modifier), 14, { stroke: step.maneuver.type === 'arrive' ? 'var(--brand-600)' : 'var(--text-muted)' })}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0, paddingTop: 4 }}>
+                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.3 }}>{maneuverText(step)}</div>
+                      {step.distance > 0 && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{fmtDist(step.distance)}</div>}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+          <div style={{ height: 8 }} />
+        </div>
+
+        {/* Bottom actions */}
+        <div style={{ padding: '12px 14px 36px', borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {locError && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--amber-bg)', borderRadius: 'var(--radius-lg)', padding: '10px 12px' }}>
+              {Icon('AlertTriangle', 14, { stroke: 'var(--amber-600)' })}
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--amber-600)' }}>{locError}</span>
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: 10 }}>
+            {tripSales.length > 0 && (
+              <Btn variant="ghost" size="lg" leadingIcon={Icon('Trash2', 16)} onClick={onClearTrip}>Clear</Btn>
+            )}
+            <Btn variant="primary" size="lg" fullWidth
+              leadingIcon={Icon('Navigation', 18)}
+              style={{ opacity: (tripSales.length && route) ? 1 : 0.5 }}
+              onClick={() => {
+                if (tripSales.length && route) {
+                  // Create/unlock the AudioContext inside this click handler so the
+                  // browser's autoplay gate is satisfied before the arrival chime fires later.
+                  try {
+                    const Ctx = window.AudioContext || window.webkitAudioContext;
+                    if (Ctx) { const ctx = audioCtxRef.current || (audioCtxRef.current = new Ctx()); if (ctx.state === 'suspended') ctx.resume(); }
+                  } catch (_) {}
+                  setNavMode(true);
+                }
+              }}>
+              Start Route
+            </Btn>
+          </div>
+        </div>
+    </>
+  );
+
+  if (asTab) {
+    return (
+      <div style={{ position: 'absolute', inset: 0, background: 'var(--surface-app)', display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+        <div style={{ paddingTop: 'var(--safe-top)' }} />
+        {planContent}
+        <div style={{ height: 90 }} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ position: 'absolute', inset: 0, zIndex: 65, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' }}>
+      <div onClick={onClose} style={{ position: 'absolute', inset: 0, background: 'rgba(28,25,23,.45)', backdropFilter: 'blur(3px)' }} />
+      <div style={{ position: 'relative', background: 'var(--paper)', borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0', boxShadow: 'var(--shadow-sheet)', maxHeight: '92vh', display: 'flex', flexDirection: 'column' }}>
+        {planContent}
+      </div>
+    </div>
+  );
+}
+
+// Shared "open directions" behavior for a sale — used by the sale detail screen
+// as well as the items gallery / item detail screens.
+function openSaleDirections(s, onNavigateTo) {
+  if (onNavigateTo) { onNavigateTo(); return; }
+  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  // Prefer the precise pin coordinates over the address text — most sources
+  // (Craigslist, OfferUp, Facebook) never expose a full street address, only
+  // a city/neighborhood, which makes a text search land nowhere near the
+  // actual location. We always have an accurate lat/lng for the map pin.
+  if (s.lat != null && s.lng != null) {
+    const dest = `${s.lat},${s.lng}`;
+    window.open(isIOS ? `maps://maps.apple.com/?daddr=${dest}` : `https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
+    return;
+  }
+  const addr = [s.address, s.neighborhood].filter(Boolean).join(', ');
+  const q = encodeURIComponent(addr);
+  window.open(isIOS ? `maps://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
+}
+
+// Shared "remind me" state/behavior for a sale — used by the sale detail screen
+// and the item detail screen (reminders are always set at the sale level).
+function useSaleReminder(sale, onChange) {
+  const [reminded, setReminded] = useState(() => !!getReminders()[sale.id]);
+  const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
 
   const toggleRemind = () => {
     if (reminded) {
-      removeReminder(s.id);
+      removeReminder(sale.id);
       setReminded(false);
       showToast('Reminder removed');
+      onChange?.();
       return;
     }
     if (!('Notification' in window)) { showToast('Notifications not supported in this browser'); return; }
     Notification.requestPermission().then(perm => {
       if (perm === 'granted') {
-        const fireAt = scheduleNotification(s);
-        saveReminder(s.id, fireAt ? fireAt.getTime() : Date.now());
+        const fireAt = scheduleNotification(sale);
+        saveReminder(sale.id, fireAt ? fireAt.getTime() : Date.now());
         setReminded(true);
-        const start = parseSaleStart(s.dateLabel, s.timeLabel);
+        const start = parseSaleStart(sale.dateLabel, sale.timeLabel);
         const timeStr = start ? start.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : 'start time';
         showToast("Reminder set! We'll notify you 30 min before " + timeStr);
+        onChange?.();
       } else {
         showToast('Notifications blocked — enable them in your browser settings');
       }
     });
   };
 
+  return { reminded, toggleRemind, toast };
+}
+
+// ── Share sheet ─────────────────────────────────────────────────────────────────
+function ShareSheet({ sale, onClose }) {
+  const [toast, setToast] = useState(null);
+  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
+
+  const url = sale?.url || window.location.href;
+  const metaLine = [sale?.dateLabel, sale?.timeLabel, sale?.address || sale?.neighborhood].filter(Boolean).join(' · ');
+  const shareText = sale?.title ? `${sale.title} — ${metaLine}` : metaLine;
+
+  const openWindow = (u) => window.open(u, '_blank', 'noopener,noreferrer,width=600,height=640');
+
+  const copyLink = async () => {
+    try { await navigator.clipboard.writeText(`${shareText}\n${url}`); showToast('Link copied to clipboard'); }
+    catch { showToast('Could not copy — try again'); }
+  };
+
+  const shareTo = (channel) => {
+    switch (channel) {
+      case 'facebook':
+        openWindow(`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`);
+        break;
+      case 'twitter':
+        openWindow(`https://twitter.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(url)}`);
+        break;
+      case 'instagram':
+        // Instagram has no web share-intent API — copy the caption+link and hand off to Instagram.
+        navigator.clipboard?.writeText(`${shareText}\n${url}`).catch(() => {});
+        showToast('Caption copied — paste it into your Instagram post or DM');
+        window.open('https://www.instagram.com/', '_blank', 'noopener,noreferrer');
+        break;
+      case 'chat':
+        // Opens the device's default messaging app with the sale pre-filled.
+        window.open(`sms:?&body=${encodeURIComponent(`${shareText} ${url}`)}`, '_blank');
+        break;
+    }
+  };
+
+  const CHANNELS = [
+    { key:'facebook',  label:'Facebook',  icon:'Facebook',      bg:'#1877F2' },
+    { key:'twitter',   label:'Twitter/X', icon:'Twitter',       bg:'#14171A' },
+    { key:'instagram', label:'Instagram', icon:'Instagram',     bg:'linear-gradient(135deg,#F58529,#DD2A7B 60%,#8134AF)' },
+    { key:'chat',      label:'Message',   icon:'MessageCircle', bg:'var(--secondary)' },
+  ];
+
   return (
-    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{flex:1,overflowY:'auto'}}>
+    <div style={{position:'absolute',inset:0,zIndex:9999,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
+      <div onClick={onClose} style={{position:'absolute',inset:0,background:'rgba(28,25,23,.42)',backdropFilter:'blur(2px)'}} />
+      <div style={{position:'relative',background:'var(--surface-app)',borderTopLeftRadius:'var(--radius-2xl)',borderTopRightRadius:'var(--radius-2xl)',padding:'10px 20px calc(24px + env(safe-area-inset-bottom,0px))',boxShadow:'var(--shadow-sheet)'}}>
+        <div style={{width:36,height:4,borderRadius:2,background:'var(--ink-200)',margin:'2px auto 14px'}} />
+        <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:18,color:'var(--text-primary)',marginBottom:4}}>Share this sale</div>
+        {sale?.title && (
+          <div style={{fontSize:13,color:'var(--text-muted)',marginBottom:16,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{sale.title}</div>
+        )}
+        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:12,marginBottom:8}}>
+          {CHANNELS.map(c => (
+            <button key={c.key} type="button" onClick={()=>shareTo(c.key)} style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,background:'none',border:'none',cursor:'pointer',padding:'6px 0'}}>
+              <span style={{width:52,height:52,borderRadius:'50%',background:c.bg,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)'}}>
+                {Icon(c.icon,22,{stroke:'#fff'})}
+              </span>
+              <span style={{fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-secondary)',fontWeight:600}}>{c.label}</span>
+            </button>
+          ))}
+        </div>
+        <button type="button" onClick={copyLink} style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'13px 4px',background:'none',border:'none',borderTop:'1px solid var(--border-default)',cursor:'pointer',textAlign:'left'}}>
+          <span style={{width:36,height:36,borderRadius:'50%',background:'var(--surface-sunken)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{Icon('Link',17,{stroke:'var(--text-secondary)'})}</span>
+          <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>Copy link</span>
+        </button>
+        {typeof navigator!=='undefined' && navigator.share && (
+          <button type="button" onClick={async ()=>{
+              try { await navigator.share({ title: sale?.title, text: shareText, url }); onClose(); }
+              catch(e) { if (e.name !== 'AbortError') showToast('Could not share'); }
+            }}
+            style={{width:'100%',display:'flex',alignItems:'center',gap:12,padding:'13px 4px',background:'none',border:'none',borderTop:'1px solid var(--border-default)',cursor:'pointer',textAlign:'left'}}>
+            <span style={{width:36,height:36,borderRadius:'50%',background:'var(--surface-sunken)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>{Icon('Share2',17,{stroke:'var(--text-secondary)'})}</span>
+            <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:14,color:'var(--text-primary)'}}>More options…</span>
+          </button>
+        )}
+      </div>
+      {toast && (
+        <div style={{position:'absolute',bottom:110,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',animation:'slideUp .3s var(--ease-out)',zIndex:10000}}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems, onReminderChange }) {
+  const s = sale;
+  const { reminded, toggleRemind, toast } = useSaleReminder(s, onReminderChange);
+  const countdown = useCountdown(s.dateLabel, s.timeLabel);
+  const openDirections = () => openSaleDirections(s, onNavigateTo);
+  const [shareOpen, setShareOpen] = useState(false);
+  // Sources like Craigslist/OfferUp only ever give a city ("Rowland Heights, CA"),
+  // not a real street address — a genuine address has a house number in it.
+  const hasRealAddress = !!(s.address && /\d/.test(s.address));
+
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
+      <div style={{flex:1,overflowY:'auto',overflowX:'hidden'}}>
         <PhotoGallery
           images={s.images}
           type={s.type}
@@ -2117,17 +3057,17 @@ function DetailScreen({ sale, onBack, onToggleSave }) {
           saved={s.saved}
           onSave={()=>onToggleSave(s.id)}
           sale={s}
+          onShare={()=>setShareOpen(true)}
         />
         <div style={{padding:'16px 18px 0'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
             <SaleTypeTag type={s.type} />
             {countdown.status==='live' && <Badge tone="live">Happening now</Badge>}
-            {countdown.label && countdown.status!=='ended' && (
+            {countdown.status==='live' && countdown.label && (
               <span style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 9px',borderRadius:'var(--radius-pill)',
-                background: countdown.status==='live' ? 'var(--success-bg)' : 'var(--brand-50)',
-                color: countdown.status==='live' ? 'var(--success)' : 'var(--brand-600)',
+                background:'var(--success-bg)',color:'var(--success)',
                 fontSize:12,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-                {Icon(countdown.status==='live'?'Clock':'Timer',12,{stroke:'currentColor'})}
+                {Icon('Clock',12,{stroke:'currentColor'})}
                 {countdown.label}
               </span>
             )}
@@ -2166,16 +3106,35 @@ function DetailScreen({ sale, onBack, onToggleSave }) {
           <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)',marginBottom:8}}>About this sale</h2>
           <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.55,color:'var(--text-secondary)'}}>{s.blurb}</p>
         </div>
-        {s.items && s.items.length>0 && (
-          <div style={{padding:'14px 18px 8px'}}>
-            <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)',marginBottom:10}}>What you'll find</h2>
-            <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
-              {s.items.map(it=>(
-                <span key={it} style={{fontFamily:'var(--font-sans)',fontWeight:500,fontSize:13,color:'var(--text-secondary)',background:'var(--surface-card)',boxShadow:'var(--shadow-xs)',padding:'7px 14px',borderRadius:'var(--radius-pill)'}}>{it}</span>
-              ))}
+        {s.items && s.items.length>0 && (() => {
+          // Real listings' items are usually just plain category tags with no
+          // photo — a "See all" link into a gallery of blank placeholder
+          // squares isn't useful, so only offer it when at least one item
+          // actually has a real image worth looking at.
+          const hasItemImages = s.items.some(it => typeof it==='object' && it && it.image);
+          return (
+            <div style={{padding:'14px 18px 8px'}}>
+              {hasItemImages && (
+                <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:8}}>
+                  <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)'}}>What you'll find</h2>
+                  {onOpenItems && (
+                    <button type="button" onClick={onOpenItems} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--accent)',display:'flex',alignItems:'center',gap:2,flexShrink:0}}>
+                      See all {s.items.length} {Icon('ChevronRight',14,{stroke:'currentColor'})}
+                    </button>
+                  )}
+                </div>
+              )}
+              <div style={{display:'flex',gap:8,flexWrap:'wrap'}}>
+                {s.items.map((it,i)=>{
+                  const label = typeof it==='string' ? it : it.name;
+                  return (
+                    <span key={typeof it==='string'?it:(it.id||i)} style={{fontFamily:'var(--font-sans)',fontWeight:500,fontSize:13,color:'var(--text-secondary)',background:'var(--surface-card)',boxShadow:'var(--shadow-xs)',padding:'7px 14px',borderRadius:'var(--radius-pill)'}}>{label}</span>
+                  );
+                })}
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
         {s.host && (
           <div style={{padding:'16px 18px 8px'}}>
             <Card>
@@ -2192,8 +3151,8 @@ function DetailScreen({ sale, onBack, onToggleSave }) {
         )}
         <div style={{height:80}} />
       </div>
-      <div style={{padding:'12px 16px 28px',background:'rgba(255,255,255,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
-        {s.contact && (
+      <div style={{padding:'12px 16px 28px',background:'rgba(230,245,244,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
+        {s.contact ? (
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('MessageCircle',18)}
             onClick={()=>{
               const c = s.contact.trim();
@@ -2203,12 +3162,33 @@ function DetailScreen({ sale, onBack, onToggleSave }) {
             }}>
             Contact Seller
           </Btn>
-        )}
-        <div style={{display:'flex',gap:10}}>
-          <Btn variant="secondary" size="lg" leadingIcon={Icon('Navigation',18)} onClick={openDirections}>Directions</Btn>
-          <div style={{flex:1}}>
-            <Btn variant={reminded?'secondary':'primary'} size="lg" fullWidth
-              leadingIcon={Icon(reminded?'BellOff':'Bell',18)}
+        ) : (!hasRealAddress && s.url) ? (
+          <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('ExternalLink',18)}
+            onClick={()=>window.open(s.url,'_blank','noopener,noreferrer')}>
+            View Original Listing
+          </Btn>
+        ) : null}
+        <div style={{display:'flex',gap:8}}>
+          <button type="button" onClick={openDirections} aria-label="Directions" style={{
+            width:52,height:52,borderRadius:16,flexShrink:0,
+            background:'#1E2020',border:'1px solid #E5D6C1',cursor:'pointer',
+            display:'flex',alignItems:'center',justifyContent:'center',
+          }}>
+            {Icon('Navigation',20,{stroke:'#fff'})}
+          </button>
+          {onToggleTrip && (
+            <div style={{flex:1,minWidth:0}}>
+              <Btn variant={inTrip?'secondary':'primary'} fullWidth
+                leadingIcon={Icon(inTrip?'RouteOff':'Route',16)}
+                onClick={onToggleTrip}
+                style={inTrip?{borderColor:'var(--brand-500)',color:'var(--brand-500)'}:{}}>
+                {inTrip ? 'In trip' : 'Add to trip'}
+              </Btn>
+            </div>
+          )}
+          <div style={{flex:1,minWidth:0}}>
+            <Btn variant={reminded?'secondary':'primary'} fullWidth
+              leadingIcon={Icon(reminded?'BellOff':'Bell',16)}
               onClick={toggleRemind}
               style={reminded?{borderColor:'var(--green-600)',color:'var(--green-600)'}:{}}>
               {reminded ? 'Reminder set' : 'Remind me'}
@@ -2221,6 +3201,226 @@ function DetailScreen({ sale, onBack, onToggleSave }) {
           {toast}
         </div>
       )}
+      {shareOpen && <ShareSheet sale={s} onClose={()=>setShareOpen(false)} />}
+    </div>
+  );
+}
+
+function ItemThumb({ src, size, fallbackIcon, stroke='currentColor', sw=1.5 }) {
+  const [failed, setFailed] = useState(false);
+  if (!src || failed) return Icon(fallbackIcon, size, {stroke, sw});
+  return <img src={src} onError={()=>setFailed(true)} style={{width:'100%',height:'100%',objectFit:'cover'}} />;
+}
+
+// ── Items gallery screen ───────────────────────────────────────────────────────
+function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
+  const items = (sale.items || []).map((it, i) => normalizeItem(it, i, sale.id));
+  const categories = Array.from(new Set(items.map(it => it.category).filter(Boolean)));
+  const [filter, setFilter] = useState('all');
+  const shown = filter === 'all' ? items : items.filter(it => it.category === filter);
+
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(230,245,244,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 10px'}}>
+          <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:18,color:'var(--text-primary)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{sale.title}</div>
+            <div style={{fontSize:12,color:'var(--text-muted)'}}>Preview of what's inside</div>
+          </div>
+        </div>
+        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0 16px 10px'}}>
+          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:14,color:'var(--text-primary)'}}>{items.length} item{items.length===1?'':'s'}</span>
+        </div>
+        {categories.length>0 && (
+          <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px'}}>
+            <FilterChip selected={filter==='all'} onClick={()=>setFilter('all')}>All</FilterChip>
+            {categories.map(c => (
+              <FilterChip key={c} selected={filter===c} onClick={()=>setFilter(c)}>{c}</FilterChip>
+            ))}
+          </div>
+        )}
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'14px 16px 16px'}}>
+        <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+          {shown.map(it => (
+            <button key={it.id} type="button" onClick={()=>onOpenItem(items.indexOf(it))}
+              style={{textAlign:'left',background:'var(--surface-card)',border:'1px solid var(--border-default)',borderRadius:'var(--radius-lg)',overflow:'hidden',boxShadow:'var(--shadow-xs)',cursor:'pointer',padding:0}}>
+              <div style={{aspectRatio:'1',background:'linear-gradient(135deg,var(--brand-50),var(--paper-2))',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--ink-300)',position:'relative',filter:it.sold?'grayscale(.6)':'none',opacity:it.sold?.72:1}}>
+                {<ItemThumb src={it.image} size={26} fallbackIcon="Image" />}
+                {it.sold && (
+                  <span style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}>
+                    <span style={{background:'rgba(28,25,23,.72)',color:'#fff',fontWeight:700,fontSize:12,letterSpacing:'.04em',padding:'5px 12px',borderRadius:'var(--radius-pill)'}}>SOLD</span>
+                  </span>
+                )}
+                {!it.sold && it.originalPrice && (
+                  <span style={{position:'absolute',top:8,left:8}}><Badge tone="accent">Reduced</Badge></span>
+                )}
+              </div>
+              <div style={{padding:'9px 10px 11px'}}>
+                <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,color:it.sold?'var(--text-muted)':'var(--text-primary)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{it.name}</div>
+                {it.price!=null && (
+                  <div style={{display:'flex',alignItems:'baseline',gap:6,marginTop:3}}>
+                    <span style={{fontFamily:'var(--font-mono)',fontWeight:600,fontSize:14,color:it.sold?'var(--text-faint)':it.originalPrice?'var(--accent)':'var(--text-primary)'}}>{it.price}</span>
+                    {it.originalPrice && <span style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-faint)',textDecoration:'line-through'}}>{it.originalPrice}</span>}
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+        <p style={{textAlign:'center',fontSize:12,color:'var(--text-muted)',margin:'16px auto 0',maxWidth:250}}>Photos are a preview. Everything's cash &amp; carry, first come first served.</p>
+      </div>
+      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(230,245,244,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)'}}>{sale.dateLabel}</div>
+          <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)'}}>{sale.distanceMi} mi{sale.neighborhood?` · ${sale.neighborhood}`:''}</div>
+        </div>
+        <Btn variant="primary" leadingIcon={Icon('Navigation',17)} onClick={onDirections}>Directions</Btn>
+      </div>
+    </div>
+  );
+}
+
+// ── Item detail screen (photo view) ─────────────────────────────────────────────
+function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem, onReminderChange }) {
+  const items = (sale.items || []).map((it, i) => normalizeItem(it, i, sale.id));
+  const item = items[idx];
+  const { reminded, toggleRemind, toast } = useSaleReminder(sale, onReminderChange);
+  if (!item) return null;
+  const others = items.filter((_, i) => i !== idx);
+
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
+      <div style={{flex:1,overflowY:'auto'}}>
+        <div style={{position:'relative',height:320,flexShrink:0,background:'linear-gradient(135deg,var(--brand-50),var(--paper-2))',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          <ItemThumb src={item.image} size={44} fallbackIcon="Image" stroke="var(--ink-300)" sw={1.4} />
+          <div style={{position:'absolute',top:'var(--safe-top)',left:14,right:14,display:'flex',justifyContent:'space-between'}}>
+            <IconButton icon={Icon('ChevronLeft',20)} shape="circle" aria-label="Back" onClick={onBack} />
+          </div>
+        </div>
+        <div style={{padding:'16px 18px 0'}}>
+          <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
+            {item.category && (
+              <span style={{display:'inline-flex',alignItems:'center',gap:5,height:24,padding:'0 10px',borderRadius:'var(--radius-pill)',background:'var(--surface-sunken)',color:'var(--text-secondary)',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12}}>{item.category}</span>
+            )}
+            <Badge tone={item.sold?undefined:'success'}>{item.sold?'Sold':'Available'}</Badge>
+          </div>
+          <h1 style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:27,lineHeight:1.12,letterSpacing:'-0.02em',color:'var(--text-primary)'}}>{item.name}</h1>
+          {item.price!=null && (
+            <div style={{display:'flex',alignItems:'baseline',gap:9,marginTop:8}}>
+              <span style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:26,color:'var(--text-primary)'}}>{item.price}</span>
+              {item.originalPrice && <span style={{fontFamily:'var(--font-mono)',fontSize:14,color:'var(--text-faint)',textDecoration:'line-through'}}>{item.originalPrice}</span>}
+              {item.originalPrice && <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--secondary)',fontWeight:700}}>Reduced</span>}
+            </div>
+          )}
+          {(item.condition || item.size) && (
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10,margin:'18px 0 4px'}}>
+              {item.condition && (
+                <div style={{background:'var(--surface-sunken)',borderRadius:'var(--radius-md)',padding:'10px 12px'}}>
+                  <div style={{fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.03em'}}>Condition</div>
+                  <div style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:14,color:'var(--text-primary)',marginTop:2}}>{item.condition}</div>
+                </div>
+              )}
+              {item.size && (
+                <div style={{background:'var(--surface-sunken)',borderRadius:'var(--radius-md)',padding:'10px 12px'}}>
+                  <div style={{fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-muted)',textTransform:'uppercase',letterSpacing:'.03em'}}>Size</div>
+                  <div style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:14,color:'var(--text-primary)',marginTop:2}}>{item.size}</div>
+                </div>
+              )}
+            </div>
+          )}
+          {item.description && <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.55,color:'var(--text-secondary)',marginTop:14}}>{item.description}</p>}
+        </div>
+        <div style={{padding:'20px 18px 8px'}}>
+          <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:17,color:'var(--text-primary)',marginBottom:10}}>Part of this sale</h2>
+          <button type="button" onClick={onOpenSale} style={{width:'100%',textAlign:'left',display:'flex',alignItems:'center',gap:12,padding:12,background:'var(--surface-card)',border:'1px solid var(--border-default)',borderRadius:'var(--radius-lg)',boxShadow:'var(--shadow-xs)',cursor:'pointer'}}>
+            <span style={{width:44,height:44,borderRadius:'var(--radius-md)',flexShrink:0,background:'var(--brand-50)',color:'var(--accent)',display:'flex',alignItems:'center',justifyContent:'center'}}>{Icon(CAT[sale.type]?.glyph||'Tag',20)}</span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:15,color:'var(--text-primary)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{sale.title}</div>
+              <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:1}}>{sale.dateLabel} · {sale.distanceMi} mi</div>
+            </div>
+            {Icon('ChevronRight',20,{stroke:'var(--text-faint)'})}
+          </button>
+        </div>
+        {others.length>0 && (
+          <div style={{padding:'12px 0 20px'}}>
+            <div style={{padding:'0 18px',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--text-primary)',marginBottom:10}}>More from this sale</div>
+            <div style={{display:'flex',gap:10,overflowX:'auto',padding:'0 18px'}}>
+              {others.map(o => (
+                <button key={o.id} type="button" onClick={()=>onSelectItem(items.indexOf(o))} style={{width:104,flexShrink:0,background:'none',border:'none',padding:0,cursor:'pointer',textAlign:'left'}}>
+                  <div style={{aspectRatio:'1',background:'linear-gradient(135deg,var(--brand-50),var(--paper-2))',borderRadius:'var(--radius-md)',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--ink-300)',overflow:'hidden'}}>
+                    {o.image ? <img src={o.image} style={{width:'100%',height:'100%',objectFit:'cover'}} /> : Icon('Image',22,{stroke:'currentColor',sw:1.5})}
+                  </div>
+                  {o.price!=null && <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-primary)',marginTop:5}}>{o.price}</div>}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(230,245,244,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
+        <Btn variant="secondary" size="lg" leadingIcon={Icon(reminded?'BellOff':'Bell',18)}
+          onClick={toggleRemind} style={reminded?{borderColor:'var(--green-600)',color:'var(--green-600)'}:{}}>
+          {reminded ? 'Reminder set' : 'Remind me'}
+        </Btn>
+        <div style={{flex:1}}>
+          <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation',18)}
+            onClick={()=>openSaleDirections(sale)}>Get directions</Btn>
+        </div>
+      </div>
+      {toast && (
+        <div style={{position:'absolute',bottom:110,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',animation:'slideUp .3s var(--ease-out)',zIndex:100}}>
+          {toast}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Notifications screen ────────────────────────────────────────────────────────
+function NotificationsScreen({ notifications, onBack, onOpenSale }) {
+  const [readAll, setReadAll] = useState(false);
+
+  return (
+    <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(230,245,244,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 12px'}}>
+          <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
+          <span style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:'var(--text-primary)'}}>Notifications</span>
+          {notifications.length>0 && (
+            <button type="button" onClick={()=>setReadAll(true)} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--accent)'}}>
+              Mark all read
+            </button>
+          )}
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'8px 0 24px'}}>
+        {notifications.length===0 ? (
+          <div style={{textAlign:'center',padding:'60px 32px'}}>
+            <div style={{width:56,height:56,borderRadius:'50%',background:'var(--surface-sunken)',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 14px'}}>
+              {Icon('Bell',24,{stroke:'var(--text-faint)'})}
+            </div>
+            <div style={{fontWeight:700,fontSize:15,color:'var(--ink-900)',marginBottom:4}}>No notifications yet</div>
+            <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.5}}>Save a sale or set a reminder and we'll keep you posted here.</div>
+          </div>
+        ) : notifications.map(n => (
+          <button key={n.id} type="button" onClick={()=>n.saleId && onOpenSale?.(n.saleId)}
+            style={{width:'100%',textAlign:'left',border:'none',borderBottom:'1px solid var(--border-default)',
+              background: (!readAll && n.unread) ? 'var(--accent-soft)' : 'transparent',
+              cursor:n.saleId?'pointer':'default',display:'flex',gap:12,padding:'12px 18px 12px 26px',position:'relative'}}>
+            {!readAll && n.unread && <span style={{position:'absolute',left:6,top:'50%',transform:'translateY(-50%)',width:8,height:8,borderRadius:'50%',background:'var(--accent)'}} />}
+            <span style={{width:40,height:40,borderRadius:'50%',background:n.iconBg,color:n.iconFg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+              {Icon(n.icon,19,{stroke:'currentColor'})}
+            </span>
+            <div style={{flex:1,minWidth:0}}>
+              <div style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--text-primary)'}}>{n.title}</div>
+              <div style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-secondary)',marginTop:1}}>{n.body}</div>
+              <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:4}}>{n.time}</div>
+            </div>
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -2240,6 +3440,7 @@ function ListScreen({ onPublish }) {
   const [contact, setContact]     = useState('');
   const [touched, setTouched]     = useState({});
   const [published, setPublished] = useState(null);
+  const [previewIdx, setPreviewIdx] = useState(0);
 
   const handleFile = (e, idx) => {
     const file = e.target.files?.[0];
@@ -2249,12 +3450,16 @@ function ListScreen({ onPublish }) {
     reader.readAsDataURL(file);
   };
 
-  const required2 = { title: title.trim(), addr: addr.trim(), zip: zip.trim(), startDate };
+  // Keep listing categories honest — the title has to say what kind of sale it is.
+  const titleTrimmed = title.trim();
+  const titleHasCategory = /\b(yard|estate|moving)\b/i.test(titleTrimmed);
+  const required2 = { title: !!titleTrimmed && titleHasCategory, addr: addr.trim(), zip: zip.trim(), startDate };
   const missing2  = Object.entries(required2).filter(([,v])=>!v).map(([k])=>k);
   const canNext2  = missing2.length === 0;
 
   const tryNext2 = () => {
     if (!canNext2) { setTouched({title:true,addr:true,zip:true,startDate:true}); return; }
+    setPreviewIdx(0);
     setStep(3);
   };
 
@@ -2278,7 +3483,6 @@ function ListScreen({ onPublish }) {
       timeLabel: hrs.trim() || 'Hours TBD',
       photoCount: photos.filter(Boolean).length,
       images: photos.filter(Boolean),
-      live: true,
       blurb: desc.trim(),
       price: '',
       items: [],
@@ -2306,9 +3510,13 @@ function ListScreen({ onPublish }) {
     </label>
   );
 
-  const ErrMsg = ({field}) => touched[field] && !required2[field]
-    ? <div style={{fontFamily:'var(--font-sans)',fontSize:12,color:'#DC2626',marginTop:4}}>This field is required</div>
-    : null;
+  const ErrMsg = ({field}) => {
+    if (!touched[field] || required2[field]) return null;
+    const msg = field==='title' && titleTrimmed
+      ? 'Title must include "yard", "estate", or "moving"'
+      : 'This field is required';
+    return <div style={{fontFamily:'var(--font-sans)',fontSize:12,color:'#DC2626',marginTop:4}}>{msg}</div>;
+  };
 
   const STEPS = ['Sale type','Details','Preview'];
 
@@ -2329,7 +3537,7 @@ function ListScreen({ onPublish }) {
             width:'100%',borderRadius:'var(--radius-2xl)',border:'none',cursor:'pointer',
             background:'linear-gradient(135deg,var(--brand-600) 0%,var(--brand-500) 100%)',
             padding:'28px 24px',textAlign:'left',
-            boxShadow:'0 12px 40px rgba(249,115,22,.38)',
+            boxShadow:'0 12px 40px rgba(78,79,42,.38)',
             transition:'transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base)',
           }}
             onMouseDown={e=>e.currentTarget.style.transform='scale(.98)'}
@@ -2356,7 +3564,7 @@ function ListScreen({ onPublish }) {
           <div className="rmg-eyebrow" style={{marginBottom:14}}>How it works</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {[
-              {icon:'Tag',        color:'#F97316', bg:'#FFF7ED', step:'1', title:'Pick your sale type',   body:'Yard, estate, thrift, or moving — you choose.'},
+              {icon:'Tag',        color:'#4E4F2A', bg:'#F4F4F2', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
               {icon:'FileText',   color:'#15803D', bg:'#F0FDF4', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
               {icon:'MapPin',     color:'#3B82F6', bg:'#EFF6FF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
@@ -2382,7 +3590,7 @@ function ListScreen({ onPublish }) {
   if (step===4 && published) {
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:88,height:88,borderRadius:'50%',background:'linear-gradient(135deg,var(--brand-100),var(--brand-200))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 12px 40px rgba(249,115,22,.25)'}}>
+        <div style={{width:88,height:88,borderRadius:'50%',background:'linear-gradient(135deg,var(--brand-100),var(--brand-200))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 12px 40px rgba(78,79,42,.25)'}}>
           {Icon('CheckCircle',44,{stroke:'var(--accent)'})}
         </div>
         <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>You're live!</h1>
@@ -2393,7 +3601,7 @@ function ListScreen({ onPublish }) {
           <div style={{height:120,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
             {published.images?.[0]
               ? <img src={published.images[0]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-              : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#F5F3FF,#C4B5FD',yard:'#F0FDF4,#86EFAC',thrift:'#FFF7ED,#FED7AA',moving:'#FFFBEB,#FDE68A'})[published.type]||'#FFF7ED,#FED7AA'})`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#F5F3FF,#C4B5FD',yard:'#F0FDF4,#86EFAC',moving:'#FFFBEB,#FDE68A'})[published.type]||'#F4F4F2,#C6C7BB'})`,display:'flex',alignItems:'center',justifyContent:'center'}}>
                   {Icon('Image',32,{stroke:'rgba(255,255,255,.5)',sw:1})}
                 </div>
             }
@@ -2430,7 +3638,7 @@ function ListScreen({ onPublish }) {
           const n = i+1, active = n===step, done = n<step;
           return (
             <div key={n} style={{flex:1,display:'flex',flexDirection:'column',gap:5,alignItems:'center'}}>
-              <div style={{width:'100%',height:4,borderRadius:2,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)',boxShadow:active?'0 2px 8px rgba(249,115,22,.4)':'none'}} />
+              <div style={{width:'100%',height:4,borderRadius:2,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)',boxShadow:active?'0 2px 8px rgba(78,79,42,.4)':'none'}} />
               <span style={{fontFamily:'var(--font-sans)',fontSize:10,fontWeight:active?700:500,color:active?'var(--accent)':done?'var(--ink-600)':'var(--text-faint)'}}>{label}</span>
             </div>
           );
@@ -2446,7 +3654,6 @@ function ListScreen({ onPublish }) {
               {[
                 {key:'estate',bg:'#F5F3FF',fg:'#7C3AED',emoji:'🛋️',desc:'Full household'},
                 {key:'yard',  bg:'#F0FDF4',fg:'#15803D',emoji:'⛺', desc:'Driveway or yard'},
-                {key:'thrift',bg:'#FFF7ED',fg:'#C2410C',emoji:'👗', desc:'Ongoing store'},
                 {key:'moving',bg:'#FFFBEB',fg:'#B45309',emoji:'📦', desc:'Everything must go'},
               ].map(tc => {
                 const on = saleType===tc.key;
@@ -2525,6 +3732,9 @@ function ListScreen({ onPublish }) {
               onChange={e=>setTitle(e.target.value)} onBlur={()=>setTouched(t=>({...t,title:true}))}
               style={errStyle('title')} />
             <ErrMsg field="title" />
+            {!(touched.title && !required2.title) && (
+              <div style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',marginTop:4}}>Must include "yard", "estate", or "moving"</div>
+            )}
           </div>
           <div>
             <Label required>Street address</Label>
@@ -2581,20 +3791,36 @@ function ListScreen({ onPublish }) {
       {step===3 && (
         <div style={{padding:'16px 20px 120px',display:'flex',flexDirection:'column',gap:18}}>
           <Card padded={false} style={{overflow:'hidden'}}>
-            <div style={{height:190,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
-              {photos.find(Boolean)
-                ? <img src={photos.find(Boolean)} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-                : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#F5F3FF,#C4B5FD',yard:'#F0FDF4,#86EFAC',thrift:'#FFF7ED,#FED7AA',moving:'#FFFBEB,#FDE68A'})[saleType]||'#FFF7ED,#FED7AA'})`,display:'flex',alignItems:'center',justifyContent:'center',opacity:.7}}>
-                    {Icon('Image',36,{stroke:'#fff',sw:1})}
-                  </div>
-              }
-              <div style={{position:'absolute',top:10,left:10}}><SaleTypeTag type={saleType} /></div>
-              {photos.filter(Boolean).length>1 && (
-                <div style={{position:'absolute',bottom:10,right:10,background:'rgba(28,25,23,.65)',borderRadius:'var(--radius-pill)',padding:'3px 10px',fontFamily:'var(--font-mono)',fontSize:11,color:'#fff',fontWeight:600}}>
-                  +{photos.filter(Boolean).length-1} more
+            {(() => {
+              const previewPhotos = photos.filter(Boolean);
+              const i = Math.min(previewIdx, Math.max(previewPhotos.length - 1, 0));
+              return (
+                <div style={{height:190,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
+                  {previewPhotos.length
+                    ? <img src={previewPhotos[i]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                    : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#F5F3FF,#C4B5FD',yard:'#F0FDF4,#86EFAC',moving:'#FFFBEB,#FDE68A'})[saleType]||'#F4F4F2,#C6C7BB'})`,display:'flex',alignItems:'center',justifyContent:'center',opacity:.7}}>
+                        {Icon('Image',36,{stroke:'#fff',sw:1})}
+                      </div>
+                  }
+                  <div style={{position:'absolute',top:10,left:10}}><SaleTypeTag type={saleType} /></div>
+                  {previewPhotos.length>1 && (
+                    <>
+                      <button type="button" onClick={()=>setPreviewIdx(p=>(p-1+previewPhotos.length)%previewPhotos.length)}
+                        style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',width:30,height:30,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)'}}>
+                        {Icon('ChevronLeft',16,{stroke:'var(--ink-900)'})}
+                      </button>
+                      <button type="button" onClick={()=>setPreviewIdx(p=>(p+1)%previewPhotos.length)}
+                        style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',width:30,height:30,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)'}}>
+                        {Icon('ChevronRight',16,{stroke:'var(--ink-900)'})}
+                      </button>
+                      <div style={{position:'absolute',bottom:10,right:10,background:'rgba(28,25,23,.65)',borderRadius:'var(--radius-pill)',padding:'3px 10px',fontFamily:'var(--font-mono)',fontSize:11,color:'#fff',fontWeight:600}}>
+                        {i+1} / {previewPhotos.length}
+                      </div>
+                    </>
+                  )}
                 </div>
-              )}
-            </div>
+              );
+            })()}
             <div style={{padding:'14px 16px 18px'}}>
               <div style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)',marginBottom:5}}>{title}</div>
               <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',marginBottom:3}}>
@@ -2633,9 +3859,111 @@ function ListScreen({ onPublish }) {
   );
 }
 
+// ── First-run animated walkthrough ──────────────────────────────────────────────
+const TUTORIAL_SLIDES = [
+  {
+    title:'Find sales near you',
+    body:'Explore shows every yard, estate, and moving sale nearby — switch between Map and List to browse however you like.',
+    visual:(
+      <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <span style={{position:'absolute',width:64,height:64,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out infinite'}} />
+        <span style={{position:'absolute',width:64,height:64,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out 0.9s infinite'}} />
+        <span style={{position:'relative',display:'inline-flex',animation:'tutBounce 1.8s ease-in-out infinite'}}>
+          {Icon('MapPin',48,{fill:'var(--accent)',stroke:'#fff',sw:1.5})}
+        </span>
+      </div>
+    ),
+  },
+  {
+    title:'Tap a sale for the full story',
+    body:'Photos, hours, what to expect, and one-tap directions — everything you need before you head out.',
+    visual:(
+      <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <div style={{width:88,height:64,borderRadius:'var(--radius-lg)',background:'var(--surface-card)',boxShadow:'var(--shadow-md)',border:'1px solid var(--border-default)'}} />
+        <span style={{position:'absolute',display:'inline-flex',width:34,height:34,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)',animation:'tutTap 1.3s ease-in-out infinite'}}>
+          {Icon('Hand',17,{stroke:'#fff'})}
+        </span>
+      </div>
+    ),
+  },
+  {
+    title:'Save favorites & plan your route',
+    body:'Heart the sales you don’t want to miss, then let My Trip build the fastest route to hit them all.',
+    visual:(
+      <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <svg width="100" height="60" viewBox="0 0 100 60" fill="none">
+          <path d="M6 50 C 30 10, 70 50, 94 12" stroke="var(--secondary)" strokeWidth="3" strokeLinecap="round" strokeDasharray="140" style={{animation:'tutDraw 2.2s ease-in-out infinite'}} />
+          <circle cx="6" cy="50" r="5" fill="var(--secondary)" />
+          <circle cx="94" cy="12" r="5" fill="var(--accent)" />
+        </svg>
+        <span style={{position:'absolute',top:0,right:8,display:'inline-flex',animation:'heart-pop 1.6s ease-in-out infinite'}}>
+          {Icon('Heart',22,{fill:'var(--coral)',stroke:'var(--coral)'})}
+        </span>
+      </div>
+    ),
+  },
+  {
+    title:'List your own sale in minutes',
+    body:'Got stuff to sell? Post your own yard, estate, or moving sale and go live on the map instantly.',
+    visual:(
+      <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <span style={{display:'inline-flex',width:64,height:64,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)',animation:'tutFloat 2.4s ease-in-out infinite'}}>
+          {Icon('PlusCircle',34,{stroke:'#fff'})}
+        </span>
+      </div>
+    ),
+  },
+];
+
+function WalkthroughScreen({ onDone }) {
+  const [idx, setIdx] = useState(0);
+  const [dragStart, setDragStart] = useState(null);
+  const [dragDelta, setDragDelta] = useState(0);
+  const total = TUTORIAL_SLIDES.length;
+  const last = idx === total - 1;
+
+  const onTouchStart = e => setDragStart(e.touches[0].clientX);
+  const onTouchMove  = e => { if (dragStart != null) setDragDelta(e.touches[0].clientX - dragStart); };
+  const onTouchEnd   = () => {
+    if (dragDelta < -44 && !last) setIdx(i => i + 1);
+    else if (dragDelta > 44 && idx > 0) setIdx(i => i - 1);
+    setDragStart(null); setDragDelta(0);
+  };
+
+  return (
+    <div style={{position:'absolute',inset:0,zIndex:9000,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
+      <div style={{display:'flex',justifyContent:'flex-end',padding:'calc(var(--safe-top) + 8px) 20px 0'}}>
+        <button type="button" onClick={onDone} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:14,color:'var(--text-muted)'}}>
+          Skip
+        </button>
+      </div>
+      <div
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
+        style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'0 32px',textAlign:'center'}}>
+        <div style={{marginBottom:32}}>{TUTORIAL_SLIDES[idx].visual}</div>
+        <h1 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:24,color:'var(--text-primary)',marginBottom:12,lineHeight:1.2}}>{TUTORIAL_SLIDES[idx].title}</h1>
+        <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.55,color:'var(--text-secondary)',maxWidth:300,margin:0}}>{TUTORIAL_SLIDES[idx].body}</p>
+      </div>
+      <div style={{display:'flex',justifyContent:'center',gap:7,paddingBottom:24}}>
+        {TUTORIAL_SLIDES.map((_,i)=>(
+          <span key={i} style={{width: i===idx?20:7,height:7,borderRadius:'var(--radius-pill)',background: i===idx?'var(--accent)':'var(--ink-200)',transition:'all var(--dur-base) var(--ease-out)'}} />
+        ))}
+      </div>
+      <div style={{padding:'0 24px 40px'}}>
+        <Btn variant="primary" size="lg" fullWidth
+          onClick={()=> last ? onDone() : setIdx(i=>i+1)}>
+          {last ? 'Get started' : 'Next'}
+        </Btn>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab] = useState('explore');
+  const [showWalkthrough, setShowWalkthrough] = useState(() => !localStorage.getItem('rummage_walkthrough_seen'));
+  const finishWalkthrough = () => { localStorage.setItem('rummage_walkthrough_seen', '1'); setShowWalkthrough(false); };
   const [authUser, _setAuthUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('rummage_user') || 'null'); } catch { return null; }
   });
@@ -2648,8 +3976,19 @@ function App() {
   const [openNow, setOpenNow]         = useState(false);
   const [keyword, setKeyword]         = useState('');
   const [detailId, setDetailId] = useState(null);
+  const [itemsView, setItemsView] = useState(null); // null | {mode:'gallery'} | {mode:'item', idx}
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [reminderTick, setReminderTick] = useState(0); // bumped whenever a reminder is set/cleared
   const [filtersOpen, setFiltersOpen] = useState(false);
-  const [radiusMi, setRadiusMi] = useState(5);
+  const [tripIds, setTripIds] = useState(() => { try { return JSON.parse(localStorage.getItem('rummage-trip') || '[]'); } catch { return []; } });
+
+  const toggleTrip = (id) => setTripIds(prev => {
+    const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    localStorage.setItem('rummage-trip', JSON.stringify(next));
+    return next;
+  });
+  const clearTrip = () => { setTripIds([]); localStorage.removeItem('rummage-trip'); };
+  const [radiusMi, setRadiusMi] = useState(15);
   const [savedIds, setSavedIds] = useState({});
   const [userListings, setUserListings] = useState([]);
   const [apiListings, setApiListings]   = useState([]);
@@ -2661,7 +4000,7 @@ function App() {
   // Fetch live listings from local backend
   const fetchApiListings = (zip, radius) => {
     setApiStatus('loading');
-    fetch(`http://localhost:3002/api/listings?zip=${zip}&radius=${radius}`)
+    fetch(`/api/listings?zip=${zip}&radius=${radius}`)
       .then(r => r.json())
       .then(data => { setApiListings(data.listings || []); setApiStatus('ok'); })
       .catch(() => setApiStatus('error'));
@@ -2678,7 +4017,7 @@ function App() {
       if (window.lucide?.icons) { clearInterval(poll); setLibsReady(true); }
     }, 60);
     // Try to pull live listings on load
-    fetchApiListings('90601', 10);
+    fetchApiListings('90601', 15);
     // Restore any pending reminders from localStorage
     if (Notification.permission === 'granted') restoreReminders(ALL_SALES);
     return () => { window.removeEventListener('resize', fit); clearInterval(poll); };
@@ -2702,30 +4041,22 @@ function App() {
   };
 
   const allSales = [...ALL_SALES, ...apiListings, ...userListings]
-    .map(s => {
-      const mock = MOCK_LATLNG[s.id];
-      return {
-        ...s,
-        lat: s.lat ?? (mock ? mock[0] : null),
-        lng: s.lng ?? (mock ? mock[1] : null),
-        saved: !!savedIds[s.id],
-      };
-    })
+    .map(s => ({ ...s, saved: !!savedIds[s.id] }))
     .filter(s => {
+      // If we can't determine when a sale is/was happening, we can't show it —
+      // no date means no way to tell it apart from a stale, long-dead listing.
       const label = s.dateLabel || '';
-      if (!label) return true;
+      if (!label) return false;
       // Scan for every "MonthName DD" or "MonthName DD, YYYY" — use the LAST match (end of range)
       const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
         .filter(m => MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
-      if (hits.length) {
-        const m    = hits[hits.length - 1];
-        const mo   = MO_IDX[m[1].toLowerCase().slice(0,3)];
-        const day  = parseInt(m[2]);
-        const year = m[3] ? parseInt(m[3]) : todayStart.getFullYear();
-        const endDay = new Date(year, mo, day);
-        return endDay >= todayStart;
-      }
-      return true; // no parseable month+day → keep visible
+      if (!hits.length) return false; // dateLabel present but unparseable → can't confirm it's current
+      const m    = hits[hits.length - 1];
+      const mo   = MO_IDX[m[1].toLowerCase().slice(0,3)];
+      const day  = parseInt(m[2]);
+      const year = m[3] ? parseInt(m[3]) : todayStart.getFullYear();
+      const endDay = new Date(year, mo, day);
+      return endDay >= todayStart;
     });
   let salesInRadius = allSales.filter(s=>s.distanceMi<=radiusMi).filter(kwMatch);
   if (salesInRadius.length===0 && !keyword) salesInRadius = allSales.slice(0,1);
@@ -2735,11 +4066,37 @@ function App() {
   const toggleSave = (id) => setSavedIds(p=>({...p,[id]:!p[id]}));
   const ic = (name, size) => libsReady ? Icon(name, size) : null;
 
+  const closeDetail = () => { setDetailId(null); setItemsView(null); };
+
+  // Notifications feed — built from real in-app activity (reminders set, sales published).
+  const notifications = React.useMemo(() => {
+    const rem = getReminders();
+    const list = [];
+    Object.entries(rem).forEach(([id, fireAt]) => {
+      const sale = allSales.find(s => s.id === id);
+      if (!sale) return;
+      list.push({
+        id:'rem-'+id, icon:'BellRing', iconBg:'var(--accent)', iconFg:'#fff',
+        title:'Reminder set', body:`${sale.title} — we'll notify you 30 min before it starts.`,
+        time: sale.dateLabel || 'Upcoming', unread:true, saleId:sale.id,
+      });
+    });
+    userListings.forEach(l => {
+      list.push({
+        id:'listing-'+l.id, icon:'Tag', iconBg:'var(--surface-sunken)', iconFg:'var(--text-secondary)',
+        title:'Your sale went live', body:`${l.title} is now visible to nearby shoppers.`,
+        time:'Just now', unread:false, saleId:l.id,
+      });
+    });
+    return list;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userListings, reminderTick, allSales.length]);
+
   const tabItems = [
     {key:'explore',label:'Explore',  icon:ic('Map',24)},
-    {key:'saved',  label:'Saved',    icon:ic('Heart',24),badge:savedCount>0},
+    {key:'saved',  label:'Saved',    icon:ic('Heart',24),   badge:savedCount>0},
     {key:'list',   label:'List',     icon:ic('PlusCircle',24)},
-    {key:'search', label:'Search',   icon:ic('Search',24)},
+    {key:'trip',   label:'My Trip',  icon:ic('Route',24),   badge:tripIds.length>0},
     {key:'account',label:'Account',  icon:ic('User',24)},
   ];
 
@@ -2753,10 +4110,21 @@ function App() {
             onOpenSale={setDetailId} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             openNow={openNow} setOpenNow={setOpenNow}
-            keyword={keyword} onClearKeyword={()=>setKeyword('')} />
+            keyword={keyword} onClearKeyword={()=>setKeyword('')}
+            tripIds={tripIds} onToggleTrip={toggleTrip} />
         )}
         {tab==='saved' && !detailSale && (
-          <SavedScreen sales={allSales} onOpenSale={setDetailId} onToggleSave={toggleSave} />
+          <SavedScreen sales={allSales} onOpenSale={setDetailId} onToggleSave={toggleSave}
+            tripIds={tripIds} onToggleTrip={toggleTrip} />
+        )}
+        {tab==='trip' && !detailSale && (
+          <TripPlannerPanel
+            allSales={allSales} tripIds={tripIds}
+            onToggleTrip={toggleTrip} onClearTrip={clearTrip}
+            onClose={()=>setTab('explore')}
+            onOpenSale={id=>{ setDetailId(id); }}
+            asTab={true}
+          />
         )}
         {tab==='search' && !detailSale && (
           <SearchScreen radiusMi={radiusMi} setRadiusMi={setRadiusMi}
@@ -2778,14 +4146,17 @@ function App() {
                 savedCount={savedCount}
                 onDeleteListing={id=>setUserListings(p=>p.filter(l=>l.id!==id))}
                 onOpenSale={id=>{setDetailId(id);}}
+                onOpenNotifications={()=>setNotificationsOpen(true)}
+                onReplayWalkthrough={()=>setShowWalkthrough(true)}
               />
             : <AuthScreen onAuth={user=>setAuthUser(user)} />
         )}
 
+
         {/* Tab bar */}
         {!detailSale && (
           <div style={{position:'absolute',left:0,right:0,bottom:0,zIndex:30}}>
-            <TabBar active={tab} onChange={k=>{setTab(k);setDetailId(null);}} items={tabItems} />
+            <TabBar active={tab} onChange={k=>{setTab(k);closeDetail();}} items={tabItems} />
           </div>
         )}
 
@@ -2794,10 +4165,48 @@ function App() {
           <FiltersSheet onClose={()=>setFiltersOpen(false)} radiusMi={radiusMi} setRadiusMi={setRadiusMi} count={salesInRadius.length} />
         )}
 
+
         {/* Detail */}
         {detailSale && (
-          <div style={{position:'absolute',inset:0,zIndex:60}}>
-            <DetailScreen sale={detailSale} onBack={()=>setDetailId(null)} onToggleSave={toggleSave} />
+          <div style={{position:'absolute',inset:0,zIndex:60,overflow:'hidden'}}>
+            <DetailScreen sale={detailSale} onBack={closeDetail} onToggleSave={toggleSave}
+              inTrip={tripIds.includes(detailSale.id)} onToggleTrip={()=>toggleTrip(detailSale.id)}
+              onReminderChange={()=>setReminderTick(t=>t+1)}
+              onOpenItems={detailSale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined}
+              onNavigateTo={() => {
+                if (!tripIds.includes(detailSale.id)) toggleTrip(detailSale.id);
+                setDetailId(null);
+                setItemsView(null);
+                setTab('trip');
+              }} />
+          </div>
+        )}
+
+        {/* Items gallery / item detail */}
+        {detailSale && itemsView && (
+          <div style={{position:'absolute',inset:0,zIndex:65,overflow:'hidden'}}>
+            {itemsView.mode==='gallery' && (
+              <ItemsGalleryScreen sale={detailSale}
+                onBack={()=>setItemsView(null)}
+                onOpenItem={idx=>setItemsView({mode:'item', idx})}
+                onDirections={()=>openSaleDirections(detailSale)} />
+            )}
+            {itemsView.mode==='item' && (
+              <ItemDetailScreen sale={detailSale} idx={itemsView.idx}
+                onBack={()=>setItemsView({mode:'gallery'})}
+                onOpenSale={()=>setItemsView(null)}
+                onSelectItem={idx=>setItemsView({mode:'item', idx})}
+                onReminderChange={()=>setReminderTick(t=>t+1)} />
+            )}
+          </div>
+        )}
+
+        {/* Notifications */}
+        {notificationsOpen && (
+          <div style={{position:'absolute',inset:0,zIndex:80,overflow:'hidden'}}>
+            <NotificationsScreen notifications={notifications}
+              onBack={()=>setNotificationsOpen(false)}
+              onOpenSale={id=>{ setNotificationsOpen(false); setItemsView(null); setDetailId(id); }} />
           </div>
         )}
 
@@ -2811,6 +4220,9 @@ function App() {
           </span>
         </div>
         <div style={{position:'absolute',top:11,left:'50%',transform:'translateX(-50%)',width:120,height:34,background:'#14110F',borderRadius:20,zIndex:75}} />
+
+        {/* First-run animated walkthrough */}
+        {showWalkthrough && <WalkthroughScreen onDone={finishWalkthrough} />}
       </div>
     </div>
   );

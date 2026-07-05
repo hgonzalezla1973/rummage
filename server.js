@@ -28,10 +28,11 @@ const puppeteer = require('puppeteer-core');
 const path      = require('path');
 
 const app  = express();
-const PORT = 3002;
+const PORT = process.env.PORT || 8080;
 
 app.use(cors());
 app.use(express.json());
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // In-memory verification codes: email → { code, expiresAt }
 const verifyCodes = new Map();
@@ -116,7 +117,7 @@ app.get('/api/img', async (req, res) => {
   let parsed;
   try { parsed = new URL(url); } catch { return res.status(400).send('Invalid url'); }
 
-  const allowed = ['estatesales.org', 'www.estatesales.org', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com'];
+  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com'];
   const host = parsed.hostname.replace(/^www\./, '');
   if (!allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
     return res.status(403).send('Domain not allowed');
@@ -216,13 +217,28 @@ const LA_NEIGHBORHOODS = {
   'mid-city':{'lat':34.0358,'lng':-118.3403},'mid city':{'lat':34.0358,'lng':-118.3403},
   'leimert park':{'lat':34.0039,'lng':-118.3278},'crenshaw':{'lat':34.0203,'lng':-118.3339},
   'watts':{'lat':33.9428,'lng':-118.2481},'glassell park':{'lat':34.1214,'lng':-118.2358},
-  // Orange County
+  // Orange County – North
   'anaheim':{'lat':33.8353,'lng':-117.9145},'fullerton':{'lat':33.8703,'lng':-117.9242},
   'yorba linda':{'lat':33.8886,'lng':-117.8131},'brea':{'lat':33.9167,'lng':-117.9003},
   'placentia':{'lat':33.8722,'lng':-117.8703},'buena park':{'lat':33.8675,'lng':-118.0003},
   'orange':{'lat':33.7879,'lng':-117.8531},'santa ana':{'lat':33.7455,'lng':-117.8677},
   'costa mesa':{'lat':33.6411,'lng':-117.9187},'irvine':{'lat':33.6846,'lng':-117.8265},
   'huntington beach':{'lat':33.6603,'lng':-117.9992},'garden grove':{'lat':33.7743,'lng':-117.9378},
+  'tustin':{'lat':33.7458,'lng':-117.8261},'seal beach':{'lat':33.7414,'lng':-118.1047},
+  'westminster':{'lat':33.7514,'lng':-117.9939},'fountain valley':{'lat':33.7092,'lng':-117.9536},
+  'stanton':{'lat':33.8022,'lng':-117.9931},'cypress':{'lat':33.8169,'lng':-118.0373},
+  'la palma':{'lat':33.8467,'lng':-118.0467},'los alamitos':{'lat':33.8028,'lng':-118.0728},
+  'villa park':{'lat':33.8139,'lng':-117.8131},'la habra':{'lat':33.9317,'lng':-117.9461},
+  // Orange County – South
+  'newport beach':{'lat':33.6189,'lng':-117.9289},'laguna beach':{'lat':33.5422,'lng':-117.7831},
+  'laguna niguel':{'lat':33.5225,'lng':-117.7050},'laguna hills':{'lat':33.5803,'lng':-117.7300},
+  'laguna woods':{'lat':33.6100,'lng':-117.7253},'aliso viejo':{'lat':33.5769,'lng':-117.7256},
+  'mission viejo':{'lat':33.6000,'lng':-117.6719},'lake forest':{'lat':33.6469,'lng':-117.6894},
+  'rancho santa margarita':{'lat':33.6408,'lng':-117.5990},'foothill ranch':{'lat':33.6869,'lng':-117.6578},
+  'trabuco canyon':{'lat':33.6603,'lng':-117.5697},'coto de caza':{'lat':33.5994,'lng':-117.5911},
+  'ladera ranch':{'lat':33.5631,'lng':-117.6367},'san juan capistrano':{'lat':33.5017,'lng':-117.6625},
+  'dana point':{'lat':33.4669,'lng':-117.6981},'san clemente':{'lat':33.4269,'lng':-117.6111},
+  'capistrano beach':{'lat':33.4678,'lng':-117.6617},'el toro':{'lat':33.6314,'lng':-117.6964},
   // Inland Empire / Riverside County
   'menifee':{'lat':33.6971,'lng':-117.1849},'sun city':{'lat':33.7073,'lng':-117.1981},
   'murrieta':{'lat':33.5539,'lng':-117.2139},'temecula':{'lat':33.4936,'lng':-117.1484},
@@ -287,20 +303,40 @@ const ZIP_COORDS = {
   '91770': { lat: 34.0453, lng: -118.0764 },
 };
 
+const fetchTimeout = (url, ms = 5000, opts = {}) => {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { ...opts, signal: ctrl.signal }).finally(() => clearTimeout(t));
+};
+
 async function geocodeZip(zip) {
   if (ZIP_COORDS[zip]) return ZIP_COORDS[zip];
   const cached = fromCache(`geo:${zip}`);
   if (cached) return cached;
+  // Census Bureau ZIP geocoding — free, no key, fast
   try {
-    const res  = await fetch(`https://nominatim.openstreetmap.org/search?postalcode=${zip}&country=US&format=json&limit=1`,
-      { headers: { 'User-Agent': 'RummageApp/1.0 (local dev)' } });
+    const res  = await fetchTimeout(
+      `https://geocoding.geo.census.gov/geocoder/locations/address?street=1+Main+St&zip=${zip}&benchmark=Public_AR_Current&format=json`
+    );
     const data = await res.json();
-    if (data[0]) {
-      const coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    const m = data?.result?.addressMatches?.[0];
+    if (m) {
+      const coords = { lat: m.coordinates.y, lng: m.coordinates.x };
       toCache(`geo:${zip}`, coords);
       return coords;
     }
-  } catch (e) { console.warn('Geocode failed:', e.message); }
+  } catch (_) {}
+  // Photon fallback
+  try {
+    const res  = await fetchTimeout(`https://photon.komoot.io/api/?q=${zip}&limit=1&lang=en`);
+    const data = await res.json();
+    const feat = data?.features?.[0];
+    if (feat) {
+      const coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] };
+      toCache(`geo:${zip}`, coords);
+      return coords;
+    }
+  } catch (_) {}
   return null;
 }
 
@@ -319,19 +355,216 @@ function pinXY(itemLat, itemLng, centerLat, centerLng, radiusMi) {
   };
 }
 
+// Geocode a bare city name (e.g. "Whittier") — checks the local neighborhood
+// table first, falls back to Photon. Shared by sources that only expose a
+// city/locality string, not real coordinates, per listing.
+async function geocodeCityName(cityName) {
+  const key = (cityName || '').toLowerCase().replace(/,.*$/, '').trim();
+  if (!key) return null;
+  if (LA_NEIGHBORHOODS[key]) return LA_NEIGHBORHOODS[key];
+  try {
+    const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(key + ' California')}&limit=1&lang=en`, 6000);
+    const data = await res.json();
+    const f = data?.features?.[0];
+    if (f) return { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
+  } catch (_) {}
+  return null;
+}
+
+// Reverse-geocode coordinates to a city/locality name — used when a source
+// needs a city name to build its own search URL (we only start with a zip).
+async function reverseGeocodeCity(lat, lng) {
+  try {
+    const res = await fetchTimeout(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}&limit=1`, 6000);
+    const data = await res.json();
+    const props = data?.features?.[0]?.properties;
+    return props?.city || props?.name || null;
+  } catch (_) { return null; }
+}
+
+// Format a date-only (no time) ISO range like "2026-06-27" / "2026-07-11"
+// without any timezone-shift risk (constructs via explicit y/m/d, not UTC).
+function isoDateLabel(startISO, endISO) {
+  if (!startISO) return '';
+  const parseISO = s => { const [y,m,d] = s.slice(0,10).split('-').map(Number); return new Date(y, m-1, d); };
+  const fmt = d => d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  const start = parseISO(startISO);
+  const end = endISO ? parseISO(endISO) : start;
+  return start.getTime() === end.getTime() ? fmt(start) : `${fmt(start)} – ${fmt(end)}`;
+}
+
+// Static map thumbnail via Geoapify (free tier: 3,000/day, no credit card)
+// Set GEOAPIFY_KEY in .env — get one at https://myprojects.geoapify.com
+function mapThumbUrl(lat, lng) {
+  const key = process.env.GEOAPIFY_KEY;
+  if (!key || !lat || !lng) return null;
+  const marker = `lonlat:${lng},${lat};type:material;color:%23f97316;size:medium`;
+  return `https://maps.geoapify.com/v1/staticmap?style=osm-bright-smooth&width=400&height=260&center=lonlat:${lng},${lat}&zoom=15&marker=${marker}&apiKey=${key}`;
+}
+
 function detectType(text = '') {
   const t = text.toLowerCase();
   if (/estate.sale|estate-sale/.test(t))             return 'estate';
   if (/moving.sale|everything.must.go|liquidat/.test(t)) return 'moving';
   if (/auction/.test(t))                              return 'auction';
-  if (/thrift|consign|resale|second.?hand/.test(t))   return 'thrift';
+  if (/thrift|consign|resale|second.?hand/.test(t))   return 'yard';
   return 'yard';
+}
+
+// Matches actual sale-event posts (as opposed to plain for-sale item listings,
+// e.g. a single trading card someone's selling that a marketplace's fuzzy
+// search happened to surface for an "estate sale" query). Used both to gate
+// date extraction (avoids false positives like "3 1/2 inches" read as a date)
+// and to filter out non-sale-event listings entirely from keyword/marketplace
+// sources (Craigslist, OfferUp, Facebook, Google) that aren't inherently
+// scoped to real sale events the way EstateSales.org's own category is.
+const SALE_EVENT_RE = /\b(yard|garage|estate|moving|rummage|tag|multi-?family|block|barn)\s*sale\b/i;
+
+// ── HTML entity decoding ────────────────────────────────────────────────────
+// Some sources (YardSaleSearch, GarageSaleFinder) hand back titles with raw
+// un-decoded entities ("&#039;", "&amp;") while others decode them before we
+// see them. Left un-decoded, those entities also broke dedup: stripping
+// non-alphanumeric chars from "&#039;" leaves the digits "039" behind, so the
+// same sale's title normalized differently across sources and dedup missed
+// real duplicates.
+const HTML_ENTITIES = { amp:'&', lt:'<', gt:'>', quot:'"', apos:"'", nbsp:' ' };
+function decodeHtmlEntities(str) {
+  if (!str) return str;
+  return str.replace(/&(#?\w+);/g, (m, ent) => {
+    if (ent[0] === '#') {
+      const code = ent[1] === 'x' ? parseInt(ent.slice(2), 16) : parseInt(ent.slice(1), 10);
+      return Number.isNaN(code) ? m : String.fromCharCode(code);
+    }
+    return HTML_ENTITIES[ent] ?? m;
+  });
+}
+
+// ── Item tag extraction ─────────────────────────────────────────────────────
+// No source exposes real per-item names/prices, so we scan a listing's own
+// title/description for known category keywords and surface those as tags
+// (feeds the "What you'll find" chips / items gallery — no price or photo).
+const ITEM_KEYWORDS = [
+  { tag:'Furniture',               re:/\b(furniture|sofa|couch|dresser|desk|credenza|armoire|bookshelf|bookcase|cabinet|dining set|nightstand|recliner)\b/i },
+  { tag:'Tools',                   re:/\b(tools?|power tools?|drill|table saw|toolbox|workbench)\b/i },
+  { tag:'Vinyl & Records',         re:/\b(vinyl|records?|lp'?s?)\b/i },
+  { tag:'Electronics',             re:/\b(electronics?|\btv\b|stereo|speakers?|computer|laptop|camera)\b/i },
+  { tag:'Jewelry',                 re:/\b(jewelry|jewellery|sterling silver|gold (?:jewelry|ring|necklace|bracelet)|diamond (?:ring|necklace|earrings?)|diamonds|watches?)\b/i },
+  { tag:'Clothing',                re:/\b(clothing|clothes|apparel|shoes|handbags?|purses?)\b/i },
+  { tag:'Books',                   re:/\bbooks?\b/i },
+  { tag:'Kitchenware',             re:/\b(kitchen(ware)?|cookware|dishes|china|glassware)\b/i },
+  { tag:'Art',                     re:/\b(art(work)?|paintings?|prints?|sculptures?)\b/i },
+  { tag:'Toys & Games',            re:/\b(toys?|board games?|\blego\b|dolls?)\b/i },
+  { tag:'Sporting Goods',          re:/\b(sporting goods?|bikes?|bicycles?|golf|surfboards?|skis?)\b/i },
+  { tag:'Antiques & Collectibles', re:/\b(antiques?|collectibles?|vintage)\b/i },
+  { tag:'Lighting',                re:/\b(lamps?|lighting|chandeliers?)\b/i },
+  { tag:'Rugs',                    re:/\b(rugs?|carpets?)\b/i },
+  { tag:'Appliances',              re:/\b(appliances?|refrigerator|washer|dryer|microwave)\b/i },
+  { tag:'Musical Instruments',     re:/\b(guitars?|pianos?|instruments?)\b/i },
+  { tag:'Holiday Decor',           re:/\b(christmas|holiday decor|ornaments?)\b/i },
+  { tag:'Garden & Outdoor',        re:/\b(garden tools?|gardening|outdoor furniture|patio (?:set|furniture)|planters?|lawn mower)\b/i },
+];
+function extractItemTags(...texts) {
+  const text = texts.filter(Boolean).join(' ');
+  if (!text) return [];
+  const tags = [];
+  for (const { tag, re } of ITEM_KEYWORDS) {
+    if (re.test(text)) { tags.push(tag); if (tags.length >= 6) break; }
+  }
+  return tags;
 }
 
 function parseDateLabel(str = '') {
   try {
     return str ? new Date(str).toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'}) : '';
   } catch { return str; }
+}
+
+function parseCLDate(title = '') {
+  const MONTHS = 'jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t(?:ember)?)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?';
+  const yr = new Date().getFullYear();
+  const fmt = d => d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+  const range = (a, b) => a.getTime() === b.getTime() ? fmt(a) : `${fmt(a)} – ${fmt(b)}`;
+
+  // Month-word dates — collect every "Month Day" occurrence, e.g. "June 27",
+  // "Jul 3rd", plus bare trailing days in a range like "July 3rd & 4th" or
+  // "July 11-12" (no repeated month word on the second day).
+  const mRe = new RegExp(`\\b(${MONTHS})\\.?\\s+(\\d{1,2})(?:st|nd|rd|th)?`, 'gi');
+  const mDates = [];
+  let mm, lastMonth = null;
+  while ((mm = mRe.exec(title))) {
+    lastMonth = mm[1];
+    const d = new Date(`${mm[1]} ${mm[2]}, ${yr}`);
+    if (!isNaN(d)) mDates.push(d);
+  }
+  if (lastMonth) {
+    // Trailing day list after the last month word: "3rd & 4th", "11-12", "3, 4, and 5"
+    const contRe = new RegExp(`\\b(?:${MONTHS})\\.?\\s+\\d{1,2}(?:st|nd|rd|th)?((?:\\s*(?:,\\s*(?:and\\s+)?|and\\s+|&\\s*|to\\s+|[-–]\\s*)\\d{1,2}(?:st|nd|rd|th)?)+)`, 'i');
+    const cm = title.match(contRe);
+    if (cm) {
+      for (const dm of cm[1].matchAll(/\d{1,2}/g)) {
+        const d = new Date(`${lastMonth} ${dm[0]}, ${yr}`);
+        if (!isNaN(d)) mDates.push(d);
+      }
+    }
+  }
+  if (mDates.length) {
+    mDates.sort((a,b) => a - b);
+    return range(mDates[0], mDates[mDates.length - 1]);
+  }
+
+  // Numeric dates — "6/27", "6/27/26", or a range like "7/3 &7/4" / "7/3-7/4"
+  const nRe = /\b(1[0-2]|0?[1-9])\/(3[01]|[12]\d|0?[1-9])(?:\/\d{2,4})?\b/g;
+  const nDates = [];
+  let nm;
+  while ((nm = nRe.exec(title))) {
+    const d = new Date(yr, parseInt(nm[1],10)-1, parseInt(nm[2],10));
+    if (!isNaN(d)) nDates.push(d);
+  }
+  if (nDates.length) {
+    nDates.sort((a,b) => a - b);
+    return range(nDates[0], nDates[nDates.length - 1]);
+  }
+
+  // Casual phrasing — "today", "tomorrow", "this weekend", or bare weekday
+  // name(s) with no calendar date at all ("Garage Sale Friday and Saturday").
+  // Very common on Craigslist; without this, most real listings get dropped
+  // for lacking a "parseable" date even though they clearly have one.
+  const startOfDay = d => { const x = new Date(d); x.setHours(0,0,0,0); return x; };
+  const today = startOfDay(new Date());
+  if (/\btoday\b/i.test(title)) return fmt(today);
+  if (/\btomorrow\b/i.test(title)) return fmt(new Date(today.getTime() + 86400000));
+  if (/\bthis\s+weekend\b/i.test(title)) {
+    const DOW = today.getDay();
+    const toSat = (6 - DOW + 7) % 7;
+    const sat = new Date(today.getTime() + toSat*86400000);
+    const sun = new Date(sat.getTime() + 86400000);
+    return range(sat, sun);
+  }
+  const DAY_RE = 'sun(?:day)?|mon(?:day)?|tue(?:s(?:day)?)?|wed(?:nesday)?|thu(?:rs(?:day)?)?|fri(?:day)?|sat(?:urday)?';
+  const DOW_IDX = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};
+  const dRe = new RegExp(`\\b(${DAY_RE})\\b`, 'gi');
+  const targets = [];
+  let dm2;
+  while ((dm2 = dRe.exec(title))) {
+    const target = DOW_IDX[dm2[1].toLowerCase().slice(0,3)];
+    if (target !== undefined) targets.push(target);
+  }
+  const uniqueTargets = [...new Set(targets)];
+  if (uniqueTargets.length) {
+    // A single bare weekday ("Garage sale Saturday") always means the next
+    // upcoming one. But multiple weekdays together ("Friday and Saturday")
+    // describe one contiguous event — resolve each to whichever occurrence
+    // (past or future) is CLOSEST to today, so they land next to each other
+    // instead of drifting a week apart when "today" already is one of them.
+    const dDates = uniqueTargets.map(target => {
+      let diff = (target - today.getDay() + 7) % 7;
+      if (uniqueTargets.length > 1 && diff > 3) diff -= 7;
+      return new Date(today.getTime() + diff*86400000);
+    });
+    dDates.sort((a,b) => a - b);
+    return range(dDates[0], dDates[dDates.length - 1]);
+  }
+  return '';
 }
 
 // ── Browser pool (reuse one browser instance) ─────────────────────────────────
@@ -375,7 +608,7 @@ async function newPage(browser) {
 // full-size by swapping the size suffix.
 async function fetchListingImages(listings, concurrency = 5) {
   const browser  = await getBrowser();
-  const imageMap = new Map(); // listing.url → string[]
+  const imageMap = new Map(); // listing.url → { images: string[], address: string }
 
   const work = listings.filter(l => l.url);
   console.log(`  Fetching images for ${work.length} listings (${concurrency} at a time)…`);
@@ -394,7 +627,7 @@ async function fetchListingImages(listings, concurrency = 5) {
         });
         await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 12000 });
 
-        const images = await page.evaluate(() => {
+        const { images, address } = await page.evaluate(() => {
           const seen = new Set();
           const imgs = [];
           for (const img of document.querySelectorAll('img[src]')) {
@@ -404,11 +637,25 @@ async function fetchListingImages(listings, concurrency = 5) {
             const full = src.replace(/_\d+x\d+c?\.jpg/, '_600x450.jpg');
             if (!seen.has(full)) { seen.add(full); imgs.push(full); }
           }
-          return imgs.slice(0, 8); // max 8 images per listing
+
+          // Many posters opt in to showing a real address — either in the
+          // dedicated map-address element or written into the body text.
+          let addr = '';
+          const mapAddr = document.querySelector('.mapaddress');
+          if (mapAddr && mapAddr.textContent.trim()) {
+            addr = mapAddr.textContent.trim();
+          } else {
+            const body = document.querySelector('#postingbody')?.textContent || '';
+            const m = body.match(/address:?\s*([^\n]+)/i);
+            if (m) addr = m[1].trim();
+          }
+
+          return { images: imgs.slice(0, 8), address: addr }; // max 8 images per listing
         });
 
-        imageMap.set(listing.url, images);
+        imageMap.set(listing.url, { images, address });
         if (images.length) console.log(`    ${listing.title?.slice(0,40)} → ${images.length} image(s)`);
+        if (address) console.log(`    ${listing.title?.slice(0,40)} → address: ${address}`);
       } catch (err) {
         // Non-fatal: listing just won't have images
         console.warn(`    Image fetch failed for "${listing.title?.slice(0,30)}": ${err.message}`);
@@ -451,9 +698,10 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
         });
         await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 18000 });
 
-        const images = await page.evaluate((goodDomains, badDomains) => {
+        const { images, address } = await page.evaluate((goodDomains, badDomains) => {
           const seen = new Set();
           const imgs = [];
+          let address = '';
 
           // 0. __NEXT_DATA__ — Next.js embeds all page data here including gallery
           try {
@@ -465,7 +713,7 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
             }
           } catch (_) {}
 
-          // 1. JSON-LD structured data
+          // 1. JSON-LD structured data — also carries a real street address
           for (const el of document.querySelectorAll('script[type="application/ld+json"]')) {
             try {
               const obj = JSON.parse(el.textContent);
@@ -475,6 +723,8 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
                 if (!url || !url.startsWith('http')) continue;
                 if (!seen.has(url)) { seen.add(url); imgs.push(url); }
               }
+              const streetAddress = obj.location?.address?.streetAddress || obj.address?.streetAddress;
+              if (streetAddress && !address) address = streetAddress;
             } catch (_) {}
           }
 
@@ -486,7 +736,7 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
             }
           }
 
-          if (imgs.length >= 3) return imgs.slice(0, 12);
+          if (imgs.length >= 3) return { images: imgs.slice(0, 12), address };
 
           // 3. Fallback: img tags — check data-src for lazy-loaded images too
           for (const img of document.querySelectorAll('img')) {
@@ -494,7 +744,7 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
             if (!src.startsWith('http')) continue;
             if (badDomains.some(d => src.includes(d))) continue;
             if (!goodDomains.some(d => src.includes(d))) continue;
-            if (/logo|icon|avatar|badge|btn|star|rating|sprite|nav|menu/i.test(src)) continue;
+            if (/logo|icon|avatar|badge|btn|star|rating|sprite|nav|menu|spacer|\/track\//i.test(src)) continue;
             const w = parseInt(img.getAttribute('width') || '0', 10);
             const h = parseInt(img.getAttribute('height') || '0', 10);
             if ((w && w < 120) || (h && h < 120)) continue;
@@ -503,13 +753,14 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
             if (imgs.length >= 12) break;
           }
 
-          return imgs.slice(0, 12);
+          return { images: imgs.slice(0, 12), address };
         }, GOOD_DOMAINS, BAD_DOMAINS);
 
-        const filteredImgs = images.filter(u => !u.includes('nophoto') && !u.includes('placeholder'));
-        imageMap.set(listing.url, filteredImgs);
+        const filteredImgs = images.filter(u => !u.includes('nophoto') && !u.includes('placeholder') && !u.includes('spacer') && !u.includes('/track/'));
+        imageMap.set(listing.url, { images: filteredImgs, address });
         if (filteredImgs.length) console.log(`    ES "${listing.title?.slice(0,40)}" → ${filteredImgs.length} img(s)`);
         else console.log(`    ES "${listing.title?.slice(0,40)}" → no images found`);
+        if (address) console.log(`    ES "${listing.title?.slice(0,40)}" → address: ${address}`);
       } catch (err) {
         console.warn(`    ES img fetch failed for "${listing.title?.slice(0,30)}": ${err.message}`);
       } finally {
@@ -529,307 +780,322 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
   const cached   = fromCache(cacheKey);
   if (cached) { console.log('  CL cache hit'); return cached; }
 
-  const url = `https://losangeles.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`;
-  console.log('  Craigslist:', url);
+  // Area URLs derived from python-craigslist-meta geographic hierarchy.
+  // Whittier (90601) sits in SGV; we also pull LGB, LAC, IE, and OC so listings
+  // near the borders don't get missed. Each URL uses CL's own postal+distance
+  // pre-filter; our geocoder then verifies the real distance and drops outliers.
+  // CL area sub-paths (/sgv/, /lgb/ etc.) return 404 — CL no longer supports them.
+  // Use the top-level site search for each CL region instead.
+  const searchUrls = [
+    `https://losangeles.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`,   // LA (covers SGV, LGB, LAC, SFV, WST)
+    `https://inlandempire.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`, // Inland Empire
+    `https://orangecounty.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`, // Orange County
+  ];
 
-  const browser = await getBrowser();
-  const page    = await browser.newPage();
-  const results = [];
+  const browser  = await getBrowser();
+  const results  = [];
+  const seenUrls = new Set();
+  const allItems = [];
 
-  try {
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-    await page.setJavaScriptEnabled(false);
-    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-
-    const items = await page.evaluate(() => {
-      const cards = document.querySelectorAll('li.cl-static-search-result');
-      return Array.from(cards).map(card => ({
-        title:    card.querySelector('.title')?.textContent?.trim()    || '',
-        price:    card.querySelector('.price')?.textContent?.trim()    || '',
-        location: card.querySelector('.location')?.textContent?.trim() || '',
-        url:      card.querySelector('a')?.href                        || '',
-      }));
-    });
-
-    console.log(`  CL found ${items.length} listings — fetching images…`);
-    await page.close().catch(() => {});
-
-    // Build result objects first (without images)
-    for (let i = 0; i < items.length; i++) {
-      const item = items[i];
-      if (!item.title) continue;
-      const neighborhood = item.location || 'Nearby';
-
-      // Geocode the neighborhood: local table first, Nominatim fallback
-      let clDistMi = 0;
-      let clLat = null, clLng = null;
-      let clPx = { x: 28 + (i % 8) * 7, y: 22 + (i % 5) * 13 };
-      if (neighborhood && neighborhood !== 'Nearby') {
-        const key = neighborhood.toLowerCase().trim();
-        const cacheKey = `addr:${key.replace(/\s+/g,'-')}`;
-        let coords = fromCache(cacheKey) || LA_NEIGHBORHOODS[key];
-        // partial match: try dropping extra words (e.g. "east whittier" → "whittier")
-        if (!coords) {
-          const parts = key.split(/\s+/);
-          for (let p = parts.length - 1; p >= 1; p--) {
-            const sub = parts.slice(parts.length - p).join(' ');
-            if (LA_NEIGHBORHOODS[sub]) { coords = LA_NEIGHBORHOODS[sub]; break; }
-          }
-        }
-        if (!coords) {
-          try {
-            const res  = await fetch(
-              `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(neighborhood + ', Los Angeles County, CA')}&format=json&limit=1`,
-              { headers: { 'User-Agent': 'RummageApp/1.0 (local dev)' } }
-            );
-            const data = await res.json();
-            if (data[0]) {
-              coords = { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
-              toCache(cacheKey, coords);
-            }
-          } catch (_) {}
-        }
-        if (coords) {
-          clLat = coords.lat; clLng = coords.lng;
-          clDistMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
-          clPx = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
-        }
-      }
-      // Fallback for any listing where geocoding was unavailable
-      if (!clLat) {
-        const angle = (i / 10) * 2 * Math.PI;
-        const rv = 0.25 + Math.random() * 0.5;
-        clLat = centerLat + Math.cos(angle) * rv * (radiusMi / 69);
-        clLng = centerLng + Math.sin(angle) * rv * (radiusMi / 55);
-        clDistMi = parseFloat(distanceMiles(centerLat, centerLng, clLat, clLng).toFixed(1));
-        clPx = pinXY(clLat, clLng, centerLat, centerLng, radiusMi);
-      }
-
-      results.push({
-        id:          `cl-${i}-${Date.now()}`,
-        source:      'craigslist',
-        type:        detectType(item.title),
-        title:       item.title,
-        address:     neighborhood,
-        neighborhood,
-        distanceMi:  clDistMi,
-        lat:         clLat,
-        lng:         clLng,
-        dateLabel:   '',
-        timeLabel:   '',
-        photoCount:  0,
-        images:      [],
-        live:        false,
-        blurb:       '',
-        price:       item.price !== '$0' ? item.price : '',
-        items:       [],
-        url:         item.url,
-        x:           Math.max(5, Math.min(95, clPx.x)),
-        y:           Math.max(5, Math.min(95, clPx.y)),
-      });
-    }
-
-    // Enrich with images in parallel
-    const imageMap = await fetchListingImages(results);
-    for (const listing of results) {
-      const imgs = imageMap.get(listing.url) || [];
-      listing.images     = imgs;
-      listing.photoCount = imgs.length;
-    }
-
-    console.log(`  CL done — ${results.length} listings with images`);
-    toCache(cacheKey, results);
-  } catch (err) {
-    console.warn('  CL error:', err.message);
-    await page.close().catch(() => {});
-  }
-
-  return results;
-}
-
-// ── OfferUp scraper ───────────────────────────────────────────────────────────
-async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
-  const cacheKey = `ou:${zip}:${radiusMi}`;
-  const cached   = fromCache(cacheKey);
-  if (cached) { console.log('  OU cache hit'); return cached; }
-
-  const queries = ['yard sale', 'estate sale', 'garage sale'];
-  const browser = await getBrowser();
-  const results = [];
-  const seen    = new Set();
-
-  for (const q of queries) {
-    // Use lat/lng so OfferUp uses the correct area, not the server's IP location
-    const url = `https://offerup.com/search/?q=${encodeURIComponent(q)}&lat=${centerLat}&lng=${centerLng}&radius=${radiusMi}&location=${zip}`;
-    console.log('  OfferUp:', url);
-    const page = await newPage(browser);
-
+  for (const url of searchUrls) {
+    console.log('  Craigslist:', url);
+    const page = await browser.newPage();
     try {
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+      await page.setJavaScriptEnabled(false);
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
-      // Strategy 1: Extract from __NEXT_DATA__ JSON embedded by Next.js
-      let items = await page.evaluate(() => {
-        try {
-          const el = document.getElementById('__NEXT_DATA__');
-          if (!el) return null;
-          const data = JSON.parse(el.textContent);
-          // Walk the props tree to find listings arrays
-          const json = JSON.stringify(data);
-          const listings = [];
-          function extractImg(o) {
-            const imgKeys = ['imageUrl','thumbnailUrl','photoUrl','pictureUrl','coverPhoto',
-                             'previewImageUrl','listingImageUrl','heroImage','primaryImage',
-                             'coverImage','image_url','photo_url','thumbnail_url'];
-            for (const k of imgKeys) {
-              const v = o[k];
-              if (typeof v === 'string' && v.startsWith('http')) return v;
-            }
-            for (const k of ['images','photos','imageUrls','photoUrls']) {
-              const v = o[k];
-              if (Array.isArray(v) && v.length) {
-                const f = v[0];
-                if (typeof f === 'string' && f.startsWith('http')) return f;
-                if (f?.url) return f.url;
-                if (f?.id) return `https://images.offerup.com/${f.id}/${f.id}.jpg`;
-              }
-            }
-            return '';
-          }
-          function walk(obj) {
-            if (!obj || typeof obj !== 'object') return;
-            if (Array.isArray(obj)) { obj.forEach(walk); return; }
-            if ((obj.title || obj.name) && (obj.price !== undefined || extractImg(obj))) {
-              const title = obj.title || obj.name || '';
-              const price = obj.price !== undefined ? `$${obj.price}` : (obj.priceString || '');
-              const img   = extractImg(obj);
-              const id    = obj.id || obj.listingId || '';
-              const dist  = obj.distance || obj.distanceMi || 0;
-              // Location: try common field names
-              const loc = obj.location || obj.city || obj.locationName || obj.cityName ||
-                          obj.seller?.location || obj.seller?.city ||
-                          (obj.location_slug && obj.location_slug.replace(/-/g,' ')) || '';
-              if (title.length > 3) listings.push({ title, price, img, id, dist, loc });
-            }
-            Object.values(obj).forEach(walk);
-          }
-          walk(data);
-          // Fallback: pull CDN image URLs from raw JSON and attach to img-less listings
-          if (listings.length && listings.every(l => !l.img)) {
-            const cdnUrls = [...new Set(
-              (json.match(/https:\/\/[^"]*(?:images\.offerup\.com|offerupcdn\.com)[^"?#]*/g) || [])
-              .filter(u => /\.(jpg|jpeg|png|webp)/i.test(u))
-            )];
-            listings.forEach((l, i) => { if (!l.img && cdnUrls[i]) l.img = cdnUrls[i]; });
-          }
-          return listings.length ? listings : null;
-        } catch (_) { return null; }
+      const items = await page.evaluate(() => {
+        const cards = document.querySelectorAll('li.cl-static-search-result');
+        return Array.from(cards).map(card => ({
+          title:    card.querySelector('.title')?.textContent?.trim()    || '',
+          price:    card.querySelector('.price')?.textContent?.trim()    || '',
+          location: card.querySelector('.location')?.textContent?.trim() || '',
+          url:      card.querySelector('a')?.href                        || '',
+          datetime: card.querySelector('time')?.getAttribute('datetime') || '',
+        }));
       });
 
-      // Strategy 2: DOM scraping with current selectors
-      if (!items || items.length === 0) {
-        await page.waitForSelector(
-          '[data-testid="listing-card"], [data-testid="post-tile"], [class*="ListingCard"], [class*="PostCard"], article',
-          { timeout: 8000 }
-        ).catch(() => {});
-
-        items = await page.evaluate(() => {
-          const selectors = [
-            '[data-testid="listing-card"]',
-            '[data-testid="post-tile"]',
-            '[class*="ListingCard"]',
-            '[class*="PostCard"]',
-            'li[class*="item"]',
-          ];
-          let cards = [];
-          for (const sel of selectors) {
-            const found = document.querySelectorAll(sel);
-            if (found.length >= 2) { cards = Array.from(found); break; }
-          }
-          if (!cards.length) {
-            // Last resort: any card-like element with an image and text
-            cards = Array.from(document.querySelectorAll('a[href*="/item/"]'));
-          }
-          return cards.slice(0, 30).map(card => {
-            const titleEl = card.querySelector('[data-testid="listing-title"], [class*="title"], h2, h3, p');
-            const priceEl = card.querySelector('[data-testid="listing-price"], [class*="price"], [class*="Price"]');
-            const imgEl   = card.querySelector('img');
-            const link    = card.tagName === 'A' ? card : card.querySelector('a[href*="/item/"]');
-            return {
-              title: titleEl?.textContent?.trim() || '',
-              price: priceEl?.textContent?.trim() || '',
-              img:   imgEl?.src || imgEl?.dataset?.src || '',
-              id:    '',
-              dist:  0,
-              url:   link ? (link.href || 'https://offerup.com' + (link.getAttribute('href') || '')) : '',
-            };
-          }).filter(x => x.title.length > 3);
-        });
-      }
-
-      console.log(`  OU "${q}" → ${items ? items.length : 0} items`);
-
-      for (const item of (items || [])) {
-        if (!item.title || seen.has(item.title)) continue;
-        seen.add(item.title);
-        const listingUrl = item.url || (item.id ? `https://offerup.com/item/detail/${item.id}` : '');
-
-        // Geocode the listing's city to get real coordinates and real distance
-        let ouLat = null, ouLng = null, distMi = null;
-        if (item.loc) {
-          // "Riverside County, CA" → "riverside county", "Menifee, CA" → "menifee"
-          const cityKey = item.loc.toLowerCase().replace(/,.*$/, '').replace(/\s+county$/, ' county').trim();
-          const coords = LA_NEIGHBORHOODS[cityKey] || LA_NEIGHBORHOODS[cityKey.replace(' county','')];
-          if (coords) {
-            ouLat = coords.lat;
-            ouLng = coords.lng;
-            distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
-          }
+      console.log(`    → ${items.length} raw listings`);
+      for (const item of items) {
+        if (item.url && !seenUrls.has(item.url)) {
+          seenUrls.add(item.url);
+          allItems.push(item);
         }
-        // Skip listings whose city geocodes to beyond the search radius
-        if (distMi !== null && distMi > radiusMi) continue;
-
-        // For listings without geocodable city: place randomly near center
-        if (!ouLat) {
-          ouLat = centerLat + (Math.random()-0.5)*0.08;
-          ouLng = centerLng + (Math.random()-0.5)*0.08;
-          distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
-        }
-
-        const px = pinXY(ouLat, ouLng, centerLat, centerLng, radiusMi);
-        results.push({
-          id:           `ou-${results.length}-${Date.now()}`,
-          source:       'offerup',
-          type:         detectType(item.title + ' ' + q),
-          title:        item.title,
-          address:      item.loc || '',
-          neighborhood: item.loc || 'Nearby',
-          distanceMi:   distMi,
-          lat:          ouLat,
-          lng:          ouLng,
-          dateLabel:    '',
-          timeLabel:    '',
-          photoCount:   item.img ? 1 : 0,
-          images:       item.img ? [item.img] : [],
-          live:         false,
-          blurb:        '',
-          price:        item.price,
-          items:        [],
-          url:          listingUrl,
-          x:            px.x,
-          y:            px.y,
-        });
       }
     } catch (err) {
-      console.warn(`  OU "${q}" error:`, err.message);
+      console.warn(`  CL error on ${url}:`, err.message);
     } finally {
       await page.close().catch(() => {});
     }
   }
 
+  const items = allItems;
+  console.log(`  CL total (deduped across ${searchUrls.length} areas): ${items.length} — geocoding…`);
+
+  // Build result objects (without images)
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i];
+    if (!item.title) continue;
+    const neighborhood = item.location || 'Nearby';
+
+    let clDistMi = 0;
+    let clLat = null, clLng = null;
+    let clPx = { x: 28 + (i % 8) * 7, y: 22 + (i % 5) * 13 };
+
+    if (neighborhood && neighborhood !== 'Nearby') {
+      const key = neighborhood.toLowerCase().trim();
+      const addrKey = `addr:${key.replace(/\s+/g,'-')}`;
+      let coords = fromCache(addrKey) || LA_NEIGHBORHOODS[key];
+
+      // Partial match: "East Whittier" → "whittier", etc.
+      if (!coords) {
+        const parts = key.split(/[\s,\/]+/);
+        for (let p = parts.length - 1; p >= 1; p--) {
+          const sub = parts.slice(parts.length - p).join(' ');
+          if (LA_NEIGHBORHOODS[sub]) { coords = LA_NEIGHBORHOODS[sub]; break; }
+        }
+      }
+
+      // Census Bureau Geocoding API
+      if (!coords) {
+        try {
+          const q = encodeURIComponent(neighborhood + ', CA');
+          const res = await fetchTimeout(
+            `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${q}&benchmark=Public_AR_Current&format=json`
+          );
+          const data = await res.json();
+          const match = data?.result?.addressMatches?.[0];
+          if (match) { coords = { lat: match.coordinates.y, lng: match.coordinates.x }; toCache(addrKey, coords); }
+        } catch (_) {}
+      }
+
+      // Photon (Komoot) — OSM geocoder, two passes
+      if (!coords) {
+        try {
+          const q = encodeURIComponent(neighborhood + ' California');
+          const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${q}&limit=1&lang=en`);
+          const data = await res.json();
+          const feat = data?.features?.[0];
+          if (feat) { coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] }; toCache(addrKey, coords); }
+        } catch (_) {}
+        if (!coords) {
+          try {
+            const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(neighborhood)}&limit=1&lang=en`);
+            const data = await res.json();
+            const feat = data?.features?.[0];
+            if (feat) { coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] }; toCache(addrKey, coords); }
+          } catch (_) {}
+        }
+      }
+
+      if (coords) {
+        clLat = coords.lat; clLng = coords.lng;
+        clDistMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
+        clPx = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
+        if (clDistMi > radiusMi) continue;
+      } else {
+        console.log(`    CL skip (no geocode): "${neighborhood}"`);
+        continue;
+      }
+    } else {
+      clLat = centerLat; clLng = centerLng; clDistMi = 0;
+      clPx = pinXY(centerLat, centerLng, centerLat, centerLng, radiusMi);
+    }
+
+    results.push({
+      id:          `cl-${i}-${Date.now()}`,
+      source:      'craigslist',
+      type:        detectType(item.title),
+      title:       item.title,
+      address:     neighborhood,
+      neighborhood,
+      distanceMi:  clDistMi,
+      lat:         clLat,
+      lng:         clLng,
+      dateLabel:   parseCLDate(item.title) || parseDateLabel(item.datetime),
+      timeLabel:   '',
+      photoCount:  0,
+      images:      [],
+      live:        false,
+      blurb:       '',
+      price:       item.price !== '$0' ? item.price : '',
+      items:       extractItemTags(item.title),
+      url:         item.url,
+      x:           Math.max(5, Math.min(95, clPx.x)),
+      y:           Math.max(5, Math.min(95, clPx.y)),
+    });
+  }
+
+  // Enrich with images and a real street address (when the poster included
+  // one); fall back to static map thumb for photo-less listings.
+  const imageMap = await fetchListingImages(results);
+  for (const listing of results) {
+    const detail = imageMap.get(listing.url) || {};
+    const imgs = detail.images || [];
+    if (imgs.length) {
+      listing.images     = imgs;
+      listing.photoCount = imgs.length;
+    } else {
+      const thumb = mapThumbUrl(listing.lat, listing.lng);
+      if (thumb) { listing.images = [thumb]; listing.photoCount = 1; listing.isMapThumb = true; }
+    }
+    if (detail.address) listing.address = detail.address;
+  }
+
+  console.log(`  CL done — ${results.length} listings with images`);
+  toCache(cacheKey, results);
+
+  return results;
+}
+
+// ── OfferUp scraper (GraphQL API) ─────────────────────────────────────────────
+const OU_GQL_QUERY = `query GetModularFeed($searchParams: [SearchParam]) {
+  modularFeed(params: $searchParams) {
+    looseTiles {
+      ...modularTileListing
+      ...modularTileSellerAd
+    }
+  }
+}
+fragment modularTileListing on ModularFeedTileListing {
+  tileId listing { ...modularListing } tileType
+}
+fragment modularTileSellerAd on ModularFeedTileSellerAd {
+  tileId listing { ...modularListing } tileType
+}
+fragment modularListing on ModularFeedListing {
+  listingId title price locationName flags
+  image { url height width }
+}`;
+
+async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `ou:${zip}:${radiusMi}`;
+  const cached   = fromCache(cacheKey);
+  if (cached) { console.log('  OU cache hit'); return cached; }
+
+  const results = [];
+  const seen    = new Set();
+
+  try {
+    // Step 1: GET offerup.com to collect session cookies
+    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+    const initRes = await fetchTimeout('https://offerup.com', 12000, { headers: { 'User-Agent': UA } });
+    const rawCookies = (initRes.headers.getSetCookie ? initRes.headers.getSetCookie() : [initRes.headers.get('set-cookie') || ''])
+      .map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
+
+    const gqlHeaders = {
+      'Content-Type': 'application/json',
+      'User-Agent':   UA,
+      'Referer':      'https://offerup.com/',
+      'Origin':       'https://offerup.com',
+      ...(rawCookies ? { 'Cookie': rawCookies } : {}),
+    };
+
+    const queries = ['yard sale', 'garage sale', 'estate sale', 'moving sale'];
+
+    for (const q of queries) {
+      const searchParams = [
+        { key: 'q',               value: q },
+        { key: 'distance',        value: String(radiusMi) },
+        { key: 'platform',        value: 'web' },
+        { key: 'lon',             value: String(centerLng) },
+        { key: 'lat',             value: String(centerLat) },
+        { key: 'limit',           value: '40' },
+        { key: 'SORT',            value: '-posted' },
+        { key: 'DELIVERY_FLAGS',  value: 'p' },
+        { key: 'searchSessionId', value: '' },
+      ];
+
+      const body = JSON.stringify({
+        operationName: 'GetModularFeed',
+        variables: { searchParams },
+        query: OU_GQL_QUERY,
+      });
+
+      const res  = await fetchTimeout('https://offerup.com/api/graphql', 15000, {
+        method: 'POST', headers: gqlHeaders, body,
+      });
+
+      if (!res.ok) { console.warn(`  OU GraphQL "${q}" → HTTP ${res.status}`); continue; }
+
+      const data  = await res.json();
+      const tiles = data?.data?.modularFeed?.looseTiles || [];
+      console.log(`  OU GraphQL "${q}" → ${tiles.length} tiles`);
+
+      for (const tile of tiles) {
+        const listing = tile.listing;
+        if (!listing?.title || seen.has(listing.listingId)) continue;
+        seen.add(listing.listingId);
+
+        // Geocode the listing's locationName city
+        const locationName = listing.locationName || '';
+        const cityKey = locationName.toLowerCase().replace(/,.*$/, '').trim();
+        let ouLat = null, ouLng = null, distMi = null;
+
+        const coords = LA_NEIGHBORHOODS[cityKey];
+        if (coords) {
+          ouLat = coords.lat; ouLng = coords.lng;
+          distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
+          if (distMi > radiusMi) continue;
+        } else {
+          // Try Photon for less-common city names
+          try {
+            const gr = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(cityKey + ' California')}&limit=1&lang=en`);
+            const gd = await gr.json();
+            const f  = gd?.features?.[0];
+            if (f) {
+              ouLat = f.geometry.coordinates[1]; ouLng = f.geometry.coordinates[0];
+              distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
+              if (distMi > radiusMi) continue;
+            }
+          } catch (_) {}
+          if (!ouLat) {
+            ouLat = centerLat + (Math.random()-0.5)*0.05;
+            ouLng = centerLng + (Math.random()-0.5)*0.05;
+            distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
+          }
+        }
+
+        const imgUrl = listing.image?.url || '';
+        const price  = listing.price != null ? `$${listing.price}` : '';
+        const px     = pinXY(ouLat, ouLng, centerLat, centerLng, radiusMi);
+
+        results.push({
+          id:          `ou-${results.length}-${Date.now()}`,
+          source:      'offerup',
+          type:        detectType(listing.title + ' ' + q),
+          title:       listing.title,
+          address:     locationName,
+          neighborhood:locationName || 'Nearby',
+          distanceMi:  distMi,
+          lat:         ouLat,
+          lng:         ouLng,
+          dateLabel:   SALE_EVENT_RE.test(listing.title) ? parseCLDate(listing.title) : '',
+          timeLabel:   '',
+          photoCount:  imgUrl ? 1 : 0,
+          images:      imgUrl ? [imgUrl] : [],
+          live:        false,
+          blurb:       '',
+          price,
+          items:       extractItemTags(listing.title, q),
+          url:         `https://offerup.com/item/detail/${listing.listingId}`,
+          x:           px.x,
+          y:           px.y,
+        });
+      }
+    }
+  } catch (err) {
+    console.warn('  OU GraphQL error:', err.message);
+  }
+
+  console.log(`  OU total: ${results.length} listings`);
   toCache(cacheKey, results);
   return results;
 }
 
+// OfferUp blocks all server-side requests (Cloudflare bot protection on their GraphQL endpoint).
+// Keeping this stub so the parallel fetch in /api/listings doesn't need to change.
 // ── EstateSales.org scraper ───────────────────────────────────────────────────
 const ZIP_TO_CITY = {
   '90601':'whittier','90602':'whittier','90603':'whittier','90604':'whittier','90605':'whittier','90606':'whittier',
@@ -863,15 +1129,117 @@ function parseEstateSaleTime(text) {
   return m ? m[0].trim() : '';
 }
 
-async function scrapeEstateSales(zip, radiusMi, centerLat, centerLng) {
-  const cacheKey = `es:${zip}:${radiusMi}`;
-  const cached   = fromCache(cacheKey);
-  if (cached) { console.log('  EstateSales cache hit'); return cached; }
+// ── EstateSales — Apify actor (primary) ──────────────────────────────────────
+// Actor: lulzasaur/estate-sales-scraper  $10/1k results, 99.1% success rate
+// Set APIFY_TOKEN in .env to enable; falls back to Puppeteer scraper if unset.
+// Apify response field reference (from lulzasaur/estate-sales-scraper):
+//   id, title, type, company, address, city, state, zip,
+//   latitude, longitude, dates[{start,end}], photo_count,
+//   main_image, thumbnail, is_featured, url, scrapedAt
+const ES_TYPE_MAP = {
+  estatesales: 'estate', auctions: 'estate', movingsales: 'moving',
+  businessclosings: 'moving', businessliquidations: 'moving',
+  outsidesales: 'yard', charitysales: 'yard', singleitemtypecollections: 'yard',
+  onlineonlyauctions: 'estate', auctionhouse: 'estate',
+};
 
+function apifyDateLabel(dates) {
+  if (!Array.isArray(dates) || !dates.length) return '';
+  // Collect all unique calendar days across all date slots
+  const days = [...new Set(dates.map(d => {
+    const dt = new Date(d.start);
+    return dt.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'America/Los_Angeles' });
+  }))];
+  if (days.length === 1) return days[0];
+  if (days.length === 2) return `${days[0]} – ${days[1]}`;
+  return `${days[0]} – ${days[days.length-1]}`;
+}
+
+function apifyTimeLabel(dates) {
+  if (!Array.isArray(dates) || !dates.length) return '';
+  const d = dates[0];
+  const fmt = dt => new Date(dt).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZone:'America/Los_Angeles' }).replace(':00','');
+  return `${fmt(d.start)} – ${fmt(d.end)}`;
+}
+
+async function scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) return null; // signal: use fallback
+
+  try {
+    console.log(`  EstateSales Apify: zip=${zip} maxResults=50`);
+    const res = await fetchTimeout(
+      `https://api.apify.com/v2/acts/lulzasaur~estate-sales-scraper/run-sync-get-dataset-items?token=${token}`,
+      90000,
+      {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ zip, maxResults: 50 }),
+      }
+    );
+    if (!res.ok) { console.warn(`  ES Apify HTTP ${res.status}`); return null; }
+
+    const items = await res.json();
+    console.log(`  ES Apify raw items: ${items.length}`);
+
+    const results = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (!item.title) continue;
+
+      // Lat/lng come directly from the API — no geocoding needed
+      const esLat = item.latitude, esLng = item.longitude;
+      if (!esLat || !esLng) { console.log(`  ES skip (no coords): "${item.title.slice(0,40)}"`); continue; }
+
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, esLat, esLng).toFixed(1));
+      if (distMi > radiusMi) { console.log(`  ES skip (${distMi}mi): ${item.city}`); continue; }
+
+      const fullAddress = [item.address?.trim(), item.city, item.state, item.zip].filter(Boolean).join(', ');
+      const apiType     = (item.type || '').toLowerCase().replace(/\s+/g, '');
+      const saleType    = ES_TYPE_MAP[apiType] || detectType(item.title);
+
+      // Images: main_image is the hero shot; thumbnail is a smaller version
+      const imgList = [item.main_image, item.thumbnail].filter(Boolean);
+      if (!imgList.length) { const t = mapThumbUrl(esLat, esLng); if (t) imgList.push(t); }
+
+      const px = pinXY(esLat, esLng, centerLat, centerLng, radiusMi);
+      results.push({
+        id:           `es-${item.id || i}-${Date.now()}`,
+        source:       'estatesales',
+        type:         saleType,
+        title:        item.title,
+        address:      fullAddress,
+        neighborhood: item.city || 'Nearby',
+        distanceMi:   distMi,
+        lat:          esLat,
+        lng:          esLng,
+        dateLabel:    apifyDateLabel(item.dates),
+        timeLabel:    apifyTimeLabel(item.dates),
+        photoCount:   imgList.length,
+        images:       imgList,
+        live:         false,
+        blurb:        item.company ? `Hosted by ${item.company}` : '',
+        price:        '',
+        items:        extractItemTags(item.title, item.description),
+        url:          item.url || '',
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+
+    console.log(`  ES Apify done — ${results.length} listings`);
+    return results;
+  } catch (err) {
+    console.warn('  ES Apify error:', err.message);
+    return null;
+  }
+}
+
+// ── EstateSales — Puppeteer fallback (used when APIFY_TOKEN not set) ──────────
+async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
   const city    = ZIP_TO_CITY[zip] || 'whittier';
   const results = [];
 
-  // Try city-specific first, fall back to LA county, then all of CA
   const urls = [
     `https://estatesales.org/estate-sales/ca/${city}`,
     `https://estatesales.org/estate-sales/ca/los-angeles-county`,
@@ -967,31 +1335,58 @@ async function scrapeEstateSales(zip, radiusMi, centerLat, centerLng) {
         // Also scan fullText for a ZIP code
         const textZip = urlZip || (item.fullText.match(/\b(\d{5})\b/) || [])[1] || null;
 
-        let distMi = radiusMi * 0.5; // fallback: half the search radius
-        let esLat = null, esLng = null;
-        let px = { x: 50, y: 50 };
-        if (textZip) {
-          const coords = await geocodeZip(textZip).catch(() => null);
-          if (coords) {
-            esLat = coords.lat; esLng = coords.lng;
-            distMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
-            px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
-          }
-        } else {
-          // Spread around center if no ZIP found
-          const angle = (i / items.length) * 2 * Math.PI;
-          const rv    = 0.3 + Math.random() * 0.4;
-          px = { x: Math.round(50 + Math.cos(angle) * rv * 40), y: Math.round(50 + Math.sin(angle) * rv * 30) };
-        }
-
         // Extract city from URL pathname: /estate-sales/ca/{city-slug}/{id}/{name}
         let cityName = '';
         try {
           const pathParts = new URL(item.href).pathname.split('/').filter(Boolean);
-          // pathParts: ['estate-sales', 'ca', 'city-slug', 'id', 'sale-name']
           const citySlug = pathParts.length >= 3 ? pathParts[2] : '';
           cityName = citySlug.replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
         } catch (_) {}
+
+        // Geocode: ZIP first, then city name, then skip
+        let esLat = null, esLng = null, distMi = null, px = { x: 50, y: 50 };
+
+        if (textZip) {
+          const coords = await geocodeZip(textZip).catch(() => null);
+          if (coords) { esLat = coords.lat; esLng = coords.lng; }
+        }
+
+        // Fall back to city-name geocoding (handles listings with no ZIP in URL)
+        if (!esLat && cityName) {
+          const cityKey = cityName.toLowerCase();
+          let coords = LA_NEIGHBORHOODS[cityKey];
+          if (!coords) {
+            try {
+              const q = encodeURIComponent(cityName + ', CA');
+              const res = await fetchTimeout(
+                `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${q}&benchmark=Public_AR_Current&format=json`
+              );
+              const data = await res.json();
+              const match = data?.result?.addressMatches?.[0];
+              if (match) coords = { lat: match.coordinates.y, lng: match.coordinates.x };
+            } catch (_) {}
+          }
+          if (!coords) {
+            try {
+              const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(cityName + ' California')}&limit=1&lang=en`);
+              const data = await res.json();
+              const feat = data?.features?.[0];
+              if (feat) coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] };
+            } catch (_) {}
+          }
+          if (coords) { esLat = coords.lat; esLng = coords.lng; }
+        }
+
+        if (esLat) {
+          distMi = parseFloat(distanceMiles(centerLat, centerLng, esLat, esLng).toFixed(1));
+          px = pinXY(esLat, esLng, centerLat, centerLng, radiusMi);
+          // Skip out-of-area listings (online auctions from other states, distant CA cities)
+          if (distMi > radiusMi) { console.log(`  ES skip (${distMi}mi): ${cityName}`); continue; }
+        } else {
+          // No geocodeable location — skip rather than show a fake distance
+          console.log(`  ES skip (no geocode): "${item.title?.slice(0,40)}"`);
+          continue;
+        }
 
         // Filter out estatesales.org's own "no photo" placeholder
         const esImg = item.img && !item.img.includes('nophoto') ? item.img : '';
@@ -1013,20 +1408,26 @@ async function scrapeEstateSales(zip, radiusMi, centerLat, centerLng) {
           live:         false,
           blurb:        item.company ? `Hosted by ${item.company}` : '',
           price:        '',
-          items:        [],
+          items:        extractItemTags(item.title, item.fullText),
           url:          item.href,
           x:            Math.max(10, Math.min(90, px.x)),
           y:            Math.max(10, Math.min(90, px.y)),
         });
       }
 
-      // Enrich with detail-page gallery images
+      // Enrich with detail-page gallery images and a real street address
       const imageMap = await fetchEstateSalesImages(results);
       for (const listing of results) {
-        const imgs = imageMap.get(listing.url) || [];
+        const detail = imageMap.get(listing.url) || {};
+        const imgs = detail.images || [];
         if (imgs.length) {
           listing.images     = imgs;
           listing.photoCount = imgs.length;
+        }
+        if (detail.address) {
+          listing.address = listing.address && listing.address !== 'See listing'
+            ? `${detail.address}, ${listing.address}`
+            : detail.address;
         }
       }
 
@@ -1037,7 +1438,538 @@ async function scrapeEstateSales(zip, radiusMi, centerLat, centerLng) {
     }
   }
 
-  console.log(`  EstateSales done — ${results.length} listings`);
+  console.log(`  EstateSales (Puppeteer) done — ${results.length} listings`);
+  return results;
+}
+
+async function scrapeEstateSales(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `es:${zip}:${radiusMi}`;
+  const cached   = fromCache(cacheKey);
+  if (cached) { console.log('  ES cache hit'); return cached; }
+
+  // Try Apify first; if token not set or call fails, fall back to Puppeteer
+  let results = await scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng);
+  if (results === null) results = await scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng);
+
+  toCache(cacheKey, results);
+  return results;
+}
+
+const SCRAPE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
+// ── EstateSales.net ───────────────────────────────────────────────────────────
+// Fully server-rendered; the page embeds a full Redux state dump with precise
+// lat/lng and ISO dates per sale — far more reliable than scraping the DOM.
+async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `esn:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  ESN cache hit'); return cached; }
+
+  const results = [];
+  try {
+    console.log(`  EstateSales.net: zip=${zip}`);
+    const res = await fetchTimeout(`https://www.estatesales.net/CA/Los-Angeles/${zip}`, 15000, {
+      headers: { 'User-Agent': SCRAPE_UA },
+    });
+    if (!res.ok) { console.warn(`  ESN HTTP ${res.status}`); toCache(cacheKey, results); return results; }
+    const html = await res.text();
+    const m = html.match(/<script id="estatesales-net-state" type="application\/json">([\s\S]*?)<\/script>/);
+    if (!m) { console.warn('  ESN: state script not found'); toCache(cacheKey, results); return results; }
+
+    const state = JSON.parse(m[1])?.NGRX_STATE;
+    const saleRows = state?.ui?.sales?.saleRows || {};
+    const rows = Object.values(saleRows);
+    console.log(`  ESN raw rows: ${rows.length}`);
+
+    for (const row of rows) {
+      if (!row?.name || row.latitude == null || row.longitude == null) continue;
+      if ((row.typeName || '').includes('Online')) continue; // ship-anywhere auctions, not a local sale to visit
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, row.latitude, row.longitude).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const dates = (row.dates || [])
+        .map(d => ({ start: d.utcStartDate?._value, end: d.utcEndDate?._value }))
+        .filter(d => d.start);
+      const img = row.mainPicture?.url || row.mainPicture?.thumbnailUrl || '';
+      const px = pinXY(row.latitude, row.longitude, centerLat, centerLng, radiusMi);
+      const title = row.name;
+
+      results.push({
+        id:           `esn-${row.id}`,
+        source:       'estatesalesnet',
+        type:         (row.typeName || '').toLowerCase().includes('auction') ? 'auction' : detectType(title),
+        title,
+        address:      row.address ? `${row.address}, ${row.cityName || ''}`.replace(/,\s*$/, '') : (row.cityName || 'Nearby'),
+        neighborhood: row.cityName || 'Nearby',
+        distanceMi:   distMi,
+        lat:          row.latitude,
+        lng:          row.longitude,
+        dateLabel:    dates.length ? apifyDateLabel(dates) : '',
+        timeLabel:    dates.length ? apifyTimeLabel(dates) : '',
+        photoCount:   row.pictureCount || (img ? 1 : 0),
+        images:       img ? [img] : [],
+        live:         false,
+        blurb:        row.orgName ? `Hosted by ${row.orgName}` : '',
+        price:        '',
+        items:        extractItemTags(title),
+        url:          `https://www.estatesales.net/CA/${(row.cityName || 'CA').replace(/\s+/g, '-')}/${zip}/${row.id}`,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+    console.log(`  ESN done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  ESN error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
+// ── YardSaleSearch.com ────────────────────────────────────────────────────────
+// Fully server-rendered with schema.org microdata (meta tags for lat/lng and
+// ISO start/end dates) — no JS rendering needed.
+async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `yss:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  YSS cache hit'); return cached; }
+
+  const results = [];
+  try {
+    console.log(`  YardSaleSearch: zip=${zip}`);
+    const res = await fetchTimeout(`https://www.yardsalesearch.com/garage-sales.html?zip=${zip}`, 15000, {
+      headers: { 'User-Agent': SCRAPE_UA },
+    });
+    if (!res.ok) { console.warn(`  YSS HTTP ${res.status}`); toCache(cacheKey, results); return results; }
+    const html = await res.text();
+
+    const blocks = html.split('itemtype="http://schema.org/Event"').slice(1);
+    console.log(`  YSS raw blocks: ${blocks.length}`);
+
+    for (const block of blocks) {
+      const titleMatch  = block.match(/itemprop="url"[^>]*>([^<]+)</);
+      const hrefMatch   = block.match(/itemprop="url" href="([^"]+)"/);
+      const imgMatch    = block.match(/data-src="([^"]+)"[^>]*itemprop="image"/);
+      const latMatch    = block.match(/itemprop="latitude" content="([\-\d.]+)"/);
+      const lngMatch    = block.match(/itemprop="longitude" content="([\-\d.]+)"/);
+      const startMatch  = block.match(/itemprop="startDate" content="([\d-]+)"/);
+      const endMatch    = block.match(/itemprop="endDate" content="([\d-]+)"/);
+      const streetMatch = block.match(/itemprop="streetAddress"[^>]*>([^<]*)</);
+      const cityMatch   = block.match(/itemprop="addressLocality"[^>]*>([^<]*)</);
+      const descMatch   = block.match(/itemprop="description"[^>]*>([^<]*)</);
+      if (!titleMatch || !latMatch || !lngMatch) continue;
+
+      const lat = parseFloat(latMatch[1]), lng = parseFloat(lngMatch[1]);
+      if (isNaN(lat) || isNaN(lng)) continue;
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, lat, lng).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const title  = titleMatch[1].trim();
+      const street = streetMatch?.[1]?.trim();
+      const city   = cityMatch?.[1]?.trim();
+      const desc   = descMatch?.[1]?.trim() || '';
+      const idMatch = (hrefMatch?.[1] || '').match(/id=(\d+)/);
+      const px = pinXY(lat, lng, centerLat, centerLng, radiusMi);
+
+      results.push({
+        id:           `yss-${idMatch ? idMatch[1] : `${lat}-${lng}-${results.length}`}`,
+        source:       'yardsalesearch',
+        type:         detectType(title),
+        title,
+        address:      [street, city].filter(Boolean).join(', ') || city || 'Nearby',
+        neighborhood: city || 'Nearby',
+        distanceMi:   distMi,
+        lat, lng,
+        dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
+        timeLabel:    '',
+        photoCount:   imgMatch ? 1 : 0,
+        images:       imgMatch ? [imgMatch[1]] : [],
+        live:         false,
+        blurb:        desc.slice(0, 300),
+        price:        '',
+        items:        extractItemTags(title, desc),
+        url:          hrefMatch ? hrefMatch[1] : `https://www.yardsalesearch.com/garage-sales.html?zip=${zip}`,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+    console.log(`  YSS done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  YSS error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
+// ── GarageSaleFinder.com ──────────────────────────────────────────────────────
+// Fully server-rendered; each listing carries a `data-sale` JSON attribute
+// with id/lat/lon directly, plus schema.org microdata for the rest.
+async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `gsf:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  GSF cache hit'); return cached; }
+
+  const results = [];
+  try {
+    console.log(`  GarageSaleFinder: zip=${zip}`);
+    const res = await fetchTimeout(`https://garagesalefinder.com/yard-sales/${zip}`, 15000, {
+      headers: { 'User-Agent': SCRAPE_UA },
+    });
+    if (!res.ok) { console.warn(`  GSF HTTP ${res.status}`); toCache(cacheKey, results); return results; }
+    const html = await res.text();
+
+    const blocks = html.split('itemtype="http://schema.org/Event"').slice(1);
+    console.log(`  GSF raw blocks: ${blocks.length}`);
+
+    for (const block of blocks) {
+      const saleJsonMatch = block.match(/data-sale='([^']+)'/);
+      if (!saleJsonMatch) continue;
+      let saleData;
+      try { saleData = JSON.parse(saleJsonMatch[1]); } catch { continue; }
+      const lat = saleData.lat, lng = saleData.lon;
+      if (lat == null || lng == null) continue;
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, lat, lng).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const titleMatch = block.match(/class="sale-url"[^>]*>([^<]+)</);
+      const hrefMatch   = block.match(/class="sale-url" href="([^"]+)"/);
+      const addrMatch   = block.match(/itemprop="address"[^>]*>([^<]+)</);
+      const startMatch  = block.match(/itemprop="startDate" content="([\d-]+)"/);
+      const endMatch    = block.match(/itemprop="endDate" content="([\d-]+)"/);
+      const imgMatch    = block.match(/itemprop="image"\s+[^>]*src="([^"]+)"/) || block.match(/src="([^"]+)"[^>]*itemprop="image"/);
+      const descMatch   = block.match(/class="sale-desc"[^>]*itemprop="description"[^>]*>([^<]*)</);
+      if (!titleMatch) continue;
+
+      const title   = titleMatch[1].trim();
+      const address = addrMatch?.[1]?.trim() || '';
+      const city    = address.split(',')[1]?.trim() || address;
+      const desc    = descMatch?.[1]?.trim() || '';
+      const px = pinXY(lat, lng, centerLat, centerLng, radiusMi);
+
+      results.push({
+        id:           `gsf-${saleData.id || `${lat}-${lng}-${results.length}`}`,
+        source:       'garagesalefinder',
+        type:         detectType(title),
+        title,
+        address:      address || city || 'Nearby',
+        neighborhood: city || 'Nearby',
+        distanceMi:   distMi,
+        lat, lng,
+        dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
+        timeLabel:    '',
+        photoCount:   saleData.photo_count || (imgMatch ? 1 : 0),
+        images:       imgMatch ? [imgMatch[1]] : [],
+        live:         false,
+        blurb:        desc.slice(0, 300),
+        price:        '',
+        items:        extractItemTags(title, desc),
+        url:          hrefMatch ? hrefMatch[1] : `https://garagesalefinder.com/yard-sales/${zip}`,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+    console.log(`  GSF done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  GSF error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
+// ── GSALR.com ─────────────────────────────────────────────────────────────────
+// A direct POST to its internal listings API skips the JS-rendered city page
+// entirely — we already have lat/lon/radius from our own zip geocoding.
+async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `gsalr:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  GSALR cache hit'); return cached; }
+
+  const results = [];
+  try {
+    console.log(`  GSALR: lat=${centerLat} lon=${centerLng} radius=${radiusMi}`);
+    const res = await fetchTimeout('https://gsalr.com/block/city/listings', 15000, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'User-Agent':   SCRAPE_UA,
+      },
+      body: `lat=${centerLat}&lon=${centerLng}&radius=${Math.min(radiusMi, 18)}`,
+    });
+    if (!res.ok) { console.warn(`  GSALR HTTP ${res.status}`); toCache(cacheKey, results); return results; }
+    const html = await res.text();
+
+    const blocks = html.split(/<div id="l-\d+" class="listing/).slice(1);
+    console.log(`  GSALR raw blocks: ${blocks.length}`);
+
+    for (const block of blocks) {
+      const latMatch   = block.match(/data-lat="([\-\d.]+)"/);
+      const lonMatch   = block.match(/data-lon="([\-\d.]+)"/);
+      const hrefMatch  = block.match(/href="([^"]+)"[^>]*class="sale-title"/);
+      const titleMatch = block.match(/class="sale-title"[^>]*itemprop="url"[^>]*>([^<]+)</);
+      const imgMatch   = block.match(/itemprop="image"[^>]*src="([^"]+)"/) || block.match(/src="([^"]+)"[^>]*itemprop="image"/);
+      const cityMatch  = block.match(/itemprop="addressLocality"[^>]*>([^<]*)</);
+      const regionMatch = block.match(/itemprop="addressRegion"[^>]*>([^<]*)</);
+      const startMatch = block.match(/itemprop="startDate" content="([\d-]+)"/);
+      const endMatch   = block.match(/itemprop="endDate" content="([\d-]+)"/);
+      const descMatch  = block.match(/itemprop="description"[^>]*>([^<]*)</);
+      if (!latMatch || !lonMatch || !titleMatch) continue;
+
+      const lat = parseFloat(latMatch[1]), lng = parseFloat(lonMatch[1]);
+      if (isNaN(lat) || isNaN(lng)) continue;
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, lat, lng).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const title  = titleMatch[1].trim();
+      const city   = cityMatch?.[1]?.trim();
+      const region = regionMatch?.[1]?.trim();
+      const desc   = descMatch?.[1]?.trim() || '';
+      const px = pinXY(lat, lng, centerLat, centerLng, radiusMi);
+
+      results.push({
+        id:           `gsalr-${lat}-${lng}-${results.length}`,
+        source:       'gsalr',
+        type:         detectType(title),
+        title,
+        address:      [city, region].filter(Boolean).join(', ') || 'Nearby',
+        neighborhood: city || 'Nearby',
+        distanceMi:   distMi,
+        lat, lng,
+        dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
+        timeLabel:    '',
+        photoCount:   imgMatch ? 1 : 0,
+        images:       imgMatch ? [imgMatch[1]] : [],
+        live:         false,
+        blurb:        desc.slice(0, 300),
+        price:        '',
+        items:        extractItemTags(title, desc),
+        url:          hrefMatch ? hrefMatch[1] : 'https://gsalr.com/',
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+    console.log(`  GSALR done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  GSALR error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
+// ── EstateSale.com ────────────────────────────────────────────────────────────
+// No zip search — resolves our zip's center to a city name, looks that city up
+// in a cached CA city→ID directory, then scrapes that city's listing page.
+// Has no lat/lng at all, so each listing is geocoded from its city text.
+// Note: this site sits behind Imperva bot-protection that can trigger
+// intermittently — failures here are expected to sometimes yield 0 results.
+async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `esc:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  ESC cache hit'); return cached; }
+
+  const results = [];
+  try {
+    console.log(`  EstateSale.com: zip=${zip}`);
+    const cityName = await reverseGeocodeCity(centerLat, centerLng);
+    if (!cityName) { console.warn('  ESC: could not resolve city name'); toCache(cacheKey, results); return results; }
+
+    let cityMap = fromCache('esc:ca-cities');
+    if (!cityMap) {
+      const stateRes = await fetchTimeout('https://www.estatesale.com/states/view/5/California-Estate-Sales.html', 15000, {
+        headers: { 'User-Agent': SCRAPE_UA },
+      });
+      const stateHtml = await stateRes.text();
+      cityMap = {};
+      const re = /\/cities\/view\/(\d+)\/Estate-Sales-([A-Za-z0-9-]+)-CA\.html/g;
+      let cm;
+      while ((cm = re.exec(stateHtml))) {
+        const label = cm[2].replace(/-/g, ' ').toLowerCase();
+        if (!cityMap[label]) cityMap[label] = cm[1];
+      }
+      toCache('esc:ca-cities', cityMap);
+      console.log(`  ESC: built city map with ${Object.keys(cityMap).length} CA cities`);
+    }
+
+    const cityKey = cityName.toLowerCase();
+    const cityId = cityMap[cityKey]
+      || Object.entries(cityMap).find(([name]) => name.includes(cityKey) || cityKey.includes(name))?.[1];
+    if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); toCache(cacheKey, results); return results; }
+
+    const citySlug = cityName.replace(/\s+/g, '-');
+    const listRes = await fetchTimeout(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, 15000, {
+      headers: { 'User-Agent': SCRAPE_UA },
+    });
+    if (!listRes.ok) { console.warn(`  ESC HTTP ${listRes.status}`); toCache(cacheKey, results); return results; }
+    const html = await listRes.text();
+
+    const blocks = html.split('class="listing-summary"').slice(1);
+    console.log(`  ESC raw blocks: ${blocks.length}`);
+
+    let count = 0;
+    for (const block of blocks) {
+      if (count >= 30) break; // avoid excessive geocoding calls
+      const hrefMatch  = block.match(/window\.location\.href="([^"]+)"/);
+      const idMatch    = (hrefMatch?.[1] || '').match(/\/sales\/view\/(\d+)\.html/);
+      const titleMatch = block.match(/class="listing-title"[^>]*>([^<]+)</);
+      const locMatch   = block.match(/class="listing-location"[^>]*>([^<]+)</);
+      const dateMatch  = block.match(/class="trebuchet[^"]*"[^>]*>([^<]+)</);
+      const imgMatch   = block.match(/class="listing-logo"[\s\S]{0,80}?<img src="([^"]+)"/);
+      if (!idMatch || !titleMatch) continue;
+      count++;
+
+      const title = titleMatch[1].trim();
+      const locText = locMatch?.[1]?.trim() || cityName;
+      const coords = await geocodeCityName(locText.split(',')[0]);
+      if (!coords) continue;
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
+      results.push({
+        id:           `esc-${idMatch[1]}`,
+        source:       'estatesalecom',
+        type:         detectType(title),
+        title,
+        address:      locText,
+        neighborhood: locText,
+        distanceMi:   distMi,
+        lat:          coords.lat,
+        lng:          coords.lng,
+        dateLabel:    dateMatch ? parseCLDate(dateMatch[1]) : '',
+        timeLabel:    '',
+        photoCount:   imgMatch ? 1 : 0,
+        images:       imgMatch ? [imgMatch[1]] : [],
+        live:         false,
+        blurb:        '',
+        price:        '',
+        items:        extractItemTags(title),
+        url:          `https://www.estatesale.com${hrefMatch[1]}`,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+    console.log(`  ESC done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  ESC error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
+// ── Facebook Marketplace — Apify actor ───────────────────────────────────────
+// Actor: apify/facebook-marketplace-scraper
+// Searches for garage/yard/estate sale listings posted on FB Marketplace.
+async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
+  const token = process.env.APIFY_TOKEN;
+  if (!token) return [];
+
+  const cacheKey = `fb:${zip}:${radiusMi}`;
+  const cached   = fromCache(cacheKey);
+  if (cached) { console.log('  FB cache hit'); return cached; }
+
+  const results = [];
+  const seen    = new Set();
+  const queries = ['garage sale', 'yard sale', 'estate sale', 'moving sale'];
+
+  for (const query of queries) {
+    try {
+      console.log(`  FB Marketplace Apify: "${query}" near ${zip}`);
+      const res = await fetchTimeout(
+        `https://api.apify.com/v2/acts/apify~facebook-marketplace-scraper/run-sync-get-dataset-items?token=${token}`,
+        90000,
+        {
+          method:  'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            searchQuery: query,
+            locationZip: zip,
+            maxItems:    20,
+            radiusMiles: radiusMi,
+          }),
+        }
+      );
+
+      if (!res.ok) { console.warn(`  FB Apify "${query}" HTTP ${res.status}`); continue; }
+
+      const items = await res.json();
+      console.log(`  FB Apify "${query}" → ${items.length} raw items`);
+
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        // Normalize fields — actor may use slightly different names
+        const id     = item.id || item.listingId || item.listing_id || `fb-${i}-${Date.now()}`;
+        const title  = item.title || item.name || '';
+        const price  = item.price != null ? (typeof item.price === 'number' ? `$${item.price}` : item.price) : (item.priceAmount ? `$${item.priceAmount}` : '');
+        const desc   = item.description || item.body || '';
+        const locStr = item.location || item.locationName || item.location_name || item.city || '';
+
+        if (!title || seen.has(id)) continue;
+        seen.add(id);
+
+        // Coordinates — actor sometimes provides them
+        let fbLat = item.lat || item.latitude || null;
+        let fbLng = item.lng || item.longitude || null;
+
+        // Fall back to geocoding the location string
+        if (!fbLat && locStr) {
+          const cityKey = locStr.toLowerCase().replace(/,.*$/, '').trim();
+          let coords = LA_NEIGHBORHOODS[cityKey];
+          if (!coords) {
+            try {
+              const gr = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(locStr + ' California')}&limit=1&lang=en`);
+              const gd = await gr.json();
+              const f  = gd?.features?.[0];
+              if (f) coords = { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
+            } catch (_) {}
+          }
+          if (coords) { fbLat = coords.lat; fbLng = coords.lng; }
+        }
+
+        // If still no coords, place loosely near center
+        if (!fbLat) {
+          fbLat = centerLat + (Math.random() - 0.5) * 0.06;
+          fbLng = centerLng + (Math.random() - 0.5) * 0.06;
+        }
+
+        const distMi = parseFloat(distanceMiles(centerLat, centerLng, fbLat, fbLng).toFixed(1));
+        if (distMi > radiusMi) continue;
+
+        // Images — actor returns urls array or single image
+        const rawImgs = item.images || item.photos || (item.image ? [item.image] : []);
+        const imgUrls = rawImgs.map(img => typeof img === 'string' ? img : img?.url || img?.src).filter(Boolean);
+        if (!imgUrls.length) {
+          const thumb = mapThumbUrl(fbLat, fbLng);
+          if (thumb) imgUrls.push(thumb);
+        }
+
+        const px = pinXY(fbLat, fbLng, centerLat, centerLng, radiusMi);
+        results.push({
+          id:           `fb-${id}`,
+          source:       'facebook',
+          type:         detectType(title + ' ' + desc + ' ' + query),
+          title,
+          address:      locStr || 'Nearby',
+          neighborhood: locStr || 'Nearby',
+          distanceMi:   distMi,
+          lat:          fbLat,
+          lng:          fbLng,
+          dateLabel:    '',
+          timeLabel:    '',
+          photoCount:   imgUrls.length,
+          images:       imgUrls,
+          live:         false,
+          blurb:        desc.slice(0, 300),
+          price,
+          items:        extractItemTags(title, desc),
+          url:          item.url || item.link || `https://www.facebook.com/marketplace/item/${id}`,
+          x:            Math.max(5, Math.min(95, px.x)),
+          y:            Math.max(5, Math.min(95, px.y)),
+        });
+      }
+    } catch (err) {
+      console.warn(`  FB Apify "${query}" error:`, err.message);
+    }
+  }
+
+  console.log(`  FB Marketplace done — ${results.length} listings`);
   toCache(cacheKey, results);
   return results;
 }
@@ -1073,14 +2005,14 @@ async function fetchGoogleListings(zip) {
             address:     '',
             neighborhood: 'Nearby',
             distanceMi:  0,
-            dateLabel:   '',
+            dateLabel:   SALE_EVENT_RE.test(item.title) ? parseCLDate(item.title + ' ' + (item.snippet || '')) : '',
             timeLabel:   '',
             photoCount:  0,
             photos:      item.pagemap?.cse_image?.[0]?.src ? [item.pagemap.cse_image[0].src] : [],
             live:        false,
             blurb:       item.snippet || '',
             price:       '',
-            items:       [],
+            items:       extractItemTags(item.title, item.snippet),
             url:         item.link,
             x:           50 + (results.length % 6) * 6,
             y:           30 + (results.length % 4) * 12,
@@ -1115,15 +2047,111 @@ app.get('/api/listings', async (req, res) => {
   if (!center) return res.status(500).json({ error: `Cannot geocode ZIP: ${zip}`, listings: [] });
 
   // Run all scrapers in parallel
-  const [clListings, ouListings, esListings, googleListings] = await Promise.allSettled([
+  const [clListings, ouListings, esListings, fbListings, googleListings,
+         esnListings, yssListings, gsfListings, gsalrListings, escListings] = await Promise.allSettled([
     scrapeCraigslist(zip, radiusMi, center.lat, center.lng),
     scrapeOfferUp(zip, radiusMi, center.lat, center.lng),
     scrapeEstateSales(zip, radiusMi, center.lat, center.lng),
+    scrapeFacebookMarketplace(zip, radiusMi, center.lat, center.lng),
     fetchGoogleListings(zip),
+    scrapeEstateSalesNet(zip, radiusMi, center.lat, center.lng),
+    scrapeYardSaleSearch(zip, radiusMi, center.lat, center.lng),
+    scrapeGarageSaleFinder(zip, radiusMi, center.lat, center.lng),
+    scrapeGsalr(zip, radiusMi, center.lat, center.lng),
+    scrapeEstateSaleCom(zip, radiusMi, center.lat, center.lng),
   ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : []));
 
-  const all = [...clListings, ...ouListings, ...esListings, ...googleListings];
-  console.log(`Total: ${all.length} (CL=${clListings.length} OU=${ouListings.length} ES=${esListings.length} G=${googleListings.length})`);
+  // Dedicated sale-listing platforms (EstateSales.org, EstateSales.net,
+  // YardSaleSearch, GarageSaleFinder, GSALR, EstateSale.com) are exempt from
+  // the title filter — their whole category is estate/yard sales by
+  // definition, so filtering by title would only create false negatives.
+  // Generic marketplaces (Craigslist, OfferUp, Facebook, Google) still need it.
+  const onlySaleEvents = list => list.filter(l => SALE_EVENT_RE.test(l.title || ''));
+  const clKept = onlySaleEvents(clListings);
+  const ouKept = onlySaleEvents(ouListings);
+  const fbKept = onlySaleEvents(fbListings);
+  const gKept  = onlySaleEvents(googleListings);
+
+  const combined = [...clKept, ...ouKept, ...esListings, ...fbKept, ...gKept,
+                    ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings]
+    .map(l => ({ ...l, title: decodeHtmlEntities(l.title), address: decodeHtmlEntities(l.address), neighborhood: decodeHtmlEntities(l.neighborhood) }));
+
+  // EstateSales.org, EstateSales.net, YardSaleSearch, GarageSaleFinder, and
+  // GSALR often share the same underlying estate-sale syndication feed, so
+  // the exact same physical sale can come back from several of them at once
+  // — but each site geocodes it slightly differently, sometimes a couple
+  // miles apart, so exact-coordinate matching missed a lot of these.
+  //
+  // Two different dedup strategies, because a generic title ("Yard sale",
+  // "Garage sale") legitimately belongs to many different real sales spread
+  // across the whole radius — those must NOT be merged just for being
+  // nearby. A long, distinctive title ("RPV Mid Century Home Trust Sale!")
+  // essentially never coincides by chance, so an exact match within a
+  // generous radius is almost certainly the same sale re-geocoded slightly
+  // differently by each source.
+  const distinctiveGroups = []; // [{ title, lat, lng, listing }]
+  const bucketGroups = new Map();
+  const DISTINCTIVE_MIN_LEN = 16;
+  const DISTINCTIVE_MERGE_RADIUS_MI = 15;
+
+  for (const listing of combined) {
+    const normTitle = (listing.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const isDistinctive = normTitle.length >= DISTINCTIVE_MIN_LEN && listing.lat != null && listing.lng != null;
+
+    if (isDistinctive) {
+      const match = distinctiveGroups.find(g =>
+        g.title === normTitle && distanceMiles(g.lat, g.lng, listing.lat, listing.lng) <= DISTINCTIVE_MERGE_RADIUS_MI
+      );
+      if (match) {
+        if ((listing.images?.length || 0) > (match.listing.images?.length || 0)) match.listing = listing;
+        continue;
+      }
+      distinctiveGroups.push({ title: normTitle, lat: listing.lat, lng: listing.lng, listing });
+      continue;
+    }
+
+    const latKey = listing.lat != null ? listing.lat.toFixed(2) : '?';
+    const lngKey = listing.lng != null ? listing.lng.toFixed(2) : '?';
+    const key = `${normTitle.slice(0, 30)}|${latKey},${lngKey}`;
+    const existing = bucketGroups.get(key);
+    if (!existing || (listing.images?.length || 0) > (existing.images?.length || 0)) {
+      bucketGroups.set(key, listing);
+    }
+  }
+  const titleDeduped = [...distinctiveGroups.map(g => g.listing), ...bucketGroups.values()];
+
+  // Same physical sale can still slip through with two different marketing
+  // taglines per source ("BIG La Mirada Estate Sale" vs "Sunday 50% Off! ...
+  // Big La Mirada Estate Sale") — titles differ too much for the checks
+  // above, but a real street address (a number + street name, not just a
+  // bare city) is a much stronger signal of the same sale nearby.
+  const STREET_ADDR_RE = /^\s*\d+[\s,]/; // starts with a street number
+  const ADDRESS_MERGE_RADIUS_MI = 3;
+  const addressGroups = []; // [{ addr, lat, lng, listing }]
+  const all = [];
+  for (const listing of titleDeduped) {
+    // Sources append different suffixes after the street address ("near Elm
+    // St" vs ", City Name"), so only compare the leading number+street-name
+    // segment rather than the whole string.
+    const addrHead = (listing.address || '').split(/,|\bnear\b/i)[0];
+    const addr = addrHead.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const hasStreetAddr = STREET_ADDR_RE.test(listing.address || '') && listing.lat != null && listing.lng != null;
+
+    if (hasStreetAddr) {
+      const match = addressGroups.find(g =>
+        g.addr === addr && distanceMiles(g.lat, g.lng, listing.lat, listing.lng) <= ADDRESS_MERGE_RADIUS_MI
+      );
+      if (match) {
+        if ((listing.images?.length || 0) > (match.listing.images?.length || 0)) match.listing = listing;
+        continue;
+      }
+      addressGroups.push({ addr, lat: listing.lat, lng: listing.lng, listing });
+      continue;
+    }
+    all.push(listing);
+  }
+  all.push(...addressGroups.map(g => g.listing));
+  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length}`);
 
   toCache(cacheKey, all);
   res.json({ zip, radiusMi, count: all.length, listings: all });

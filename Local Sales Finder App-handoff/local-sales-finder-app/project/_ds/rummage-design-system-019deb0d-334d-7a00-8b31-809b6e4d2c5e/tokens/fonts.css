@@ -1,0 +1,5 @@
+/* Rummage webfonts — loaded from Google Fonts CDN.
+   Display: Newsreader (characterful editorial serif, optical sizing + italics)
+   Body:    Hanken Grotesk (clean, friendly grotesque)
+   Mono:    Spline Sans Mono (data, distances, ZIPs) */
+@import url('https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;0,6..72,600;0,6..72,700;1,6..72,400;1,6..72,500&family=Spline+Sans+Mono:wght@400;500;600&display=swap');

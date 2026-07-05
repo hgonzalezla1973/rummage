@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+<style>
+  *{box-sizing:border-box}
+  body{margin:0;background:#efe9dc;font-family:'Kalam',system-ui,sans-serif;color:#3a352d;-webkit-font-smoothing:antialiased}
+  /* ---- options-stack scaffolding ---- */
+  .dv-turn{padding:44px 48px 34px;border-bottom:1px solid rgba(0,0,0,.09);scroll-margin-top:16px}
+  .dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 6px}
+  .dv-tid{font:700 12px 'Kalam';padding:4px 10px;background:#1c1917;color:#fff;border-radius:6px;text-decoration:none}
+  .dv-tname{font:700 18px 'Kalam';color:#1c1917}
+  .dv-tsub{margin:0 0 22px;font:400 14px 'Kalam';color:rgba(0,0,0,.5)}
+  .dv-opts{display:flex;flex-wrap:wrap;gap:34px;align-items:flex-start}
+  .dv-opt{flex:none;display:flex;flex-direction:column;gap:11px;scroll-margin-top:16px;width:300px}
+  .dv-oid{font:700 12px 'Kalam';padding:3px 9px;background:rgba(0,0,0,.08);color:#1c1917;border-radius:6px;text-decoration:none}
+  .dv-olabel{display:flex;align-items:baseline;gap:9px;font:400 13.5px/1.35 'Kalam';color:rgba(0,0,0,.62)}
+  .dv-opt:target .dv-oid{background:#c2410c;color:#fff}
+  .dv-next{margin:26px 0 0;font:400 14px 'Kalam';color:rgba(0,0,0,.55)}
+  .dv-next a{color:#c2410c;text-decoration:none;font-weight:700}
+  /* ---- phone ---- */
+  .ph{width:300px;height:624px;background:#fff;border:2.5px solid #2b2620;border-radius:36px;padding:8px;box-shadow:4px 5px 0 rgba(43,38,32,.13)}
+  .scr{width:100%;height:100%;border-radius:28px;background:#fdfbf6;overflow:hidden;display:flex;flex-direction:column;position:relative}
+  .sb{display:flex;justify-content:space-between;align-items:center;padding:9px 18px 5px;font:700 11px 'Kalam';color:#8a8378;flex:none}
+  .sb i{width:16px;height:9px;border:1.5px solid #b3aa9a;border-radius:2px;display:inline-block;margin-left:3px}
+  .pad{padding:14px 16px}
+  .grow{flex:1;min-height:0}
+  .col{display:flex;flex-direction:column}
+  .rowc{display:flex;align-items:center}
+  /* ---- primitives ---- */
+  .box{background:#ece5d6;border:1.5px solid #d3ccbd;border-radius:9px}
+  .ln{height:8px;border-radius:5px;background:#ded7c8;display:block}
+  .ln.dk{background:#c1b9a8}
+  .ln.tt{height:12px;background:#b7ae9c}
+  .img{background-color:#ece5d6;background-image:linear-gradient(135deg,transparent calc(50% - .8px),#cabfa6,transparent calc(50% + .8px)),linear-gradient(45deg,transparent calc(50% - .8px),#cabfa6,transparent calc(50% + .8px));border:1.5px solid #cfc6b2;border-radius:9px;display:flex;align-items:center;justify-content:center;color:#a89c82;font:700 10px 'Kalam'}
+  .btn{height:40px;border-radius:11px;border:1.6px solid #b8b1a3;display:flex;align-items:center;justify-content:center;font:700 13px 'Kalam';color:#5a5346;background:#fff}
+  .btn.pri{background:#c2410c;border-color:#c2410c;color:#fff}
+  .btn.sm{height:32px;font-size:12px}
+  .chip{height:26px;padding:0 12px;border-radius:20px;border:1.5px solid #b8b1a3;display:inline-flex;align-items:center;font:700 11px 'Kalam';color:#6b6459;background:#fff;white-space:nowrap}
+  .chip.on{background:#1c1917;color:#fff;border-color:#1c1917}
+  .chips{display:flex;gap:7px;overflow:hidden}
+  .field{height:38px;border:1.6px solid #b8b1a3;border-radius:10px;background:#fff;display:flex;align-items:center;padding:0 11px;gap:7px;font:400 12px 'Kalam';color:#9a917f}
+  .search{flex:1;height:36px;border:1.6px solid #b8b1a3;border-radius:11px;background:#fff;display:flex;align-items:center;padding:0 11px;gap:7px;font:400 12px 'Kalam';color:#9a917f}
+  .glyph{width:26px;height:26px;border-radius:7px;border:1.8px solid #9a917f;flex:none;display:flex;align-items:center;justify-content:center;color:#9a917f;font-size:12px}
+  .heart{width:28px;height:28px;border-radius:50%;background:#fff;border:1.5px solid #ddd5c6;display:flex;align-items:center;justify-content:center;color:#c2410c;font-size:13px}
+  .tag{height:20px;padding:0 9px;border-radius:6px;font:700 10px 'Kalam';display:inline-flex;align-items:center}
+  .tabbar{margin-top:auto;height:54px;border-top:1.5px solid #e0d9cb;display:flex;background:#fff;flex:none}
+  .tab{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font:700 9px 'Kalam';color:#a89e8d}
+  .tab.on{color:#c2410c}
+  .tab .d{width:20px;height:20px;border-radius:6px;border:1.9px solid currentColor}
+  /* ---- map ---- */
+  .map{position:relative;background:#e6ece2;background-image:repeating-linear-gradient(0deg,transparent 0 26px,#d4dcc9 26px 27px),repeating-linear-gradient(90deg,transparent 0 26px,#d4dcc9 26px 27px);overflow:hidden}
+  .map::after{content:"";position:absolute;left:-10%;top:35%;width:120%;height:14px;background:#cdd6c0;transform:rotate(-8deg)}
+  .pin{position:absolute;width:19px;height:19px;border-radius:50%;background:#c2410c;border:2.5px solid #fff;box-shadow:1px 2px 0 rgba(43,38,32,.2);transform:translate(-50%,-50%);z-index:2}
+  .grab{width:38px;height:5px;border-radius:3px;background:#d8d0c1;margin:8px auto 6px}
+  .sheet{background:#fff;border-radius:22px 22px 0 0;box-shadow:0 -6px 16px rgba(43,38,32,.09);border-top:1.5px solid #e6ddce}
+  .note{display:flex;gap:6px;font:400 12.5px/1.4 'Kalam';color:#2f6ea8;width:300px}
+  .note b{color:#c2410c}
+  .dots{display:flex;gap:6px;justify-content:center}
+  .dots span{width:7px;height:7px;border-radius:50%;background:#d3ccbd}
+  .dots span.on{background:#c2410c;width:18px;border-radius:4px}
+</style>
+</helmet>
+
+<!-- ============ T1  ONBOARDING ============ -->
+<section class="dv-turn" id="t1">
+  <div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">Onboarding · location</span></div>
+  <p class="dv-tsub">Four ways to get someone from install to their first map of nearby sales.</p>
+  <div class="dv-opts">
+
+    <!-- 1a -->
+    <div class="dv-opt" id="1a">
+      <div class="dv-olabel" data-comment-anchor="6b7e4aff56-div"><a class="dv-oid" href="#1a">1a</a>Classic permission ask — value line + one big button</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="grow col" style="justify-content:center;align-items:center;gap:18px;padding:24px 22px">
+          <div class="box" style="width:56px;height:56px;border-radius:16px;display:flex;align-items:center;justify-content:center;color:#c2410c;font-size:22px;border-color:#e2b39a;background:#fbe7dc">◉</div>
+          <div class="col" style="gap:9px;align-items:center;width:100%">
+            <div class="ln tt" style="width:80%"></div>
+            <div class="ln" style="width:62%"></div>
+            <div class="ln" style="width:70%"></div>
+          </div>
+          <div class="img" style="width:100%;height:150px">map preview</div>
+          <div class="col" style="gap:10px;width:100%">
+            <div class="btn pri">Enable location</div>
+            <div class="btn" style="border:none">Enter ZIP instead</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 1b -->
+    <div class="dv-opt" id="1b">
+      <div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Map teaser behind a permission sheet — show value first</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="map grow" style="filter:blur(.4px)">
+          <div class="pin" style="left:30%;top:28%"></div>
+          <div class="pin" style="left:64%;top:40%;background:#7c3aed"></div>
+          <div class="pin" style="left:45%;top:55%;background:#16a34a"></div>
+          <div class="pin" style="left:72%;top:66%"></div>
+        </div>
+        <div class="sheet pad" style="padding-bottom:18px">
+          <div class="grab"></div>
+          <div class="col" style="gap:9px;align-items:center">
+            <div class="ln tt" style="width:75%"></div>
+            <div class="ln" style="width:88%"></div>
+            <div class="btn pri" style="width:100%;margin-top:6px">Allow location</div>
+            <div class="btn" style="border:none">Not now</div>
+          </div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 1c -->
+    <div class="dv-opt" id="1c">
+      <div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>3-step value carousel, permission on the last card</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span style="color:#b3aa9a">Skip</span></div>
+        <div class="grow col" style="justify-content:center;gap:20px;padding:22px">
+          <div class="img" style="width:100%;height:210px">illustration</div>
+          <div class="col" style="gap:9px">
+            <div class="ln tt" style="width:70%"></div>
+            <div class="ln" style="width:100%"></div>
+            <div class="ln" style="width:84%"></div>
+          </div>
+          <div class="dots"><span class="on"></span><span></span><span></span></div>
+          <div class="btn pri">Next</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 1d -->
+    <div class="dv-opt" id="1d">
+      <div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>ZIP-first — type an area, location is optional</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="grow col" style="justify-content:center;gap:16px;padding:24px 20px">
+          <div class="box" style="width:48px;height:48px;border-radius:14px;display:flex;align-items:center;justify-content:center;color:#c2410c;border-color:#e2b39a;background:#fbe7dc">◉</div>
+          <div class="ln tt" style="width:78%"></div>
+          <div class="field" style="height:52px;font-size:16px;letter-spacing:6px;color:#c1b9a8;justify-content:center">9 7 2 0 1</div>
+          <div class="btn pri">Search sales</div>
+          <div class="rowc" style="gap:8px;justify-content:center;color:#9a917f;font-size:12px"><span class="glyph" style="width:20px;height:20px">⌖</span> Use my location</div>
+          <div class="img" style="width:100%;height:120px;margin-top:6px">map preview</div>
+        </div>
+      </div></div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "more like <a class="dv-oid" href="#1b">1b</a>" · "combine <a class="dv-oid" href="#1c">1c</a> steps with <a class="dv-oid" href="#1d">1d</a> ZIP" · "add a sign-in screen"</p>
+</section>
+
+<!-- ============ T2  HOME ============ -->
+<section class="dv-turn" id="t2">
+  <div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">Home · map + list of nearby sales</span></div>
+  <p class="dv-tsub">The core screen. Four takes on how map and list share the space.</p>
+  <div class="dv-opts">
+
+    <!-- 2a -->
+    <div class="dv-opt" id="2a">
+      <div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Map-first + draggable bottom-sheet list (Yardly-style)</div>
+      <div class="ph"><div class="scr">
+        <div class="sb" data-comment-anchor="cb44967466-div"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="pad" style="padding:8px 12px 6px">
+          <div class="rowc" style="gap:8px"><div class="search">⌕ Search this area</div><div class="glyph">≡</div></div>
+          <div class="chips" style="margin-top:8px"><span class="chip on">All</span><span class="chip">Estate</span><span class="chip">Yard</span><span class="chip">Moving</span></div>
+        </div>
+        <div class="map grow">
+          <div class="pin" style="left:30%;top:24%"></div>
+          <div class="pin" style="left:62%;top:32%;background:#7c3aed"></div>
+          <div class="pin" style="left:44%;top:46%;background:#16a34a"></div>
+          <div class="pin" style="left:70%;top:54%;background:#d97706"></div>
+        </div>
+        <div class="sheet pad" style="padding:0 14px 8px">
+          <div class="grab"></div>
+          <div class="rowc" style="justify-content:space-between;margin-bottom:8px"><div class="ln dk" style="width:44%"></div><div class="ln" style="width:22%"></div></div>
+          <div class="rowc" style="gap:10px;margin-bottom:9px"><div class="img" style="width:56px;height:56px;flex:none"></div><div class="col" style="gap:6px;flex:1"><div class="ln dk" style="width:85%"></div><div class="ln" style="width:55%"></div><div class="tag" style="background:#f3e8ff;color:#7c3aed;width:52px">estate</div></div></div>
+          <div class="rowc" style="gap:10px"><div class="img" style="width:56px;height:56px;flex:none"></div><div class="col" style="gap:6px;flex:1"><div class="ln dk" style="width:75%"></div><div class="ln" style="width:50%"></div><div class="tag" style="background:#dcfce7;color:#16a34a;width:44px">yard</div></div></div>
+        </div>
+        <div class="tabbar"><div class="tab on"><span class="d"></span>Explore</div><div class="tab"><span class="d"></span>Saved</div><div class="tab"><span class="d"></span>Post</div><div class="tab"><span class="d"></span>You</div></div>
+      </div></div>
+      <div class="note">Sheet drags up to a full list, down to peek. <b>Best for a maps-first product.</b></div>
+    </div>
+
+    <!-- 2b -->
+    <div class="dv-opt" id="2b">
+      <div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>List-first feed, map is a toggle away</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="pad" style="padding:10px 14px 8px">
+          <div class="rowc" style="justify-content:space-between"><div class="col" style="gap:5px"><div class="ln dk" style="width:120px"></div><div class="ln" style="width:80px"></div></div><div class="chip"><span>◱</span>&nbsp;Map</div></div>
+          <div class="chips" style="margin-top:10px"><span class="chip on">All</span><span class="chip">Estate</span><span class="chip">Yard</span><span class="chip">Thrift</span></div>
+        </div>
+        <div class="grow col" style="gap:11px;padding:2px 14px;overflow:hidden">
+          <div class="box" style="border:1.5px solid #e0d9cb;border-radius:14px;overflow:hidden;background:#fff"><div class="img" style="height:96px;border:none;border-radius:0;position:relative"><div class="heart" style="position:absolute;top:8px;right:8px"></div><div class="tag" style="position:absolute;top:8px;left:8px;background:#f3e8ff;color:#7c3aed">estate</div></div><div class="col" style="gap:6px;padding:10px"><div class="ln dk" style="width:88%"></div><div class="ln" style="width:60%"></div><div class="ln" style="width:40%"></div></div></div>
+          <div class="box" style="border:1.5px solid #e0d9cb;border-radius:14px;overflow:hidden;background:#fff"><div class="img" style="height:96px;border:none;border-radius:0;position:relative"><div class="heart" style="position:absolute;top:8px;right:8px"></div><div class="tag" style="position:absolute;top:8px;left:8px;background:#dcfce7;color:#16a34a">yard</div></div><div class="col" style="gap:6px;padding:10px"><div class="ln dk" style="width:75%"></div><div class="ln" style="width:55%"></div></div></div>
+        </div>
+        <div class="tabbar"><div class="tab on"><span class="d"></span>Explore</div><div class="tab"><span class="d"></span>Saved</div><div class="tab"><span class="d"></span>Post</div><div class="tab"><span class="d"></span>You</div></div>
+      </div></div>
+    </div>
+
+    <!-- 2c -->
+    <div class="dv-opt" id="2c">
+      <div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Fixed split — map on top, list below, both always visible</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="pad" style="padding:8px 12px 6px"><div class="rowc" style="gap:8px"><div class="search">⌕ 97201 · within 5 mi</div><div class="glyph">≡</div></div></div>
+        <div class="map" style="height:210px">
+          <div class="pin" style="left:34%;top:30%"></div>
+          <div class="pin" style="left:60%;top:44%;background:#16a34a"></div>
+          <div class="pin" style="left:48%;top:64%;background:#d97706"></div>
+        </div>
+        <div class="grow col" style="gap:10px;padding:12px 14px;overflow:hidden">
+          <div class="rowc" style="justify-content:space-between"><div class="ln dk" style="width:40%"></div><div class="ln" style="width:24%"></div></div>
+          <div class="rowc" style="gap:10px"><div class="img" style="width:50px;height:50px;flex:none"></div><div class="col" style="gap:6px;flex:1"><div class="ln dk" style="width:85%"></div><div class="ln" style="width:52%"></div></div></div>
+          <div class="rowc" style="gap:10px"><div class="img" style="width:50px;height:50px;flex:none"></div><div class="col" style="gap:6px;flex:1"><div class="ln dk" style="width:70%"></div><div class="ln" style="width:48%"></div></div></div>
+        </div>
+        <div class="tabbar"><div class="tab on"><span class="d"></span>Explore</div><div class="tab"><span class="d"></span>Saved</div><div class="tab"><span class="d"></span>Post</div><div class="tab"><span class="d"></span>You</div></div>
+      </div></div>
+    </div>
+
+    <!-- 2d -->
+    <div class="dv-opt" id="2d">
+      <div class="dv-olabel"><a class="dv-oid" href="#2d">2d</a>Segmented Map/List toggle + prominent radius stepper</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="pad" style="padding:10px 14px 8px">
+          <div class="box" style="display:flex;padding:3px;background:#efe9dc;border-color:#ddd5c6"><div class="btn sm" style="flex:1;background:#fff;border:none;color:#1c1917">Map</div><div class="btn sm" style="flex:1;background:none;border:none;color:#9a917f">List</div></div>
+          <div class="rowc" style="justify-content:space-between;margin-top:10px;background:#fff;border:1.5px solid #ddd5c6;border-radius:11px;padding:6px 8px"><span class="glyph" style="width:28px;height:28px">–</span><div class="col" style="align-items:center;gap:3px"><div class="ln dk" style="width:70px"></div><div class="ln" style="width:50px"></div></div><span class="glyph" style="width:28px;height:28px;color:#c2410c;border-color:#c2410c">+</span></div>
+        </div>
+        <div class="map grow">
+          <div class="pin" style="left:32%;top:28%"></div>
+          <div class="pin" style="left:58%;top:40%;background:#7c3aed"></div>
+          <div class="pin" style="left:46%;top:58%;background:#16a34a"></div>
+          <div class="box" style="position:absolute;right:12px;bottom:12px;width:44px;height:44px;border-radius:50%;background:#c2410c;border:none;display:flex;align-items:center;justify-content:center;color:#fff;box-shadow:2px 3px 0 rgba(43,38,32,.2)">☰</div>
+        </div>
+        <div class="tabbar"><div class="tab on"><span class="d"></span>Explore</div><div class="tab"><span class="d"></span>Saved</div><div class="tab"><span class="d"></span>Post</div><div class="tab"><span class="d"></span>You</div></div>
+      </div></div>
+      <div class="note">Radius stepper mirrors the design system's <b>DistanceStepper</b>.</div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "flesh out <a class="dv-oid" href="#2a">2a</a> to hi-fi" · "add a filters sheet" · "show <a class="dv-oid" href="#2b">2b</a> empty state"</p>
+</section>
+
+<!-- ============ T3  SALE DETAIL ============ -->
+<section class="dv-turn" id="t3">
+  <div class="dv-thd"><a class="dv-tid" href="#t3">3</a><span class="dv-tname">Sale detail</span></div>
+  <p class="dv-tsub">Everything about one sale: photos, when/where, what's for sale, get there.</p>
+  <div class="dv-opts">
+
+    <!-- 3a -->
+    <div class="dv-opt" id="3a">
+      <div class="dv-olabel"><a class="dv-oid" href="#3a">3a</a>Photo hero, scroll to details + directions CTA</div>
+      <div class="ph"><div class="scr">
+        <div class="img" style="height:180px;border:none;border-radius:0;position:relative;flex:none" data-comment-anchor="96ca866dcc-div"><div class="glyph" style="position:absolute;top:12px;left:12px;background:#fff">‹</div><div class="heart" style="position:absolute;top:12px;right:12px"></div><div class="tag" style="position:absolute;bottom:10px;left:12px;background:rgba(28,25,23,.7);color:#fff">1 / 8</div></div>
+        <div class="grow col" style="padding:14px 16px;gap:11px;overflow:hidden">
+          <div class="tag" style="background:#f3e8ff;color:#7c3aed;width:56px">estate</div>
+          <div class="ln tt" style="width:92%"></div>
+          <div class="rowc" style="gap:8px;color:#8a8378;font-size:11px">Sat Jun 14 · 8am–3pm · 2.4 mi</div>
+          <div class="rowc" style="gap:10px;margin-top:2px"><div class="btn pri" style="flex:1">Get directions</div><div class="heart" style="width:40px;height:40px;border-radius:11px">♡</div></div>
+          <div class="ln" style="width:100%;margin-top:4px"></div><div class="ln" style="width:96%"></div><div class="ln" style="width:70%"></div>
+          <div class="ln dk" style="width:45%;margin-top:6px"></div>
+          <div class="chips" style="flex-wrap:wrap"><span class="chip">furniture</span><span class="chip">tools</span><span class="chip">vinyl</span></div>
+          <div class="img" style="height:90px;margin-top:4px">mini map</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 3b -->
+    <div class="dv-opt" id="3b">
+      <div class="dv-olabel"><a class="dv-oid" href="#3b">3b</a>Map-anchored — location on top, info card sheet below</div>
+      <div class="ph"><div class="scr">
+        <div class="map" style="height:220px;flex:none"><div class="glyph" style="position:absolute;top:12px;left:12px;background:#fff">‹</div><div class="pin" style="left:50%;top:52%;width:26px;height:26px"></div></div>
+        <div class="sheet grow col" style="margin-top:-20px;padding:0 16px 14px;overflow:hidden;z-index:3">
+          <div class="grab"></div>
+          <div class="tag" style="background:#fef3c7;color:#d97706;width:56px;margin-bottom:8px">moving</div>
+          <div class="ln tt" style="width:88%"></div>
+          <div class="rowc" style="gap:6px;color:#8a8378;font-size:11px;margin:8px 0">Sun Jun 15 · 9am · 1.1 mi</div>
+          <div class="rowc" style="gap:8px;margin-bottom:10px"><div class="img" style="width:70px;height:52px;flex:none"></div><div class="img" style="width:70px;height:52px;flex:none"></div><div class="img" style="width:70px;height:52px;flex:none"></div></div>
+          <div class="ln" style="width:100%"></div><div class="ln" style="width:82%;margin-top:7px"></div>
+          <div class="btn pri" style="margin-top:12px">Get directions</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 3c -->
+    <div class="dv-opt" id="3c">
+      <div class="dv-olabel"><a class="dv-oid" href="#3c">3c</a>Gallery-forward — big carousel dominates, info collapses</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="img" style="height:300px;border-radius:0;position:relative;flex:none"><div class="glyph" style="position:absolute;top:12px;left:12px;background:#fff">‹</div><div class="heart" style="position:absolute;top:12px;right:12px"></div><div class="dots" style="position:absolute;bottom:12px;left:0;right:0"><span class="on" style="background:#fff"></span><span style="background:rgba(255,255,255,.6)"></span><span style="background:rgba(255,255,255,.6)"></span></div></div>
+        <div class="grow col" style="padding:14px 16px;gap:9px">
+          <div class="ln tt" style="width:85%"></div>
+          <div class="rowc" style="gap:6px;color:#8a8378;font-size:11px">Sat Jun 14 · 8am · 3.0 mi</div>
+          <div class="ln" style="width:100%;margin-top:4px"></div><div class="ln" style="width:75%"></div>
+          <div class="btn pri" style="margin-top:auto">Get directions</div>
+        </div>
+      </div></div>
+    </div>
+
+    <!-- 3d -->
+    <div class="dv-opt" id="3d">
+      <div class="dv-olabel"><a class="dv-oid" href="#3d">3d</a>Compact & tabbed — facts grid, sticky action bar</div>
+      <div class="ph"><div class="scr">
+        <div class="sb"><span>9:41</span><span>▪▪▪ <i></i></span></div>
+        <div class="pad" style="padding:8px 16px 4px"><div class="glyph" style="margin-bottom:8px">‹</div><div class="tag" style="background:#ffe4e6;color:#e11d48;width:56px">auction</div><div class="ln tt" style="width:90%;margin-top:8px"></div></div>
+        <div class="pad" style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px 16px">
+          <div class="box" style="padding:8px;background:#fff;border-color:#e6ddce"><div class="ln" style="width:40%;margin-bottom:6px"></div><div class="ln dk" style="width:70%"></div></div>
+          <div class="box" style="padding:8px;background:#fff;border-color:#e6ddce"><div class="ln" style="width:40%;margin-bottom:6px"></div><div class="ln dk" style="width:60%"></div></div>
+          <div class="box" style="padding:8px;background:#fff;border-color:#e6ddce"><div class="ln" style="width:50%;margin-bottom:6px"></div><div class="ln dk" style="width:55%"></div></div>
+          <div class="box" style="padding:8px;background:#fff;border-color:#e6ddce"><div class="ln" style="width:45%;margin-bottom:6px"></div><div class="ln dk" style="width:65%"></div></div>
+        </div>
+        <div class="rowc" style="gap:16px;padding:8px 16px;border-bottom:1.5px solid #e6ddce;font-size:12px"><span style="color:#c2410c;font-weight:700">Details</span><span style="color:#a89e8d">Items</span><span style="color:#a89e8d">Map</span></div>
+        <div class="grow col" style="gap:8px;padding:12px 16px"><div class="ln" style="width:100%"></div><div class="ln" style="width:92%"></div><div class="ln" style="width:70%"></div></div>
+        <div class="rowc" style="gap:10px;padding:10px 16px;border-top:1.5px solid #e6ddce"><div class="btn" style="flex:none;width:46px">♡</div><div class="btn pri" style="flex:1">Get directions</div></div>
+      </div></div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "detail out <a class="dv-oid" href="#3a">3a</a>" · "add seller info + report" · "show a saved/reminder state"</p>
+</section>
+
+<!-- ============ T4  POST A SALE ============ -->
+<section class="dv-turn" id="t4">
+  <div class="dv-thd"><a class="dv-tid" href="#t4">4</a><span class="dv-tname">Post a sale · seller flow</span></div>
+  <p class="dv-tsub">How a neighbor lists their sale — from a long form to a two-tap quick post.</p>
+  <div class="dv-opts">
+
+    <!-- 4a -->
+    <div class="dv-opt" id="4a">
+      <div class="dv-olabel"><a class="dv-oid" href="#4a">4a</a>Single long-scroll form, sticky Publish</div>
+      <div class="ph"><div class="scr">
+        <div class="rowc" style="justify-content:space-between;padding:12px 16px 10px;border-bottom:1.5px solid #e6ddce;flex:none"><span style="font-weight:700">Post a sale</span><span class="glyph" style="width:24px;height:24px">✕</span></div>
+        <div class="grow col" style="gap:11px;padding:14px 16px;overflow:hidden">
+          <div class="col" style="gap:5px"><div class="ln" style="width:30%"></div><div class="field">Sale title</div></div>
+          <div class="col" style="gap:6px"><div class="ln" style="width:35%"></div><div class="chips" style="flex-wrap:wrap"><span class="chip on">estate</span><span class="chip">yard</span><span class="chip">moving</span></div></div>
+          <div class="col" style="gap:5px"><div class="ln" style="width:28%"></div><div class="rowc" style="gap:8px"><div class="field" style="flex:1">Date</div><div class="field" style="flex:1">Time</div></div></div>
+          <div class="col" style="gap:5px"><div class="ln" style="width:32%"></div><div class="field">Address</div></div>
+          <div class="col" style="gap:5px"><div class="ln" style="width:26%"></div><div class="rowc" style="gap:8px"><div class="img" style="width:56px;height:56px">＋</div><div class="img" style="width:56px;height:56px"></div><div class="img" style="width:56px;height:56px"></div></div></div>
+        </div>
+        <div class="pad" style="padding:10px 16px;border-top:1.5px solid #e6ddce"><div class="btn pri">Publish sale</div></div>
+      </div></div>
+    </div>
+
+    <!-- 4b -->
+    <div class="dv-opt" id="4b">
+      <div class="dv-olabel"><a class="dv-oid" href="#4b">4b</a>Guided wizard — one thing per step with progress</div>
+      <div class="ph"><div class="scr">
+        <div class="pad" style="padding:12px 16px 8px;flex:none"><div class="rowc" style="justify-content:space-between;margin-bottom:10px"><span class="glyph" style="width:24px;height:24px">‹</span><span style="font-size:11px;color:#8a8378">Step 3 of 5</span></div><div class="box" style="height:6px;border-radius:4px;background:#e6ddce;border:none;overflow:hidden"><div style="width:60%;height:100%;background:#c2410c"></div></div></div>
+        <div class="grow col" style="padding:20px 18px;gap:14px">
+          <div class="ln tt" style="width:70%"></div>
+          <div class="ln" style="width:88%"></div>
+          <div class="col" style="gap:8px;margin-top:6px"><div class="field" style="height:44px">Date</div><div class="field" style="height:44px">Start – end time</div></div>
+        </div>
+        <div class="rowc" style="gap:10px;padding:12px 16px;border-top:1.5px solid #e6ddce"><div class="btn" style="flex:1">Back</div><div class="btn pri" style="flex:1">Next</div></div>
+      </div></div>
+      <div class="note">Lowest friction per screen — good for <b>first-time sellers.</b></div>
+    </div>
+
+    <!-- 4c -->
+    <div class="dv-opt" id="4c">
+      <div class="dv-olabel"><a class="dv-oid" href="#4c">4c</a>Form with a live preview of the card buyers will see</div>
+      <div class="ph"><div class="scr">
+        <div class="rowc" style="justify-content:space-between;padding:12px 16px 10px;border-bottom:1.5px solid #e6ddce;flex:none"><span style="font-weight:700">New sale</span><span class="glyph" style="width:24px;height:24px">✕</span></div>
+        <div class="grow col" style="gap:10px;padding:12px 16px;overflow:hidden">
+          <div class="field">Sale title</div>
+          <div class="chips"><span class="chip on">yard</span><span class="chip">estate</span><span class="chip">moving</span></div>
+          <div class="rowc" style="gap:8px"><div class="field" style="flex:1">Date</div><div class="field" style="flex:1">Time</div></div>
+          <div class="ln" style="width:32%;margin-top:4px"></div>
+          <div class="box" style="border:1.5px dashed #c2410c;border-radius:14px;overflow:hidden;background:#fff"><div class="img" style="height:70px;border:none;border-radius:0"></div><div class="col" style="gap:6px;padding:9px"><div class="ln dk" style="width:80%"></div><div class="ln" style="width:55%"></div><div class="tag" style="background:#dcfce7;color:#16a34a;width:40px">yard</div></div></div>
+        </div>
+        <div class="pad" style="padding:10px 16px;border-top:1.5px solid #e6ddce"><div class="btn pri">Publish</div></div>
+      </div></div>
+    </div>
+
+    <!-- 4d -->
+    <div class="dv-opt" id="4d">
+      <div class="dv-olabel"><a class="dv-oid" href="#4d">4d</a>Quick post — photo + a couple fields, add details later</div>
+      <div class="ph"><div class="scr">
+        <div class="rowc" style="justify-content:space-between;padding:12px 16px 10px;flex:none" data-comment-anchor="68d501ac82-div"><span style="font-weight:700">Quick post</span><span class="glyph" style="width:24px;height:24px">✕</span></div>
+        <div class="grow col" style="gap:13px;padding:8px 16px">
+          <div class="img" style="height:150px;border:1.6px dashed #c2410c;color:#c2410c;flex-direction:column;gap:6px"><span style="font-size:20px">⌾</span>Add photos</div>
+          <div class="field" style="height:44px">Sale title</div>
+          <div class="chips"><span class="chip on">yard</span><span class="chip">estate</span><span class="chip">moving</span></div>
+          <div class="field" style="height:44px">When &amp; where</div>
+          <div class="rowc" style="gap:6px;color:#9a917f;font-size:11px;justify-content:center">You can add items &amp; details after posting</div>
+        </div>
+        <div class="pad" style="padding:10px 16px;border-top:1.5px solid #e6ddce"><div class="btn pri">Post sale</div></div>
+      </div></div>
+    </div>
+
+  </div>
+  <p class="dv-next">Try next: "build <a class="dv-oid" href="#4b">4b</a> wizard fully" · "add a Review step" · "show the published confirmation"</p>
+</section>
+</x-dc>
+</body>
+</html>

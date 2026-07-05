@@ -1,0 +1,57 @@
+/* ============================================================
+   Rummage — Spacing, radii, shadows, layout, motion
+   Warm-tinted depth; soft on cream. 4px base grid.
+   ============================================================ */
+:root {
+  /* ---- Spacing (4px grid) ---- */
+  --space-0:   0;
+  --space-05:  2px;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-16:  64px;
+  --space-20:  80px;
+
+  /* ---- Radii ---- */
+  --radius-xs:   6px;
+  --radius-sm:   10px;
+  --radius-md:   14px;   /* default control radius */
+  --radius-lg:   20px;   /* cards */
+  --radius-xl:   28px;   /* sheets, hero cards */
+  --radius-2xl:  36px;
+  --radius-pill: 999px;
+
+  /* ---- Borders ---- */
+  --border-width: 1px;
+  --border-width-strong: 1.5px;
+
+  /* ---- Shadows (warm ink tint) ---- */
+  --shadow-xs: 0 1px 2px rgba(28,25,23,0.06);
+  --shadow-sm: 0 1px 3px rgba(28,25,23,0.08), 0 1px 2px rgba(28,25,23,0.05);
+  --shadow-md: 0 4px 14px rgba(28,25,23,0.10), 0 1px 3px rgba(28,25,23,0.06);
+  --shadow-lg: 0 14px 34px rgba(28,25,23,0.14), 0 4px 10px rgba(28,25,23,0.08);
+  --shadow-sheet: 0 -8px 40px rgba(28,25,23,0.16);
+  --shadow-pin: 0 6px 16px rgba(154,52,18,0.30);
+  --shadow-focus: 0 0 0 3px rgba(234,88,12,0.28);
+
+  /* ---- Layout ---- */
+  --app-max-width: 430px;   /* iPhone design width */
+  --tabbar-height: 84px;    /* incl. home-indicator safe area */
+  --header-height: 56px;
+  --safe-top: 59px;         /* status bar / dynamic island */
+  --content-gutter: var(--space-5);
+
+  /* ---- Motion ---- */
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);   /* @kind other */
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);   /* @kind other */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);/* @kind other */
+  --dur-fast:   140ms;  /* @kind other */
+  --dur-base:   220ms;  /* @kind other */
+  --dur-slow:   360ms;  /* @kind other */
+}
