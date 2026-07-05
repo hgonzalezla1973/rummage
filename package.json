@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "description": "Rummage local listings backend — aggregates Craigslist garage/estate sales",
   "main": "server.js",
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js"
@@ -12,6 +15,6 @@
     "express": "^4.19.2",
     "fast-xml-parser": "^4.4.0",
     "nodemailer": "^9.0.1",
-    "puppeteer-core": "^25.1.0"
+    "puppeteer": "^25.3.0"
   }
 }

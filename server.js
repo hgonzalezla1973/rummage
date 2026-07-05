@@ -24,8 +24,12 @@ try { require('fs').readFileSync('.env','utf8').split('\n').forEach(l=>{ const [
 
 const express   = require('express');
 const cors      = require('cors');
-const puppeteer = require('puppeteer-core');
+// Full `puppeteer` (not puppeteer-core) so a hosted Linux deploy has a
+// Chromium binary to launch out of the box — CHROME_PATH below still lets
+// local dev point at the system Chrome instead of downloading a second one.
+const puppeteer = require('puppeteer');
 const path      = require('path');
+const fs        = require('fs');
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
@@ -39,6 +43,24 @@ const verifyCodes = new Map();
 
 function makeCode() {
   return String(Math.floor(100000 + Math.random() * 900000));
+}
+
+// Shared Resend sender — dev mode (no RESEND_API_KEY) just logs to console,
+// same fallback the verification-code flow already relied on.
+async function sendResendEmail({ to, subject, html, text }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.log(`\n📬 DEV MODE — email to ${to}: ${subject}\n`);
+    return { ok: true, devMode: true };
+  }
+  const r = await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ from: 'Rummage <onboarding@resend.dev>', to: [to], subject, html, text }),
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.message || r.statusText);
+  return { ok: true, id: data.id };
 }
 
 // POST /api/send-verification  { email }
@@ -66,28 +88,15 @@ app.post('/api/send-verification', async (req, res) => {
     </p>
   </div>`;
 
-  const apiKey = process.env.RESEND_API_KEY;
-
-  if (!apiKey) {
-    console.log(`\n📬 DEV MODE — verification code for ${email}: ${code}\n`);
-    return res.json({ ok: true, devMode: true });
-  }
-
   try {
-    const r = await fetch('https://api.resend.com/emails', {
-      method: 'POST',
-      headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        from:    'Rummage <onboarding@resend.dev>',
-        to:      [email],
-        subject: `${code} is your Rummage verification code`,
-        html,
-        text: `Your Rummage verification code is: ${code}\n\nExpires in 10 minutes.`,
-      }),
+    const result = await sendResendEmail({
+      to: email,
+      subject: `${code} is your Rummage verification code`,
+      html,
+      text: `Your Rummage verification code is: ${code}\n\nExpires in 10 minutes.`,
     });
-    const data = await r.json();
-    if (!r.ok) throw new Error(data.message || r.statusText);
-    console.log(`✉️  Verification email sent to ${email} (id: ${data.id})`);
+    if (result.devMode) return res.json(result);
+    console.log(`✉️  Verification email sent to ${email} (id: ${result.id})`);
     res.json({ ok: true });
   } catch (err) {
     console.error('Resend error:', err.message);
@@ -107,6 +116,38 @@ app.post('/api/check-code', (req, res) => {
 
   verifyCodes.delete(email);
   res.json({ ok: true });
+});
+
+// POST /api/feedback  { category, message, userEmail }
+// Sends straight to the developer's inbox via the same Resend integration
+// used for verification codes — no separate ticketing system for a beta.
+const FEEDBACK_TO_EMAIL = process.env.FEEDBACK_EMAIL || 'hgonzalezla1973@gmail.com';
+const FEEDBACK_CAT_LABELS = { general: 'General feedback', bug: 'Bug report', feature: 'Feature request', listing: 'Listing issue' };
+app.post('/api/feedback', async (req, res) => {
+  const message  = (req.body.message || '').trim().slice(0, 2000);
+  const category = FEEDBACK_CAT_LABELS[req.body.category] || 'General';
+  const userEmail = (req.body.userEmail || '').trim();
+  if (!message) return res.status(400).json({ error: 'Message is required' });
+
+  const html = `
+  <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:16px">
+    <h1 style="font-size:22px;font-weight:900;color:#18112E;margin:0 0 4px">Rummage feedback — ${category}</h1>
+    <p style="color:#8880A0;font-size:13px;margin:0 0 20px">${userEmail ? `From ${userEmail}` : 'From a signed-out user'}</p>
+    <div style="background:#F5F3FF;border-radius:12px;padding:20px;white-space:pre-wrap;color:#18112E;font-size:15px;line-height:1.6">${message.replace(/</g,'&lt;')}</div>
+  </div>`;
+
+  try {
+    await sendResendEmail({
+      to: FEEDBACK_TO_EMAIL,
+      subject: `[Rummage feedback] ${category}${userEmail ? ' — ' + userEmail : ''}`,
+      html,
+      text: `${category}\nFrom: ${userEmail || '(signed out)'}\n\n${message}`,
+    });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('Feedback email failed:', err.message);
+    res.status(500).json({ error: 'Failed to send feedback: ' + err.message });
+  }
 });
 
 // ── Image proxy (bypasses hotlink protection on estatesales.org) ─────────────
@@ -147,10 +188,13 @@ app.get('/api/img', async (req, res) => {
 // ── Serve the frontend ────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
-// ── Chrome path (Windows default; adjust if needed) ───────────────────────────
+// ── Chrome path ───────────────────────────────────────────────────────────────
+// Local Windows dev points at the already-installed system Chrome (faster,
+// no redundant download). Everywhere else (a hosted Linux box), leave this
+// undefined so puppeteer launches its own bundled Chromium instead.
 const CHROME_PATH =
   process.env.CHROME_PATH ||
-  'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe';
+  (process.platform === 'win32' ? 'C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe' : undefined);
 
 // ── LA-area neighborhood → coordinates (avoids Nominatim for common CL locations) ──
 const LA_NEIGHBORHOODS = {
@@ -2028,23 +2072,18 @@ async function fetchGoogleListings(zip) {
   return results;
 }
 
-// ── Main route ────────────────────────────────────────────────────────────────
-app.get('/api/listings', async (req, res) => {
-  const zip      = String(req.query.zip || '90601').replace(/\D/g, '').slice(0, 5);
-  const radiusMi = Math.min(50, Math.max(1, parseInt(req.query.radius || '10', 10)));
-
-  if (zip.length !== 5) return res.status(400).json({ error: 'Invalid ZIP' });
-
+// ── Listings aggregation (shared by the /api/listings route and the daily digest job) ──
+async function getListingsForZip(zip, radiusMi) {
   const cacheKey = `all:${zip}:${radiusMi}`;
   const cached   = fromCache(cacheKey);
   if (cached) {
     console.log('Cache hit:', cacheKey);
-    return res.json({ zip, radiusMi, count: cached.length, listings: cached, cached: true });
+    return cached;
   }
 
   console.log(`\nFetching listings — zip=${zip} radius=${radiusMi}mi`);
   const center = await geocodeZip(zip);
-  if (!center) return res.status(500).json({ error: `Cannot geocode ZIP: ${zip}`, listings: [] });
+  if (!center) throw new Error(`Cannot geocode ZIP: ${zip}`);
 
   // Run all scrapers in parallel
   const [clListings, ouListings, esListings, fbListings, googleListings,
@@ -2154,7 +2193,22 @@ app.get('/api/listings', async (req, res) => {
   console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length}`);
 
   toCache(cacheKey, all);
-  res.json({ zip, radiusMi, count: all.length, listings: all });
+  return all;
+}
+
+// ── Main route ────────────────────────────────────────────────────────────────
+app.get('/api/listings', async (req, res) => {
+  const zip      = String(req.query.zip || '90601').replace(/\D/g, '').slice(0, 5);
+  const radiusMi = Math.min(50, Math.max(1, parseInt(req.query.radius || '10', 10)));
+
+  if (zip.length !== 5) return res.status(400).json({ error: 'Invalid ZIP' });
+
+  try {
+    const all = await getListingsForZip(zip, radiusMi);
+    res.json({ zip, radiusMi, count: all.length, listings: all });
+  } catch (err) {
+    res.status(500).json({ error: err.message, listings: [] });
+  }
 });
 
 app.get('/api/health', (_req, res) => {
@@ -2164,6 +2218,142 @@ app.get('/api/health', (_req, res) => {
 app.post('/api/clear-cache', (_req, res) => {
   cache.clear();
   console.log('Cache cleared');
+  res.json({ ok: true });
+});
+
+// ── Daily email digest ───────────────────────────────────────────────────────
+// Subscribers are the same account email used for verification — persisted
+// to a JSON file rather than the in-memory verifyCodes Map, since this needs
+// to survive a server restart to be worth anything.
+const SUBSCRIBERS_FILE = path.join(__dirname, 'subscribers.json');
+
+function loadSubscribers() {
+  try { return JSON.parse(fs.readFileSync(SUBSCRIBERS_FILE, 'utf8')); } catch { return []; }
+}
+function saveSubscribers(list) {
+  fs.writeFileSync(SUBSCRIBERS_FILE, JSON.stringify(list, null, 2));
+}
+
+// POST /api/subscribe  { email, zip, radiusMi, saleTypes }
+app.post('/api/subscribe', (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
+
+  const zip      = String(req.body.zip || '90601').replace(/\D/g, '').slice(0, 5);
+  const radiusMi = Math.min(50, Math.max(1, parseInt(req.body.radiusMi || '15', 10)));
+  const saleTypes = req.body.saleTypes && typeof req.body.saleTypes === 'object'
+    ? req.body.saleTypes : { estate: true, yard: true, moving: true };
+
+  const subscribers = loadSubscribers();
+  const existing = subscribers.find(s => s.email === email);
+  if (existing) {
+    Object.assign(existing, { zip, radiusMi, saleTypes, active: true });
+  } else {
+    subscribers.push({ email, zip, radiusMi, saleTypes, active: true, lastSentDate: null });
+  }
+  saveSubscribers(subscribers);
+  res.json({ ok: true });
+});
+
+// POST /api/unsubscribe  { email }
+app.post('/api/unsubscribe', (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const subscribers = loadSubscribers();
+  const existing = subscribers.find(s => s.email === email);
+  if (existing) { existing.active = false; saveSubscribers(subscribers); }
+  res.json({ ok: true });
+});
+
+// Whether a listing's display date label ("Sat, Jul 4" or a range like
+// "Sat, Jul 4 – Sun, Jul 5") includes today. Mirrors the parsing the
+// frontend does for saleSortDate/isSaleLive, but date-only (no time).
+const DIGEST_MO_IDX = { jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11 };
+function saleTouchesToday(dateLabel) {
+  const label = dateLabel || '';
+  if (!label) return false;
+  const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
+    .filter(m => DIGEST_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined)
+    .map(m => {
+      const mo = DIGEST_MO_IDX[m[1].toLowerCase().slice(0,3)];
+      const day = parseInt(m[2]);
+      const year = m[3] ? parseInt(m[3]) : new Date().getFullYear();
+      return new Date(year, mo, day).setHours(0,0,0,0);
+    });
+  if (!hits.length) return false;
+  const today = new Date().setHours(0,0,0,0);
+  if (hits.length === 1) return hits[0] === today;
+  const start = Math.min(...hits), end = Math.max(...hits);
+  return today >= start && today <= end;
+}
+
+function buildDigestHtml(listings, { zip, radiusMi }) {
+  const rows = listings.map(l => `
+    <div style="padding:14px 0;border-bottom:1px solid #EEE">
+      <div style="font-weight:800;color:#18112E;font-size:15px">${l.title || 'Sale'}</div>
+      <div style="color:#5E5380;font-size:13px;margin-top:2px">${[l.dateLabel, l.timeLabel, l.address || l.neighborhood].filter(Boolean).join(' · ')}</div>
+    </div>`).join('');
+
+  return `
+  <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:16px">
+    <div style="text-align:center;margin-bottom:20px">
+      <div style="display:inline-block;width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#7C3AED,#A855F7);line-height:64px;font-size:32px">🧺</div>
+      <h1 style="font-size:24px;font-weight:900;color:#18112E;margin:16px 0 4px;letter-spacing:-0.03em">Today's sales near ${zip}</h1>
+      <p style="color:#5E5380;font-size:14px;margin:0">${listings.length} sale${listings.length===1?'':'s'} within ${radiusMi} mi today</p>
+    </div>
+    <div>${rows}</div>
+    <p style="color:#8880A0;font-size:12px;text-align:center;margin-top:24px">
+      You're getting this because you turned on daily digest emails in Rummage. Turn it off any time in Account → Notifications.
+    </p>
+  </div>`;
+}
+
+async function sendDigestToSubscriber(sub) {
+  try {
+    const all = await getListingsForZip(sub.zip, sub.radiusMi);
+    const activeTypes = Object.keys(sub.saleTypes || {}).filter(k => sub.saleTypes[k]);
+    const todays = all.filter(l =>
+      saleTouchesToday(l.dateLabel) && (activeTypes.length === 0 || activeTypes.includes(l.type))
+    );
+    if (!todays.length) { console.log(`  Digest: no sales today for ${sub.email}, skipping send`); return; }
+
+    await sendResendEmail({
+      to: sub.email,
+      subject: `${todays.length} sale${todays.length===1?'':'s'} near ${sub.zip} today`,
+      html: buildDigestHtml(todays, sub),
+      text: todays.map(l => `${l.title} — ${[l.dateLabel,l.timeLabel,l.address||l.neighborhood].filter(Boolean).join(' · ')}`).join('\n'),
+    });
+    console.log(`  Digest sent to ${sub.email} (${todays.length} sales)`);
+  } catch (err) {
+    console.error(`  Digest failed for ${sub.email}:`, err.message);
+  }
+}
+
+const DIGEST_SEND_HOUR = 8; // local server time
+async function runDailyDigestIfDue() {
+  const now = new Date();
+  if (now.getHours() !== DIGEST_SEND_HOUR) return;
+
+  const todayStr = now.toISOString().slice(0, 10);
+  const subscribers = loadSubscribers();
+  const due = subscribers.filter(s => s.active && s.lastSentDate !== todayStr);
+  if (!due.length) return;
+
+  console.log(`\n📬 Running daily digest for ${due.length} subscriber(s)...`);
+  for (const sub of due) {
+    await sendDigestToSubscriber(sub);
+    sub.lastSentDate = todayStr;
+  }
+  saveSubscribers(subscribers);
+}
+setInterval(runDailyDigestIfDue, 30 * 60 * 1000); // check twice an hour
+
+// POST /api/send-digest-now  { email }  — manual trigger for testing, bypasses the hour/lastSentDate gate
+app.post('/api/send-digest-now', async (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const subscribers = loadSubscribers();
+  const sub = subscribers.find(s => s.email === email);
+  if (!sub) return res.status(404).json({ error: 'Not subscribed' });
+  await sendDigestToSubscriber(sub);
   res.json({ ok: true });
 });
 

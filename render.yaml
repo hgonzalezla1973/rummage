@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: rummage
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: RESEND_API_KEY
+        sync: false
+      - key: FEEDBACK_EMAIL
+        sync: false
