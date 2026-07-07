@@ -47,6 +47,7 @@ function makeCode() {
 
 // Shared Resend sender — dev mode (no RESEND_API_KEY) just logs to console,
 // same fallback the verification-code flow already relied on.
+const RESEND_FROM = process.env.RESEND_FROM || 'Rummage <hello@rummagedeals.com>';
 async function sendResendEmail({ to, subject, html, text }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) {
@@ -56,7 +57,7 @@ async function sendResendEmail({ to, subject, html, text }) {
   const r = await fetch('https://api.resend.com/emails', {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ from: 'Rummage <onboarding@resend.dev>', to: [to], subject, html, text }),
+    body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, html, text }),
   });
   const data = await r.json();
   if (!r.ok) throw new Error(data.message || r.statusText);
