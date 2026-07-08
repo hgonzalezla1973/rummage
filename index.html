@@ -1211,7 +1211,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
   );
 }
 
-function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, apiStatus,
+function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus,
     activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
@@ -1220,12 +1220,17 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
   // The ±2 day / 2-week date windowing itself happens upstream in App's
   // allSales filter (withinTwoWeeks only widens that window's future edge) —
   // this screen just applies type/open-now/keyword on top of what it's given.
+  // Both modes are a compound sort — the toggle just picks which criterion
+  // leads. "Closest" ranks by distance from your account's ZIP first, then
+  // breaks ties by soonest date; "Soonest" is the reverse.
   const shown = sales
     .filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type))
     .filter(s => !openNow || isSaleLive(s.dateLabel, s.timeLabel))
-    .slice().sort((a, b) => sortBy === 'date'
-      ? saleSortDate(a.dateLabel) - saleSortDate(b.dateLabel)
-      : (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
+    .slice().sort((a, b) => {
+      const distDiff = (a.distanceMi ?? 999) - (b.distanceMi ?? 999);
+      const dateDiff = saleSortDate(a.dateLabel) - saleSortDate(b.dateLabel);
+      return sortBy === 'date' ? (dateDiff || distDiff) : (distDiff || dateDiff);
+    });
   const sel = shown.find(s=>s.id===selected) || null;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
@@ -1233,7 +1238,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--accent)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
-              {Icon('MapPin',12,{stroke:'currentColor'})} Whittier, CA · 90601
+              {Icon('MapPin',12,{stroke:'currentColor'})} Near {zip}
             </div>
             <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
           </div>
@@ -1961,10 +1966,9 @@ function PrivacyScreen({ onBack }) {
 }
 
 // ── Account Screen ─────────────────────────────────────────────────────────────
-function AccountScreen({ radiusMi, setRadiusMi, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough }) {
+function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough }) {
   const [name, setName] = useState(authUser?.name || 'Rummager');
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
-  const [zip, setZip] = useState('90601');
   const [saleTypes, setSaleTypes] = useState({estate:true,yard:true,moving:true});
   const [push, setPush] = useState(true);
   const [newSales, setNewSales] = useState(true);
@@ -4083,6 +4087,8 @@ function App() {
   });
   const clearTrip = () => { setTripIds([]); localStorage.removeItem('rummage-trip'); };
   const [radiusMi, setRadiusMi] = useState(15);
+  const [zip, _setZip] = useState(() => localStorage.getItem('rummage_zip') || '90601');
+  const setZip = (z) => { localStorage.setItem('rummage_zip', z); _setZip(z); };
   const [savedIds, setSavedIds] = useState({});
   const [userListings, setUserListings] = useState([]);
   const [apiListings, setApiListings]   = useState([]);
@@ -4110,8 +4116,6 @@ function App() {
     const poll = setInterval(() => {
       if (window.lucide?.icons) { clearInterval(poll); setLibsReady(true); }
     }, 60);
-    // Try to pull live listings on load
-    fetchApiListings('90601', 15);
     // Restore any pending reminders from localStorage
     // ('Notification' isn't defined at all on iOS — Safari and any iOS
     // browser, since Apple mandates WebKit — so guard before touching it.)
@@ -4119,13 +4123,12 @@ function App() {
     return () => { window.removeEventListener('resize', fit); clearInterval(poll); };
   }, []);
 
-  // Re-fetch when radius changes (debounced 600ms)
-  const radiusRef = useRef(radiusMi);
+  // Re-fetch whenever the search ZIP or radius changes (debounced 600ms) —
+  // also covers the initial load, since effects always run once on mount.
   useEffect(() => {
-    radiusRef.current = radiusMi;
-    const t = setTimeout(() => fetchApiListings('90601', radiusMi), 600);
+    const t = setTimeout(() => fetchApiListings(zip, radiusMi), 600);
     return () => clearTimeout(t);
-  }, [radiusMi]);
+  }, [zip, radiusMi]);
 
   const MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -4212,7 +4215,7 @@ function App() {
 
         {/* App screens */}
         {tab==='explore' && !detailSale && (
-          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} apiStatus={apiStatus}
+          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={zip} apiStatus={apiStatus}
             onOpenSale={setDetailId} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             openNow={openNow} setOpenNow={setOpenNow}
@@ -4246,6 +4249,7 @@ function App() {
           authUser
             ? <AccountScreen
                 radiusMi={radiusMi} setRadiusMi={setRadiusMi}
+                zip={zip} setZip={setZip}
                 authUser={authUser}
                 onSignOut={()=>setAuthUser(null)}
                 onUpdateUser={user=>setAuthUser(user)}
