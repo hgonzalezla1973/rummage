@@ -998,7 +998,7 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
 // listing's own detail page embeds a full __NEXT_DATA__ blob with a real
 // photos array (Apollo cache, keyed as `listing({"listingId":"..."})`).
 async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 5) {
-  const imageMap = new Map(); // listing.url → string[]
+  const detailMap = new Map(); // listing.url → { images: string[], description: string }
   const work = listings.filter(l => l.url);
   console.log(`  OU: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
 
@@ -1016,19 +1016,23 @@ async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 5) {
         const data = JSON.parse(m[1]);
         const rootQuery = data?.props?.pageProps?.initialApolloState?.ROOT_QUERY || {};
         const key = Object.keys(rootQuery).find(k => k.startsWith('listing('));
-        const photos = key ? rootQuery[key]?.photos : null;
-        if (!Array.isArray(photos) || !photos.length) return;
-        const urls = photos
-          .map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url)
-          .filter(Boolean);
-        if (urls.length) imageMap.set(listing.url, urls.slice(0, 10));
+        const listingData = key ? rootQuery[key] : null;
+        if (!listingData) return;
+        const photos = listingData.photos;
+        const urls = Array.isArray(photos)
+          ? photos.map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url).filter(Boolean)
+          : [];
+        detailMap.set(listing.url, {
+          images: urls.slice(0, 10),
+          description: listingData.description || '',
+        });
       } catch (_) {
-        // Non-fatal: listing just keeps its single search-result thumbnail
+        // Non-fatal: listing just keeps its single search-result thumbnail and no date
       }
     }));
   }
 
-  return imageMap;
+  return detailMap;
 }
 
 // ── OfferUp scraper (GraphQL API) ─────────────────────────────────────────────
@@ -1170,10 +1174,19 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
 
     // The search feed only gives one thumbnail per listing — visit each
     // listing's own page to pull its full photo set instead.
-    const photoMap = await fetchOfferUpPhotos(results, rawCookies, UA);
+    const detailMap = await fetchOfferUpPhotos(results, rawCookies, UA);
     for (const listing of results) {
-      const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      const detail = detailMap.get(listing.url);
+      if (!detail) continue;
+      if (detail.images.length) { listing.images = detail.images; listing.photoCount = detail.images.length; }
+      // OfferUp titles rarely state a date, but sellers often write it into
+      // the description instead ("Saturday & Sunday 7/11-7/12") — try there
+      // before giving up on the listing entirely. (Listings whose title
+      // never mentioned a sale event get filtered out downstream regardless
+      // of dateLabel, so no need to re-check that gate here.)
+      if (!listing.dateLabel && detail.description) {
+        listing.dateLabel = parseCLDate(detail.description);
+      }
     }
   } catch (err) {
     console.warn('  OU GraphQL error:', err.message);
