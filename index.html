@@ -4113,7 +4113,9 @@ function App() {
     // Try to pull live listings on load
     fetchApiListings('90601', 15);
     // Restore any pending reminders from localStorage
-    if (Notification.permission === 'granted') restoreReminders(ALL_SALES);
+    // ('Notification' isn't defined at all on iOS — Safari and any iOS
+    // browser, since Apple mandates WebKit — so guard before touching it.)
+    if ('Notification' in window && Notification.permission === 'granted') restoreReminders(ALL_SALES);
     return () => { window.removeEventListener('resize', fit); clearInterval(poll); };
   }, []);
 
