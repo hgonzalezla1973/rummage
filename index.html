@@ -100,6 +100,11 @@ input[type=range]::-moz-range-thumb{width:26px;height:26px;border-radius:50%;bac
 <div id="err" style="display:none;position:fixed;inset:0;background:#fff;color:#c00;font-family:monospace;font-size:13px;padding:24px;white-space:pre-wrap;overflow:auto;z-index:99999;"></div>
 <script>
 window.addEventListener('error', function(e) {
+  // Cross-origin scripts (the CDN <script> tags below) report errors as the
+  // generic "Script error." with no filename/line — browsers strip all detail
+  // for security. That's unactionable noise, not a real crash signal, so
+  // don't blank out the whole app over it.
+  if (e.message === 'Script error.' && !e.filename) return;
   var d = document.getElementById('err');
   d.style.display = 'block';
   d.textContent = 'JS ERROR:\n' + e.message + '\n\n' + (e.filename||'') + ':' + e.lineno;
