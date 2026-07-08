@@ -994,6 +994,43 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
   return results;
 }
 
+// The search feed's GraphQL only returns one thumbnail per listing, but each
+// listing's own detail page embeds a full __NEXT_DATA__ blob with a real
+// photos array (Apollo cache, keyed as `listing({"listingId":"..."})`).
+async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 5) {
+  const imageMap = new Map(); // listing.url → string[]
+  const work = listings.filter(l => l.url);
+  console.log(`  OU: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
+
+  for (let i = 0; i < work.length; i += concurrency) {
+    const batch = work.slice(i, i + concurrency);
+    await Promise.all(batch.map(async listing => {
+      try {
+        const res = await fetchTimeout(listing.url, 10000, {
+          headers: { 'User-Agent': ua, ...(cookies ? { Cookie: cookies } : {}) },
+        });
+        if (!res.ok) return;
+        const html = await res.text();
+        const m = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+        if (!m) return;
+        const data = JSON.parse(m[1]);
+        const rootQuery = data?.props?.pageProps?.initialApolloState?.ROOT_QUERY || {};
+        const key = Object.keys(rootQuery).find(k => k.startsWith('listing('));
+        const photos = key ? rootQuery[key]?.photos : null;
+        if (!Array.isArray(photos) || !photos.length) return;
+        const urls = photos
+          .map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url)
+          .filter(Boolean);
+        if (urls.length) imageMap.set(listing.url, urls.slice(0, 10));
+      } catch (_) {
+        // Non-fatal: listing just keeps its single search-result thumbnail
+      }
+    }));
+  }
+
+  return imageMap;
+}
+
 // ── OfferUp scraper (GraphQL API) ─────────────────────────────────────────────
 const OU_GQL_QUERY = `query GetModularFeed($searchParams: [SearchParam]) {
   modularFeed(params: $searchParams) {
@@ -1129,6 +1166,14 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
           y:           px.y,
         });
       }
+    }
+
+    // The search feed only gives one thumbnail per listing — visit each
+    // listing's own page to pull its full photo set instead.
+    const photoMap = await fetchOfferUpPhotos(results, rawCookies, UA);
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
     }
   } catch (err) {
     console.warn('  OU GraphQL error:', err.message);
@@ -1502,6 +1547,42 @@ async function scrapeEstateSales(zip, radiusMi, centerLat, centerLng) {
 
 const SCRAPE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
 
+// The search-results state only exposes one mainPicture per sale, but each
+// sale's own detail page embeds the same NGRX_STATE pattern with a full
+// `pictures` array under entitiesById[saleId].
+async function fetchEstateSalesNetPhotos(listings, concurrency = 5) {
+  const imageMap = new Map(); // listing.url → string[]
+  const work = listings.filter(l => l.url && l.saleId);
+  console.log(`  ESN: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
+
+  for (let i = 0; i < work.length; i += concurrency) {
+    const batch = work.slice(i, i + concurrency);
+    await Promise.all(batch.map(async listing => {
+      try {
+        const res = await fetchTimeout(listing.url, 10000, { headers: { 'User-Agent': SCRAPE_UA } });
+        if (!res.ok) return;
+        const html = await res.text();
+        const m = html.match(/<script id="estatesales-net-state" type="application\/json">([\s\S]*?)<\/script>/);
+        if (!m) return;
+        const state = JSON.parse(m[1])?.NGRX_STATE;
+        // NgRx feature state is stored under a flat literal-dot key, not a
+        // nested "feature.traditionalSaleViewState" object.
+        const entity = state?.['feature.traditionalSaleViewState']?.entitiesById?.[listing.saleId];
+        const pictures = entity?.pictures;
+        if (!Array.isArray(pictures) || !pictures.length) return;
+        const urls = pictures
+          .map(p => p?.images?.[0]?.url || p?.url)
+          .filter(Boolean);
+        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+      } catch (_) {
+        // Non-fatal: listing just keeps its single search-result thumbnail
+      }
+    }));
+  }
+
+  return imageMap;
+}
+
 // ── EstateSales.net ───────────────────────────────────────────────────────────
 // Fully server-rendered; the page embeds a full Redux state dump with precise
 // lat/lng and ISO dates per sale — far more reliable than scraping the DOM.
@@ -1541,6 +1622,7 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
 
       results.push({
         id:           `esn-${row.id}`,
+        saleId:       row.id,
         source:       'estatesalesnet',
         type:         (row.typeName || '').toLowerCase().includes('auction') ? 'auction' : detectType(title),
         title,
@@ -1562,12 +1644,53 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
         y:            Math.max(10, Math.min(90, px.y)),
       });
     }
+
+    // The search state only gave one mainPicture per sale — visit each sale's
+    // own page to pull its full photo set instead.
+    const photoMap = await fetchEstateSalesNetPhotos(results);
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      delete listing.saleId; // internal-only, not needed by the client
+    }
+
     console.log(`  ESN done — ${results.length} listings`);
   } catch (err) {
     console.warn('  ESN error:', err.message);
   }
   toCache(cacheKey, results);
   return results;
+}
+
+// Same TLC network as GarageSaleFinder — listings syndicated from
+// EstateSales.org host photos on eso-cdn.tlcdn.workers.dev with a "-t"
+// thumbnail suffix; stripping it serves the full-size original.
+async function fetchYardSaleSearchPhotos(listings, concurrency = 5) {
+  const imageMap = new Map(); // listing.url → string[]
+  const work = listings.filter(l => l.url);
+  console.log(`  YSS: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
+
+  for (let i = 0; i < work.length; i += concurrency) {
+    const batch = work.slice(i, i + concurrency);
+    await Promise.all(batch.map(async listing => {
+      try {
+        const res = await fetchTimeout(listing.url, 10000, { headers: { 'User-Agent': SCRAPE_UA } });
+        if (!res.ok) return;
+        const html = await res.text();
+        const seen = new Set();
+        const urls = [];
+        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
+          const full = m[0].replace(/-t\.(jpg|webp)$/, '.$1');
+          if (!seen.has(full)) { seen.add(full); urls.push(full); }
+        }
+        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+      } catch (_) {
+        // Non-fatal: listing just keeps its single search-result thumbnail
+      }
+    }));
+  }
+
+  return imageMap;
 }
 
 // ── YardSaleSearch.com ────────────────────────────────────────────────────────
@@ -1637,12 +1760,59 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
         y:            Math.max(10, Math.min(90, px.y)),
       });
     }
+
+    // The search page only gave one image per listing — visit each listing's
+    // own page to pull its full photo set instead.
+    const photoMap = await fetchYardSaleSearchPhotos(results);
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+    }
+
     console.log(`  YSS done — ${results.length} listings`);
   } catch (err) {
     console.warn('  YSS error:', err.message);
   }
   toCache(cacheKey, results);
   return results;
+}
+
+// The search page only exposes one itemprop="image" per listing (despite
+// `data-sale.photo_count` often being much higher) — each listing's own
+// detail page embeds its full gallery as plain <img> tags. Native
+// GarageSaleFinder listings host photos on gsf.tlstatic.com (only
+// "w150-h100" is present for every photo); listings syndicated from
+// EstateSales.org instead use eso-cdn.tlcdn.workers.dev with a "-t" thumbnail
+// suffix — stripping "-t" off that filename serves the full-size original.
+async function fetchGarageSaleFinderPhotos(listings, concurrency = 5) {
+  const imageMap = new Map(); // listing.url → string[]
+  const work = listings.filter(l => l.url);
+  console.log(`  GSF: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
+
+  for (let i = 0; i < work.length; i += concurrency) {
+    const batch = work.slice(i, i + concurrency);
+    await Promise.all(batch.map(async listing => {
+      try {
+        const res = await fetchTimeout(listing.url, 10000, { headers: { 'User-Agent': SCRAPE_UA } });
+        if (!res.ok) return;
+        const html = await res.text();
+        const seen = new Set();
+        const urls = [];
+        for (const m of html.matchAll(/https:\/\/gsf\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
+          if (!seen.has(m[0])) { seen.add(m[0]); urls.push(m[0]); }
+        }
+        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.webp/g)) {
+          const full = m[0].replace(/-t\.webp$/, '.webp');
+          if (!seen.has(full)) { seen.add(full); urls.push(full); }
+        }
+        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+      } catch (_) {
+        // Non-fatal: listing just keeps its single search-result thumbnail
+      }
+    }));
+  }
+
+  return imageMap;
 }
 
 // ── GarageSaleFinder.com ──────────────────────────────────────────────────────
@@ -1712,6 +1882,15 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
         y:            Math.max(10, Math.min(90, px.y)),
       });
     }
+
+    // The search page only gave one image per listing — visit each listing's
+    // own page to pull its full photo set instead.
+    const photoMap = await fetchGarageSaleFinderPhotos(results);
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+    }
+
     console.log(`  GSF done — ${results.length} listings`);
   } catch (err) {
     console.warn('  GSF error:', err.message);
