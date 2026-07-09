@@ -1223,8 +1223,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
   // Both modes are a compound sort — the toggle just picks which criterion
   // leads. "Closest" ranks by distance from your account's ZIP first, then
   // breaks ties by soonest date; "Soonest" is the reverse.
-  const shown = sales
-    .filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type))
+  const typeFiltered = sales.filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type));
+  const shown = typeFiltered
     .filter(s => !openNow || isSaleLive(s.dateLabel, s.timeLabel))
     .slice().sort((a, b) => {
       const distDiff = (a.distanceMi ?? 999) - (b.distanceMi ?? 999);
@@ -1232,6 +1232,10 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
       return sortBy === 'date' ? (dateDiff || distDiff) : (distDiff || dateDiff);
     });
   const sel = shown.find(s=>s.id===selected) || null;
+  // Live count computed independent of the openNow filter itself, so the
+  // banner below can say "N sales live now" and offer to apply the filter,
+  // rather than only being able to describe results after it's already on.
+  const liveCount = typeFiltered.filter(s => isSaleLive(s.dateLabel, s.timeLabel)).length;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
@@ -1275,6 +1279,20 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <span style={{display:'inline-flex',animation:'spin 1s linear infinite'}}>{Icon('Loader2',16,{stroke:'#fff'})}</span>
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
         </div>
+      )}
+      {liveCount > 0 && !openNow && (
+        <button type="button" onClick={()=>setOpenNow(true)} style={{
+          flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+          background:'var(--success)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
+          borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(22,163,74,.28)',
+          border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
+        }}>
+          <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
+          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>
+            {liveCount} sale{liveCount===1?'':'s'} live right now
+          </span>
+          <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',16,{stroke:'#fff'})}</span>
+        </button>
       )}
       {view==='map' ? (
         <div style={{position:'relative',flex:1,overflow:'hidden'}}>
