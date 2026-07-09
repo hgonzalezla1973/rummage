@@ -513,6 +513,22 @@ function decodeHtmlEntities(str) {
   });
 }
 
+// ── Street address extraction from free text ────────────────────────────────
+// Some sources (OfferUp especially) never expose a real street address via
+// their API — only a city ("Whittier, CA") — but sellers often write the
+// actual address into the listing's free-text description. Pull it out from
+// there when present, the same way we already recover dates from the
+// description as a fallback when the structured fields come up empty.
+const STREET_SUFFIXES = 'St|Ave|Rd|Blvd|Dr|Ln|Way|Ct|Pl|Cir|Pkwy|Hwy|Street|Avenue|Road|Boulevard|Drive|Lane|Court|Place|Circle|Parkway|Highway|Ter|Terrace|Trl|Trail';
+const STREET_ADDRESS_TEXT_RE = new RegExp(
+  `\\b(\\d{2,6}\\s+(?:[NSEW]\\.?\\s+)?[A-Za-z0-9'.-]+(?:\\s+[A-Za-z0-9'.-]+){0,2}\\s+(?:${STREET_SUFFIXES})\\b\\.?)`,
+  'i'
+);
+function extractStreetAddress(text) {
+  const m = (text || '').match(STREET_ADDRESS_TEXT_RE);
+  return m ? m[1].replace(/\s+/g, ' ').trim() : '';
+}
+
 // ── Item tag extraction ─────────────────────────────────────────────────────
 // No source exposes real per-item names/prices, so we scan a listing's own
 // title/description for known category keywords and surface those as tags
@@ -1215,6 +1231,13 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
       // of dateLabel, so no need to re-check that gate here.)
       if (!listing.dateLabel && detail.description) {
         listing.dateLabel = parseCLDate(detail.description);
+      }
+      // OfferUp's API only ever gives a city ("Whittier, CA") — never a real
+      // street address — but sellers often write it into the description.
+      if (detail.description) {
+        const street = extractStreetAddress(detail.description);
+        const city = listing.neighborhood && listing.neighborhood !== 'Nearby' ? listing.neighborhood : '';
+        if (street) listing.address = city ? `${street}, ${city}` : street;
       }
     }
   } catch (err) {
