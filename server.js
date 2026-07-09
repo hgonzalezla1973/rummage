@@ -33,6 +33,9 @@ const fs        = require('fs');
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
+// Email images need absolute URLs (unlike the app's own relative /api/img
+// calls), so digest emails need to know their own public origin to build them.
+const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://rummage-lgxw.onrender.com';
 
 app.use(cors());
 app.use(express.json());
@@ -2550,12 +2553,39 @@ function saleTouchesToday(dateLabel) {
   return today >= start && today <= end;
 }
 
+// Same hotlink-protection list the frontend's proxyImgUrl uses (Craigslist,
+// EstateSales.org/.net, GarageSaleFinder's eso-cdn, Facebook, etc. all
+// reject direct hotlinking without our proxy setting the right Referer) —
+// but built as an absolute URL, since email images can't be relative paths.
+function proxyImgUrlForEmail(url) {
+  try {
+    const h = new URL(url).hostname;
+    if (h === 'estatesales.org' || h.endsWith('.estatesales.org') ||
+        h === 'estatesales.net' || h.endsWith('.estatesales.net') ||
+        h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
+        h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
+        h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
+        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com'))
+      return `${PUBLIC_BASE_URL}/api/img?url=${encodeURIComponent(url)}`;
+  } catch (_) {}
+  return url;
+}
+
 function buildDigestHtml(listings, { zip, radiusMi }) {
-  const rows = listings.map(l => `
-    <div style="padding:14px 0;border-bottom:1px solid #EEE">
-      <div style="font-weight:800;color:#18112E;font-size:15px">${l.title || 'Sale'}</div>
-      <div style="color:#5E5380;font-size:13px;margin-top:2px">${[l.dateLabel, l.timeLabel, l.address || l.neighborhood].filter(Boolean).join(' · ')}</div>
-    </div>`).join('');
+  const rows = listings.map(l => {
+    const img = l.images?.[0];
+    const thumb = img
+      ? `<img src="${proxyImgUrlForEmail(img)}" width="72" height="72" style="width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0;display:block" />`
+      : `<div style="width:72px;height:72px;border-radius:10px;background:#F5F3FF;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px">🧺</div>`;
+    return `
+    <div style="display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #EEE">
+      ${thumb}
+      <div style="min-width:0">
+        <div style="font-weight:800;color:#18112E;font-size:15px">${l.title || 'Sale'}</div>
+        <div style="color:#5E5380;font-size:13px;margin-top:2px">${[l.dateLabel, l.timeLabel, l.address || l.neighborhood].filter(Boolean).join(' · ')}</div>
+      </div>
+    </div>`;
+  }).join('');
 
   return `
   <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:16px">
