@@ -6,46 +6,47 @@
 <title>Rummage — Find the good stuff nearby</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inder&family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Spline+Sans+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* Warm neutral backgrounds */
-  --paper:#E6F5F4; --paper-2:#FFF4EB; --surface:#FFFFFF; --surface-tint:#FFFEFE;
+  /* Kraft paper & index card surfaces */
+  --paper:#EDE6D6; --paper-2:#F1EAD6; --surface:#F8F4EA; --surface-tint:#FBF8F0;
 
-  /* Warm charcoal ink */
-  --ink-900:#1C1917; --ink-800:#292524; --ink-700:#44403C; --ink-600:#57534E;
-  --ink-500:#78716C; --ink-400:#A8A29E; --ink-300:#D6D3D1; --ink-200:#E7E5E4; --ink-100:#F5F5F4; --line:#EDE8E3;
+  /* Sharpie-black ink */
+  --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
+  --ink-500:#8A8069; --ink-400:#9C9280; --ink-300:#C4B593; --ink-200:#D8CBB0; --ink-100:#E8E0CC; --line:#D8CBB0;
 
-  /* Primary — olive */
-  --brand-50:#F4F4F2; --brand-100:#E4E5DF; --brand-200:#C6C7BB; --brand-300:#A7A795;
-  --brand-400:#7A7B5F; --brand-500:#4E4F2A; --brand-600:#424324; --brand-700:#37371D; --brand-800:#2B2B17;
+  /* Primary — sale-sign red */
+  --brand-50:#FBEAEA; --brand-100:#F3CBCB; --brand-200:#E29A9B; --brand-300:#D26C6D;
+  --brand-400:#C1272D; --brand-500:#A81F24; --brand-600:#8B1A1E; --brand-700:#6E1417; --brand-800:#4F0F11;
 
-  /* Supporting colors */
+  /* Masking-tape yellow (secondary accent, used sparingly) */
+  --tape-50:#FDF6E0; --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-600:#C99C15; --tape-700:#8A6A0D;
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
-  --green-600:#16A34A; --green-bg:#DCFCE7; --amber-600:#D97706; --amber-bg:#FEF3C7; --red-600:#DC2626; --red-bg:#FEE2E2;
-  --coral:#4E4F2A; --coral-bg:#F4F4F2;
+  --green-600:#3F5E3A; --green-bg:#E1E8D6; --amber-600:#8A5A12; --amber-bg:#F1E0B8; --red-600:#A81F24; --red-bg:#FBEAEA;
+  --coral:#A81F24; --coral-bg:#FBEAEA;
 
-  /* Sale type colors */
-  --type-estate-fg:#7C3AED; --type-estate-bg:#F5F3FF;
-  --type-yard-fg:#15803D;   --type-yard-bg:#F0FDF4;
-  --type-moving-fg:#B45309; --type-moving-bg:#FFFBEB;
+  /* Sale type colors — office-supplies palette so they don't compete with the red accent */
+  --type-estate-fg:#2C4A7C; --type-estate-bg:#DCE4EF;
+  --type-yard-fg:#3F5E3A;   --type-yard-bg:#E1E8D6;
+  --type-moving-fg:#8A5A12; --type-moving-bg:#F1E0B8;
 
   /* Semantic aliases */
   --text-primary:var(--ink-900); --text-secondary:var(--ink-600); --text-muted:var(--ink-500); --text-faint:var(--ink-400);
-  --text-inverse:#FFFFFF; --text-accent:var(--brand-600); --text-link:var(--brand-600);
+  --text-inverse:#FFFFFF; --text-accent:var(--brand-500); --text-link:var(--brand-500);
   --surface-app:var(--paper); --surface-card:var(--surface); --surface-sunken:var(--paper-2); --surface-raised:var(--surface-tint);
   --border-default:var(--line); --border-strong:var(--ink-300); --border-accent:var(--brand-200);
-  --accent:var(--brand-500); --accent-hover:var(--brand-600); --accent-press:var(--brand-700);
+  --accent:var(--brand-400); --accent-hover:var(--brand-500); --accent-press:var(--brand-700);
   --accent-soft:var(--brand-50); --accent-soft-bd:var(--brand-200);
   --secondary:var(--teal-600); --secondary-soft:var(--teal-50); --focus-ring:var(--brand-400);
   --success:var(--green-600); --success-bg:var(--green-bg); --warning:var(--amber-600); --warning-bg:var(--amber-bg);
   --danger:var(--red-600); --danger-bg:var(--red-bg);
-  --pin:var(--brand-500); --pin-saved:var(--coral); --live:var(--green-600);
+  --pin:var(--brand-400); --pin-saved:var(--coral); --live:#3F5E3A;
 
-  --font-display:'Inder',system-ui,sans-serif;
-  --font-sans:'Inder',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:'Archivo Black','Arial Narrow',system-ui,sans-serif;
+  --font-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-mono:'Spline Sans Mono',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
@@ -56,17 +57,17 @@
 
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  --radius-xs:6px; --radius-sm:10px; --radius-md:16px; --radius-lg:22px;
-  --radius-xl:28px; --radius-2xl:36px; --radius-pill:999px;
+  --radius-xs:4px; --radius-sm:6px; --radius-md:8px; --radius-lg:10px;
+  --radius-xl:14px; --radius-2xl:20px; --radius-pill:999px;
 
   /* Warm, neutral shadows — no purple tint */
-  --shadow-xs:0 1px 3px rgba(28,25,23,.07);
-  --shadow-sm:0 2px 10px rgba(28,25,23,.08);
-  --shadow-md:0 8px 24px rgba(28,25,23,.10),0 2px 6px rgba(28,25,23,.06);
-  --shadow-lg:0 20px 48px rgba(28,25,23,.14),0 6px 14px rgba(28,25,23,.08);
-  --shadow-sheet:0 -8px 40px rgba(28,25,23,.12);
-  --shadow-pin:0 6px 16px rgba(78,79,42,.35);
-  --shadow-focus:0 0 0 3px rgba(78,79,42,.28);
+  --shadow-xs:0 1px 3px rgba(33,29,23,.08);
+  --shadow-sm:0 2px 10px rgba(33,29,23,.09);
+  --shadow-md:0 8px 24px rgba(33,29,23,.12),0 2px 6px rgba(33,29,23,.07);
+  --shadow-lg:0 20px 48px rgba(33,29,23,.16),0 6px 14px rgba(33,29,23,.09);
+  --shadow-sheet:0 -8px 40px rgba(33,29,23,.14);
+  --shadow-pin:0 6px 16px rgba(168,31,36,.35);
+  --shadow-focus:0 0 0 3px rgba(193,39,45,.28);
 
   --safe-top:59px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -75,7 +76,7 @@
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--paper);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);color:var(--text-primary)}
-h1,h2,h3,h4{font-family:var(--font-display);font-weight:800;letter-spacing:-0.03em;line-height:1.1;margin:0}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.01em;line-height:1.05;margin:0}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 .rmg-eyebrow{font-family:var(--font-sans);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;color:var(--text-muted)}
@@ -150,7 +151,7 @@ function RummageMark({ size = 64 }) {
       </defs>
       <path d="M32 4C18.7 4 8 14.6 8 27.7c0 6.2 3 12 7.4 17.6 3.9 4.9 8.8 9.2 12.3 12.1a6 6 0 0 0 8.6 0c3.5-2.9 8.4-7.2 12.3-12.1C53 39.7 56 33.9 56 27.7 56 14.6 45.3 4 32 4Z" fill={`url(#${gid})`} />
       <circle cx="32" cy="26.5" r="10.5" fill="var(--paper)" />
-      <circle cx="32" cy="26.5" r="4" fill="var(--teal-700)" />
+      <circle cx="32" cy="26.5" r="4" fill="var(--tape-500)" />
     </svg>
   );
 }
@@ -329,14 +330,14 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
     gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
     fontWeight:700, letterSpacing:'-0.01em', whiteSpace:'nowrap',
     transition:`all var(--dur-fast) var(--ease-out)`,
-    borderRadius:16, width: fullWidth?'100%':'auto',
+    borderRadius:'var(--radius-lg)', width: fullWidth?'100%':'auto',
   };
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
            : size==='sm' ? {height:36,padding:'0 16px',fontSize:13}
            : {height:48,padding:'0 24px',fontSize:15};
-  const v = variant==='primary'  ? {background:'#1E2020',color:'#FFFFFF',border:'1px solid #E5D6C1',boxShadow:'0 6px 20px rgba(30,32,32,.28)'}
-          : variant==='secondary'? {background:'#1E2020',color:'#FFFFFF',border:'1px solid #E5D6C1'}
-          : {background:'#1E2020',color:'#FFFFFF',border:'1px solid #E5D6C1'};
+  const v = variant==='primary'  ? {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)',boxShadow:'0 6px 20px rgba(33,29,23,.28)'}
+          : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)'}
+          : {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)'};
   return (
     <button onClick={onClick} style={{...base,...sz,...v,...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
@@ -382,22 +383,21 @@ function Badge({ tone, children }) {
   );
 }
 
+// A rotated masking-tape sticker rather than a rounded pill — the one
+// deliberately "physical" detail that shows up on every card.
 function SaleTypeTag({ type, size }) {
-  const c = {
-    estate:{fg:'var(--type-estate-fg)',bg:'var(--type-estate-bg)'},
-    yard:{fg:'var(--type-yard-fg)',bg:'var(--type-yard-bg)'},
-    moving:{fg:'var(--type-moving-fg)',bg:'var(--type-moving-bg)'},
-  }[type] || {fg:'var(--text-muted)',bg:'var(--surface-sunken)'};
   return (
     <span style={{
       display:'inline-flex', alignItems:'center', gap:4,
-      padding: size==='sm' ? '2px 8px' : '3px 10px',
-      borderRadius:'var(--radius-pill)',
-      background:c.bg, color:c.fg,
-      fontFamily:'var(--font-sans)', fontWeight:600,
-      fontSize: size==='sm' ? 11 : 12, letterSpacing:'0.02em',
+      padding: size==='sm' || size==='xs' ? '2px 8px' : '3px 10px',
+      borderRadius:'var(--radius-xs)',
+      background:'var(--tape-500)', color:'var(--ink-900)',
+      fontFamily:'var(--font-mono)', fontWeight:700,
+      fontSize: size==='xs' ? 10 : size==='sm' ? 11 : 12,
+      letterSpacing:'0.03em', textTransform:'uppercase',
+      transform:'rotate(-2deg)', boxShadow:'0 1px 3px rgba(33,29,23,.25)',
     }}>
-      {Icon(CAT[type]?.glyph || 'Tag', size==='sm' ? 11 : 13, {stroke:'currentColor',sw:2})}
+      {Icon(CAT[type]?.glyph || 'Tag', size==='sm'||size==='xs' ? 11 : 13, {stroke:'currentColor',sw:2})}
       {CAT[type]?.label || type}
     </span>
   );
@@ -437,13 +437,13 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
       padding:'9px 18px', borderRadius:'var(--radius-pill)',
-      border: selected ? '1px solid #E5D6C1' : 'none',
-      background: selected ? '#1E2020' : 'var(--surface-card)',
+      border: selected ? '1px solid var(--ink-200)' : 'none',
+      background: selected ? 'var(--ink-900)' : 'var(--surface-card)',
       color: selected ? '#fff' : 'var(--text-secondary)',
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(30,32,32,.28)' : 'var(--shadow-sm)',
+      boxShadow: selected ? '0 4px 14px rgba(33,29,23,.28)' : 'var(--shadow-sm)',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -608,7 +608,7 @@ function TabBar({ items, active, onChange }) {
   return (
     <nav style={{
       display:'flex', alignItems:'stretch', width:'100%',
-      background:'rgba(230,245,244,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
+      background:'rgba(237,230,214,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
       borderTop:'1px solid var(--line)', paddingBottom:20,
     }}>
       {items.map(it => {
@@ -689,7 +689,7 @@ function FauxMap({ sales, selectedId, onSelect }) {
 
 // ── Leaflet real map ──────────────────────────────────────────────────────────
 const TYPE_COLOR_HEX = {
-  estate:'#7C3AED', yard:'#15803D', moving:'#B45309',
+  estate:'#2C4A7C', yard:'#3F5E3A', moving:'#8A5A12',
 };
 
 function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-118.0328, zoom=13, interactive=true }) {
@@ -792,10 +792,10 @@ function proxyImgUrl(url) {
 
 // Type-specific placeholder — looks intentional, not broken
 const PLACEHOLDER_STYLES = {
-  estate:  { bg: 'linear-gradient(135deg,#EDE9FE 0%,#C4B5FD 100%)', icon: 'Home',  color: '#7C3AED' },
-  yard:    { bg: 'linear-gradient(135deg,#DCFCE7 0%,#86EFAC 100%)', icon: 'Tag',   color: '#16A34A' },
-  moving:  { bg: 'linear-gradient(135deg,#FEF3C7 0%,#FCD34D 100%)', icon: 'Truck', color: '#D97706' },
-  auction: { bg: 'linear-gradient(135deg,#DBEAFE 0%,#93C5FD 100%)', icon: 'Gavel', color: '#2563EB' },
+  estate:  { bg: 'linear-gradient(135deg,#DCE4EF 0%,#A8BEDA 100%)', icon: 'Home',  color: '#2C4A7C' },
+  yard:    { bg: 'linear-gradient(135deg,#E1E8D6 0%,#B7CBA0 100%)', icon: 'Tag',   color: '#3F5E3A' },
+  moving:  { bg: 'linear-gradient(135deg,#F1E0B8 0%,#E0C070 100%)', icon: 'Truck', color: '#8A5A12' },
+  auction: { bg: 'linear-gradient(135deg,#EAD9DE 0%,#CDA2AE 100%)', icon: 'Gavel', color: '#6B2A3E' },
 };
 function PhotoPlaceholder({ height, type = 'yard', blurb, title }) {
   const s = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
@@ -918,9 +918,9 @@ function useCountdown(dateLabel, timeLabel) {
 // ── Photo gallery ─────────────────────────────────────────────────────────────
 function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, onShare }) {
   const GRADS = {
-    estate:['linear-gradient(135deg,#F5F3FF 0%,#DDD6FE 100%)','linear-gradient(135deg,#EDE9FE 0%,#A78BFA 100%)','linear-gradient(135deg,#C4B5FD 0%,#7C3AED 100%)'],
-    yard:  ['linear-gradient(135deg,#F0FDF4 0%,#BBF7D0 100%)','linear-gradient(135deg,#DCFCE7 0%,#4ADE80 100%)','linear-gradient(135deg,#A7F3D0 0%,#16A34A 100%)'],
-    moving:['linear-gradient(135deg,#FFFBEB 0%,#FDE68A 100%)','linear-gradient(135deg,#FEF3C7 0%,#FCD34D 100%)','linear-gradient(135deg,#FDE68A 0%,#D97706 100%)'],
+    estate:['linear-gradient(135deg,#DCE4EF 0%,#B7C7DE 100%)','linear-gradient(135deg,#C7D3E5 0%,#7C97BE 100%)','linear-gradient(135deg,#A8BEDA 0%,#2C4A7C 100%)'],
+    yard:  ['linear-gradient(135deg,#E1E8D6 0%,#C1D0AB 100%)','linear-gradient(135deg,#D0DCBB 0%,#8FA877 100%)','linear-gradient(135deg,#B7CBA0 0%,#3F5E3A 100%)'],
+    moving:['linear-gradient(135deg,#F1E0B8 0%,#E8CD8E 100%)','linear-gradient(135deg,#EDD7A0 0%,#D9A94A 100%)','linear-gradient(135deg,#E0C070 0%,#8A5A12 100%)'],
   };
   const hasCoords = sale?.lat != null && sale?.lng != null;
   const slides = (images && images.length) ? images : (hasCoords ? ['__MAP__'] : (GRADS[type]||GRADS.estate));
@@ -1048,11 +1048,11 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
     <Card interactive onClick={onClick} padded={false} elevation="md">
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
-        <div style={{position:'absolute',top:12,left:12}}><SaleTypeTag type={type} /></div>
-        <div style={{position:'absolute',top:12,right:12}}><HeartBtn saved={saved} onSave={onSave} /></div>
-        {live && <div style={{position:'absolute',bottom:12,left:12}}><Badge tone="live">Happening now</Badge></div>}
+        <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
+        <div style={{position:'absolute',top:12,right:12,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
+        {live && <div style={{position:'absolute',bottom:12,left:12,zIndex:1000}}><Badge tone="live">Happening now</Badge></div>}
         {photoCount!=null && (
-          <div style={{position:'absolute',bottom:12,right:12,display:'inline-flex',alignItems:'center',gap:4,height:24,padding:'0 8px',borderRadius:'var(--radius-pill)',background:'rgba(28,25,23,.6)',backdropFilter:'blur(4px)',color:'#fff',fontFamily:'var(--font-mono)',fontSize:11}}>
+          <div style={{position:'absolute',bottom:12,right:12,zIndex:1000,display:'inline-flex',alignItems:'center',gap:4,height:24,padding:'0 8px',borderRadius:'var(--radius-pill)',background:'rgba(28,25,23,.6)',backdropFilter:'blur(4px)',color:'#fff',fontFamily:'var(--font-mono)',fontSize:11}}>
             {Icon('Camera',12,{stroke:'#fff'})} {photoCount}
           </div>
         )}
@@ -1116,9 +1116,9 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
             {Icon(ps.icon,28,{stroke:ps.color,strokeWidth:1.5})}
           </div>
         )}
-        <div style={{position:'absolute',top:8,left:8}}><SaleTypeTag type={type} size="sm" /></div>
-        <div style={{position:'absolute',top:6,right:6}}><HeartBtn saved={saved} onSave={onSave} /></div>
-        {live && <div style={{position:'absolute',bottom:8,left:8}}><Badge tone="live">Now</Badge></div>}
+        <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
+        <div style={{position:'absolute',top:6,right:6,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
+        {live && <div style={{position:'absolute',bottom:8,left:8,zIndex:1000}}><Badge tone="live">Now</Badge></div>}
       </div>
       <div style={{padding:'9px 10px 11px'}}>
         <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,lineHeight:1.25,color:'var(--text-primary)',
@@ -1147,16 +1147,6 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
   );
 }
 
-// ── Wordmark SVG ──────────────────────────────────────────────────────────────
-const WORDMARK = (
-  <svg width="200" height="48" viewBox="0 0 260 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path d="M28 6c-10.6 0-18.8 8-18.8 18.3 0 5.4 2.6 10.5 6.5 15.4 3.4 4.3 7.7 8 10.8 10.6a2.4 2.4 0 0 0 3 0c3.1-2.6 7.4-6.3 10.8-10.6 3.9-4.9 6.5-10 6.5-15.4C46.8 14 38.6 6 28 6Z" fill="#4E4F2A"/>
-    <circle cx="28" cy="23.6" r="8.1" fill="#FFFFFF"/>
-    <circle cx="28" cy="23.6" r="2.9" fill="#1C1917"/>
-    <text x="64" y="43" fontFamily="Inder, sans-serif" fontSize="40" fontWeight="800" letterSpacing="-1" fill="#1C1917">Rummage</text>
-  </svg>
-);
-
 // ── Landing illustration ──────────────────────────────────────────────────────
 const LANDING_ILLUSTRATION = (
   <svg viewBox="0 0 280 180" style={{width:'100%',maxWidth:260,height:'auto'}}>
@@ -1167,11 +1157,11 @@ const LANDING_ILLUSTRATION = (
     <line x1="65" y1="95" x2="115" y2="95" stroke="#D4A574" strokeWidth="2"/>
     <line x1="70" y1="105" x2="110" y2="105" stroke="#D4A574" strokeWidth="1.5" opacity="0.6"/>
     <line x1="75" y1="115" x2="105" y2="115" stroke="#D4A574" strokeWidth="1.5" opacity="0.4"/>
-    <circle cx="155" cy="65" r="22" fill="none" stroke="#0F766E" strokeWidth="2.5"/>
-    <circle cx="155" cy="65" r="16" fill="#E9F4F2" opacity="0.5"/>
-    <path d="M155 53L160 65L155 77L150 65Z" fill="#0F766E"/>
-    <circle cx="180" cy="55" r="16" fill="none" stroke="#7C3AED" strokeWidth="2.5"/>
-    <line x1="193" y1="68" x2="205" y2="80" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round"/>
+    <circle cx="155" cy="65" r="22" fill="none" stroke="#8A6A0D" strokeWidth="2.5"/>
+    <circle cx="155" cy="65" r="16" fill="#F8E8B0" opacity="0.5"/>
+    <path d="M155 53L160 65L155 77L150 65Z" fill="#8A6A0D"/>
+    <circle cx="180" cy="55" r="16" fill="none" stroke="#C1272D" strokeWidth="2.5"/>
+    <line x1="193" y1="68" x2="205" y2="80" stroke="#C1272D" strokeWidth="2.5" strokeLinecap="round"/>
     <path d="M55 140 Q55 126 68 126 L88 126 Q101 126 101 140 L101 155 Q101 163 88 163 L68 163 Q55 163 55 155Z" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <ellipse cx="46" cy="145" rx="9" ry="7" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <rect x="101" y="138" width="5" height="18" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" rx="2"/>
@@ -1193,9 +1183,9 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{position:'relative',flex:1,overflow:'hidden'}}>
         <FauxMap sales={sales.slice(0,5)} selectedId="s1" onSelect={()=>{}} />
-        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(230,245,244,.05) 0%,rgba(230,245,244,.6) 58%,var(--surface-app) 100%)'}} />
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(237,230,214,.05) 0%,rgba(237,230,214,.6) 58%,var(--surface-app) 100%)'}} />
         <div style={{position:'absolute',top:'calc(var(--safe-top) + 24px)',left:0,right:0,display:'flex',justifyContent:'center'}}>
-          <div style={{transform:'scale(0.7)'}}>{WORDMARK}</div>
+          <RummageLogo markSize={40} textSize={19} />
         </div>
       </div>
       <div style={{padding:'8px 24px 0',textAlign:'center'}}>
@@ -1238,7 +1228,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
   const liveCount = typeFiltered.filter(s => isSaleLive(s.dateLabel, s.timeLabel)).length;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--accent)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
@@ -1255,7 +1245,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
-            activeBg="#1E2020" activeFg="#fff" activeBorder="1px solid #E5D6C1" />
+            activeBg="var(--ink-900)" activeFg="#fff" activeBorder="1px solid var(--ink-200)" />
         </div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
           <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
@@ -1275,7 +1265,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
       </div>
       {apiStatus==='loading' && (
-        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#1E2020',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(30,32,32,.28)'}}>
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'var(--ink-900)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(33,29,23,.28)'}}>
           <span style={{display:'inline-flex',animation:'spin 1s linear infinite'}}>{Icon('Loader2',16,{stroke:'#fff'})}</span>
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
         </div>
@@ -1681,8 +1671,8 @@ function AuthScreen({ onAuth }) {
             <button key={opt.value} type="button"
               onClick={()=>{setMode(opt.value);setErrors({});}}
               style={{flex:1,height:40,cursor:'pointer',borderRadius:'calc(var(--radius-lg) - 2px)',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,
-                border: mode===opt.value ? '1px solid #E5D6C1' : 'none',
-                background: mode===opt.value ? '#1E2020' : 'transparent',
+                border: mode===opt.value ? '1px solid var(--ink-200)' : 'none',
+                background: mode===opt.value ? 'var(--ink-900)' : 'transparent',
                 color: mode===opt.value ? '#fff' : 'var(--text-muted)',
                 boxShadow: mode===opt.value ? 'var(--shadow-sm)' : 'none',
                 transition:'all var(--dur-base) var(--ease-spring)',
@@ -1774,7 +1764,7 @@ function HelpScreen({ onBack }) {
   const [open, setOpen] = useState(null);
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Help & FAQ</h1>
@@ -1865,7 +1855,7 @@ function FeedbackScreen({ onBack, userEmail }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Send Feedback</h1>
@@ -1942,7 +1932,7 @@ function PrivacyScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(230,245,244,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Privacy Policy</h1>
@@ -3263,7 +3253,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         )}
         <div style={{height:80}} />
       </div>
-      <div style={{padding:'12px 16px 28px',background:'rgba(230,245,244,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{padding:'12px 16px 28px',background:'rgba(237,230,214,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
         {s.contact ? (
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('MessageCircle',18)}
             onClick={()=>{
@@ -3278,7 +3268,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         <div style={{display:'flex',gap:8}}>
           <button type="button" onClick={openDirections} aria-label="Directions" style={{
             width:52,height:52,borderRadius:16,flexShrink:0,
-            background:'#1E2020',border:'1px solid #E5D6C1',cursor:'pointer',
+            background:'var(--ink-900)',border:'1px solid var(--ink-200)',cursor:'pointer',
             display:'flex',alignItems:'center',justifyContent:'center',
           }}>
             {Icon('Navigation',20,{stroke:'#fff'})}
@@ -3328,7 +3318,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(230,245,244,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(237,230,214,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 10px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <div style={{flex:1,minWidth:0}}>
@@ -3378,7 +3368,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
         </div>
         <p style={{textAlign:'center',fontSize:12,color:'var(--text-muted)',margin:'16px auto 0',maxWidth:250}}>Photos are a preview. Everything's cash &amp; carry, first come first served.</p>
       </div>
-      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(230,245,244,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
+      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(237,230,214,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)'}}>{sale.dateLabel}</div>
           <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)'}}>{sale.distanceMi} mi{sale.neighborhood?` · ${sale.neighborhood}`:''}</div>
@@ -3466,7 +3456,7 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem, onRemin
           </div>
         )}
       </div>
-      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(230,245,244,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
+      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(237,230,214,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
         <Btn variant="secondary" size="lg" leadingIcon={Icon(reminded?'BellOff':'Bell',18)}
           onClick={toggleRemind} style={reminded?{borderColor:'var(--green-600)',color:'var(--green-600)'}:{}}>
           {reminded ? 'Reminder set' : 'Remind me'}
@@ -3491,7 +3481,7 @@ function NotificationsScreen({ notifications, onBack, onOpenSale }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(230,245,244,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(237,230,214,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 12px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <span style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:'var(--text-primary)'}}>Notifications</span>
@@ -3671,9 +3661,9 @@ function ListScreen({ onPublish }) {
           <div className="rmg-eyebrow" style={{marginBottom:14}}>How it works</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {[
-              {icon:'Tag',        color:'#4E4F2A', bg:'#F4F4F2', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
-              {icon:'FileText',   color:'#15803D', bg:'#F0FDF4', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
-              {icon:'MapPin',     color:'#3B82F6', bg:'#EFF6FF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
+              {icon:'Tag',        color:'#A81F24', bg:'#FBEAEA', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
+              {icon:'FileText',   color:'#3F5E3A', bg:'#E1E8D6', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
+              {icon:'MapPin',     color:'#2C4A7C', bg:'#DCE4EF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
               <div key={row.step} style={{display:'flex',alignItems:'flex-start',gap:14,padding:'16px 18px',background:'var(--surface-card)',borderRadius:'var(--radius-xl)',boxShadow:'var(--shadow-sm)'}}>
                 <div style={{width:42,height:42,borderRadius:'var(--radius-lg)',background:row.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
@@ -3708,7 +3698,7 @@ function ListScreen({ onPublish }) {
           <div style={{height:120,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
             {published.images?.[0]
               ? <img src={published.images[0]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-              : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#F5F3FF,#C4B5FD',yard:'#F0FDF4,#86EFAC',moving:'#FFFBEB,#FDE68A'})[published.type]||'#F4F4F2,#C6C7BB'})`,display:'flex',alignItems:'center',justifyContent:'center'}}>
+              : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#DCE4EF,#A8BEDA',yard:'#E1E8D6,#B7CBA0',moving:'#F1E0B8,#E0C070'})[published.type]||'#F1EAD6,#D8CBB0'})`,display:'flex',alignItems:'center',justifyContent:'center'}}>
                   {Icon('Image',32,{stroke:'rgba(255,255,255,.5)',sw:1})}
                 </div>
             }
@@ -3759,9 +3749,9 @@ function ListScreen({ onPublish }) {
             <div className="rmg-eyebrow" style={{marginBottom:12}}>Sale type</div>
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               {[
-                {key:'estate',bg:'#F5F3FF',fg:'#7C3AED',emoji:'🛋️',desc:'Full household'},
-                {key:'yard',  bg:'#F0FDF4',fg:'#15803D',emoji:'⛺', desc:'Driveway or yard'},
-                {key:'moving',bg:'#FFFBEB',fg:'#B45309',emoji:'📦', desc:'Everything must go'},
+                {key:'estate',bg:'#DCE4EF',fg:'#2C4A7C',emoji:'🛋️',desc:'Full household'},
+                {key:'yard',  bg:'#E1E8D6',fg:'#3F5E3A',emoji:'⛺', desc:'Driveway or yard'},
+                {key:'moving',bg:'#F1E0B8',fg:'#8A5A12',emoji:'📦', desc:'Everything must go'},
               ].map(tc => {
                 const on = saleType===tc.key;
                 return (
@@ -3905,7 +3895,7 @@ function ListScreen({ onPublish }) {
                 <div style={{height:190,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
                   {previewPhotos.length
                     ? <img src={previewPhotos[i]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-                    : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#F5F3FF,#C4B5FD',yard:'#F0FDF4,#86EFAC',moving:'#FFFBEB,#FDE68A'})[saleType]||'#F4F4F2,#C6C7BB'})`,display:'flex',alignItems:'center',justifyContent:'center',opacity:.7}}>
+                    : <div style={{height:'100%',background:`linear-gradient(135deg,${({estate:'#DCE4EF,#A8BEDA',yard:'#E1E8D6,#B7CBA0',moving:'#F1E0B8,#E0C070'})[saleType]||'#F1EAD6,#D8CBB0'})`,display:'flex',alignItems:'center',justifyContent:'center',opacity:.7}}>
                         {Icon('Image',36,{stroke:'#fff',sw:1})}
                       </div>
                   }
