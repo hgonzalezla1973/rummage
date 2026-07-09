@@ -375,22 +375,10 @@ async function geocodeZip(zip) {
   } catch (err) {
     errors.push(`Census: ${err.message}`);
   }
-  // Photon fallback
-  try {
-    const res  = await fetchTimeout(`https://photon.komoot.io/api/?q=${zip}&limit=1&lang=en`);
-    const data = await res.json();
-    const feat = data?.features?.[0];
-    if (feat) {
-      const coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] };
-      toCache(`geo:${zip}`, coords);
-      return coords;
-    }
-    errors.push(`Photon: no feature match (status ${res.status})`);
-  } catch (err) {
-    errors.push(`Photon: ${err.message}`);
-  }
-  // Zippopotam.us fallback — third, independent free geocoder in case the
-  // first two are blocked/down for this environment.
+  // Zippopotam.us — purpose-built for postal codes and unambiguous, unlike
+  // Photon below (which once matched bare "10001" to a postcode in Cáceres,
+  // Spain instead of New York — a bare numeric query has no country to
+  // disambiguate against). Tried before Photon for exactly that reason.
   try {
     const res  = await fetchTimeout(`https://api.zippopotam.us/us/${zip}`);
     const data = await res.json();
@@ -403,6 +391,23 @@ async function geocodeZip(zip) {
     errors.push(`Zippopotam: no place match (status ${res.status})`);
   } catch (err) {
     errors.push(`Zippopotam: ${err.message}`);
+  }
+  // Photon fallback — last resort, since a bare ZIP query is ambiguous
+  // across countries (see note above).
+  try {
+    const res  = await fetchTimeout(`https://photon.komoot.io/api/?q=${zip}&limit=1&lang=en&osm_tag=place:postcode`);
+    const data = await res.json();
+    // Extra guard beyond osm_tag filtering: a bare numeric query can still
+    // match a non-US postcode, so require the result to actually say US.
+    const feat = (data?.features || []).find(f => f.properties?.countrycode === 'US') || data?.features?.[0];
+    if (feat && feat.properties?.countrycode === 'US') {
+      const coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] };
+      toCache(`geo:${zip}`, coords);
+      return coords;
+    }
+    errors.push(`Photon: no US match (status ${res.status})`);
+  } catch (err) {
+    errors.push(`Photon: ${err.message}`);
   }
   console.warn(`  Geocode failed for ${zip}: ${errors.join(' | ')}`);
   geocodeZip.lastErrors = errors; // exposed via /api/listings error response for remote debugging
@@ -2302,6 +2307,22 @@ async function getListingsForZip(zip, radiusMi) {
   const center = await geocodeZip(zip);
   if (!center) throw new Error(`Cannot geocode ZIP: ${zip}${geocodeZip.lastErrors ? ' (' + geocodeZip.lastErrors.join(' | ') + ')' : ''}`);
 
+  // Every scraper here is hardcoded to Los Angeles County in some way
+  // (Craigslist's LA subdomain, EstateSales.net's CA/Los-Angeles path, the
+  // LA_NEIGHBORHOODS lookup, etc.) — a ZIP far outside that region would
+  // still geocode fine now that Zippopotam covers the whole country, but
+  // every scraper would run pointlessly and, worse, some hang rather than
+  // returning empty quickly. Fail fast instead of stalling the request.
+  const LA_DOWNTOWN = { lat: 34.0522, lng: -118.2437 };
+  const COVERAGE_RADIUS_MI = 100;
+  const distFromLA = distanceMiles(LA_DOWNTOWN.lat, LA_DOWNTOWN.lng, center.lat, center.lng);
+  if (distFromLA > COVERAGE_RADIUS_MI) {
+    console.log(`  ZIP ${zip} is ${distFromLA.toFixed(0)}mi from LA — outside coverage area, skipping scrape`);
+    const err = new Error(`Rummage currently only covers the Los Angeles area — ${zip} is about ${Math.round(distFromLA)} miles outside that.`);
+    err.outOfCoverage = true;
+    throw err;
+  }
+
   // Run all scrapers in parallel
   const [clListings, ouListings, esListings, fbListings, googleListings,
          esnListings, yssListings, gsfListings, gsalrListings, escListings] = await Promise.allSettled([
@@ -2424,6 +2445,9 @@ app.get('/api/listings', async (req, res) => {
     const all = await getListingsForZip(zip, radiusMi);
     res.json({ zip, radiusMi, count: all.length, listings: all });
   } catch (err) {
+    if (err.outOfCoverage) {
+      return res.json({ zip, radiusMi, count: 0, listings: [], outOfCoverage: true, message: err.message });
+    }
     res.status(500).json({ error: err.message, listings: [] });
   }
 });
