@@ -318,6 +318,8 @@ const AVATARS = [
   {id:'a13', emoji:'/assets/avatars/avatar_5_1.png', label:'Avatar 13'},
   {id:'a14', emoji:'/assets/avatars/avatar_5_2.png', label:'Avatar 14'},
   {id:'a15', emoji:'/assets/avatars/avatar_5_3.png', label:'Avatar 15'},
+  ...Array.from({length:16}, (_,i) => ({id:`a${16+i}`, emoji:`/assets/avatars/avatar_6_${i+1}.png`, label:`Avatar ${16+i}`})),
+  ...Array.from({length:12}, (_,i) => ({id:`a${32+i}`, emoji:`/assets/avatars/avatar_7_${i+1}.png`, label:`Avatar ${32+i}`})),
 ];
 
 // No mock data — all listings come from the live API
