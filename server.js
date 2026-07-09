@@ -358,6 +358,7 @@ async function geocodeZip(zip) {
   if (ZIP_COORDS[zip]) return ZIP_COORDS[zip];
   const cached = fromCache(`geo:${zip}`);
   if (cached) return cached;
+  const errors = [];
   // Census Bureau ZIP geocoding — free, no key, fast
   try {
     const res  = await fetchTimeout(
@@ -370,7 +371,10 @@ async function geocodeZip(zip) {
       toCache(`geo:${zip}`, coords);
       return coords;
     }
-  } catch (_) {}
+    errors.push(`Census: no address match (status ${res.status})`);
+  } catch (err) {
+    errors.push(`Census: ${err.message}`);
+  }
   // Photon fallback
   try {
     const res  = await fetchTimeout(`https://photon.komoot.io/api/?q=${zip}&limit=1&lang=en`);
@@ -381,7 +385,27 @@ async function geocodeZip(zip) {
       toCache(`geo:${zip}`, coords);
       return coords;
     }
-  } catch (_) {}
+    errors.push(`Photon: no feature match (status ${res.status})`);
+  } catch (err) {
+    errors.push(`Photon: ${err.message}`);
+  }
+  // Zippopotam.us fallback — third, independent free geocoder in case the
+  // first two are blocked/down for this environment.
+  try {
+    const res  = await fetchTimeout(`https://api.zippopotam.us/us/${zip}`);
+    const data = await res.json();
+    const place = data?.places?.[0];
+    if (place) {
+      const coords = { lat: parseFloat(place.latitude), lng: parseFloat(place.longitude) };
+      toCache(`geo:${zip}`, coords);
+      return coords;
+    }
+    errors.push(`Zippopotam: no place match (status ${res.status})`);
+  } catch (err) {
+    errors.push(`Zippopotam: ${err.message}`);
+  }
+  console.warn(`  Geocode failed for ${zip}: ${errors.join(' | ')}`);
+  geocodeZip.lastErrors = errors; // exposed via /api/listings error response for remote debugging
   return null;
 }
 
@@ -2276,7 +2300,7 @@ async function getListingsForZip(zip, radiusMi) {
 
   console.log(`\nFetching listings — zip=${zip} radius=${radiusMi}mi`);
   const center = await geocodeZip(zip);
-  if (!center) throw new Error(`Cannot geocode ZIP: ${zip}`);
+  if (!center) throw new Error(`Cannot geocode ZIP: ${zip}${geocodeZip.lastErrors ? ' (' + geocodeZip.lastErrors.join(' | ') + ')' : ''}`);
 
   // Run all scrapers in parallel
   const [clListings, ouListings, esListings, fbListings, googleListings,
