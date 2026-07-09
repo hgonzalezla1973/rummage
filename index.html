@@ -3139,9 +3139,6 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
   const countdown = useCountdown(s.dateLabel, s.timeLabel);
   const openDirections = () => openSaleDirections(s, onNavigateTo);
   const [shareOpen, setShareOpen] = useState(false);
-  // Sources like Craigslist/OfferUp only ever give a city ("Rowland Heights, CA"),
-  // not a real street address — a genuine address has a house number in it.
-  const hasRealAddress = !!(s.address && /\d/.test(s.address));
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
@@ -3258,11 +3255,6 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
               else window.open('tel:'+c,'_blank');
             }}>
             Contact Seller
-          </Btn>
-        ) : (!hasRealAddress && s.url) ? (
-          <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('ExternalLink',18)}
-            onClick={()=>window.open(s.url,'_blank','noopener,noreferrer')}>
-            View Original Listing
           </Btn>
         ) : null}
         <div style={{display:'flex',gap:8}}>
