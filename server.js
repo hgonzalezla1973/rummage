@@ -418,6 +418,18 @@ async function geocodeZip(zip) {
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+// A deterministic short hash for building stable listing IDs from a natural
+// key (the source's own URL, when it has no cleaner ID field) — critically,
+// NOT based on Date.now(), so the same real-world listing gets the same id
+// across scrapes. IDs that change every cache refresh (every 8 min) used to
+// silently break both "Saved" sales and any link pointing at a specific
+// listing, since a fresh scrape would mint a brand-new id for the same sale.
+function stableHash(str) {
+  let h = 5381;
+  for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0;
+  return Math.abs(h).toString(36);
+}
+
 function distanceMiles(lat1, lng1, lat2, lng2) {
   const R = 3958.8, dLat = (lat2-lat1)*Math.PI/180, dLng = (lng2-lng1)*Math.PI/180;
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
@@ -996,8 +1008,9 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
       clPx = pinXY(centerLat, centerLng, centerLat, centerLng, radiusMi);
     }
 
+    const clPostId = (item.url.match(/(\d+)\.html/) || [])[1];
     results.push({
-      id:          `cl-${i}-${Date.now()}`,
+      id:          `cl-${clPostId || stableHash(item.url || item.title)}`,
       source:      'craigslist',
       type:        detectType(item.title),
       title:       item.title,
@@ -1196,7 +1209,7 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
         const px     = pinXY(ouLat, ouLng, centerLat, centerLng, radiusMi);
 
         results.push({
-          id:          `ou-${results.length}-${Date.now()}`,
+          id:          `ou-${listing.listingId}`,
           source:      'offerup',
           type:        detectType(listing.title + ' ' + q),
           title:       listing.title,
@@ -1362,7 +1375,7 @@ async function scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng) {
 
       const px = pinXY(esLat, esLng, centerLat, centerLng, radiusMi);
       results.push({
-        id:           `es-${item.id || i}-${Date.now()}`,
+        id:           `es-${item.id || stableHash(item.url || item.title)}`,
         source:       'estatesales',
         type:         saleType,
         title:        item.title,
@@ -1550,7 +1563,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
         const esImg = item.img && !item.img.includes('nophoto') ? item.img : '';
 
         results.push({
-          id:           `es-${i}-${Date.now()}`,
+          id:           `es-${stableHash(item.href)}`,
           source:       'estatesales',
           type:         'estate',
           title:        item.title,
@@ -2290,7 +2303,7 @@ async function fetchGoogleListings(zip) {
       if (data.items) {
         for (const item of data.items) {
           results.push({
-            id:          `goog-${results.length}-${Date.now()}`,
+            id:          `goog-${stableHash(item.link || item.title)}`,
             source:      'google',
             type:        detectType(item.title + ' ' + (item.snippet || '')),
             title:       item.title,
@@ -2577,14 +2590,16 @@ function buildDigestHtml(listings, { zip, radiusMi }) {
     const thumb = img
       ? `<img src="${proxyImgUrlForEmail(img)}" width="72" height="72" style="width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0;display:block" />`
       : `<div style="width:72px;height:72px;border-radius:10px;background:#F5F3FF;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px">🧺</div>`;
+    const href = `${PUBLIC_BASE_URL}/?sale=${encodeURIComponent(l.id)}`;
     return `
-    <div style="display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #EEE">
+    <a href="${href}" style="display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #EEE;text-decoration:none">
       ${thumb}
       <div style="min-width:0">
         <div style="font-weight:800;color:#18112E;font-size:15px">${l.title || 'Sale'}</div>
         <div style="color:#5E5380;font-size:13px;margin-top:2px">${[l.dateLabel, l.timeLabel, l.address || l.neighborhood].filter(Boolean).join(' · ')}</div>
+        <div style="color:#7C3AED;font-size:12px;font-weight:700;margin-top:4px">Open in app →</div>
       </div>
-    </div>`;
+    </a>`;
   }).join('');
 
   return `

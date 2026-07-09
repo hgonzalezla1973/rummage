@@ -4162,6 +4162,18 @@ function App() {
   let salesInRadius = allSales.filter(s=>s.distanceMi<=radiusMi).filter(kwMatch);
   if (salesInRadius.length===0 && !keyword) salesInRadius = allSales.slice(0,1);
   const detailSale = allSales.find(s=>s.id===detailId)||null;
+
+  // Deep link support (?sale=<id>, used by the daily digest email's "Open
+  // in app" links) — open straight to that sale once it shows up in
+  // allSales, then strip the param so navigating away/back doesn't reopen it.
+  useEffect(() => {
+    const saleId = new URLSearchParams(window.location.search).get('sale');
+    if (!saleId || detailId) return;
+    if (allSales.some(s => s.id === saleId)) {
+      setDetailId(saleId);
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [allSales, detailId]);
   const savedCount = allSales.filter(s=>s.saved).length;
 
   const toggleSave = (id) => setSavedIds(p=>({...p,[id]:!p[id]}));
