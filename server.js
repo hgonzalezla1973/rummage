@@ -2705,7 +2705,14 @@ app.get('/api/listings', async (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, cached: cache.size, uptime: Math.round(process.uptime()), chrome: CHROME_PATH });
+  res.json({
+    ok: true, cached: cache.size, uptime: Math.round(process.uptime()), chrome: CHROME_PATH,
+    // Presence-only booleans -- never the actual secret values -- so we can
+    // remotely confirm env vars are wired up without exposing them.
+    smsConfigured: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER),
+    smsMissing: ['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_PHONE_NUMBER'].filter(k => !process.env[k]),
+    emailConfigured: !!process.env.RESEND_API_KEY,
+  });
 });
 
 app.post('/api/clear-cache', (_req, res) => {
