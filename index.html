@@ -321,6 +321,7 @@ function Card({ padded=true, interactive, onClick, children, style, elevation })
       background:'var(--surface-card)', border:'none',
       borderRadius:'var(--radius-xl)', boxShadow:shadow,
       padding: padded ? 20 : 0, overflow:'hidden',
+      position:'relative', zIndex:0, isolation:'isolate',
       cursor: interactive ? 'pointer' : 'default',
       transition: interactive ? 'box-shadow var(--dur-fast), transform var(--dur-fast)' : 'none',
       ...style,
