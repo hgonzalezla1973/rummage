@@ -41,7 +41,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-// In-memory verification codes: email → { code, expiresAt }
+// In-memory verification codes: phone (E.164) → { code, expiresAt }
 const verifyCodes = new Map();
 
 function makeCode() {
@@ -67,58 +67,74 @@ async function sendResendEmail({ to, subject, html, text }) {
   return { ok: true, id: data.id };
 }
 
-// POST /api/send-verification  { email }
+// Normalizes a user-entered phone number to E.164, assuming a US number
+// when no country code is given (bare 10 digits). Returns null if it
+// doesn't look like a real phone number.
+function normalizePhone(raw) {
+  const digits = (raw || '').replace(/[^\d+]/g, '');
+  if (/^\+\d{8,15}$/.test(digits)) return digits;
+  if (/^\d{10}$/.test(digits)) return '+1' + digits;
+  if (/^1\d{10}$/.test(digits)) return '+' + digits;
+  return null;
+}
+
+// Shared Twilio SMS sender — dev mode (no TWILIO_* env vars) just logs to
+// console, same fallback pattern as sendResendEmail above.
+async function sendTwilioSMS({ to, body }) {
+  const sid   = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from  = process.env.TWILIO_PHONE_NUMBER;
+  if (!sid || !token || !from) {
+    console.log(`\n📱 DEV MODE — SMS to ${to}: ${body}\n`);
+    return { ok: true, devMode: true };
+  }
+  const params = new URLSearchParams({ To: to, From: from, Body: body });
+  const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+    method: 'POST',
+    headers: {
+      'Authorization': 'Basic ' + Buffer.from(`${sid}:${token}`).toString('base64'),
+      'Content-Type': 'application/x-www-form-urlencoded',
+    },
+    body: params,
+  });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.message || r.statusText);
+  return { ok: true, id: data.sid };
+}
+
+// POST /api/send-verification  { phone }
 app.post('/api/send-verification', async (req, res) => {
-  const email = (req.body.email || '').trim().toLowerCase();
-  if (!email || !/\S+@\S+\.\S+/.test(email))
-    return res.status(400).json({ error: 'Invalid email' });
+  const phone = normalizePhone(req.body.phone);
+  if (!phone) return res.status(400).json({ error: 'Enter a valid phone number' });
 
   const code = makeCode();
-  verifyCodes.set(email, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
-
-  const html = `
-  <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:16px">
-    <div style="text-align:center;margin-bottom:24px">
-      <div style="display:inline-block;width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#7C3AED,#A855F7);line-height:64px;font-size:32px">🏷️</div>
-      <h1 style="font-size:26px;font-weight:900;color:#18112E;margin:16px 0 4px;letter-spacing:-0.03em">Verify your email</h1>
-      <p style="color:#5E5380;font-size:14px;margin:0">Enter this code in Rummage to confirm your account.</p>
-    </div>
-    <div style="background:#F5F3FF;border-radius:12px;padding:28px;text-align:center;margin:0 0 24px">
-      <div style="font-size:42px;font-weight:900;letter-spacing:12px;color:#7C3AED;font-family:monospace">${code}</div>
-      <p style="color:#8880A0;font-size:12px;margin:10px 0 0">Expires in 10 minutes</p>
-    </div>
-    <p style="color:#8880A0;font-size:13px;text-align:center;line-height:1.6">
-      If you didn't create a Rummage account, you can safely ignore this email.
-    </p>
-  </div>`;
+  verifyCodes.set(phone, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
 
   try {
-    const result = await sendResendEmail({
-      to: email,
-      subject: `${code} is your Rummage verification code`,
-      html,
-      text: `Your Rummage verification code is: ${code}\n\nExpires in 10 minutes.`,
+    const result = await sendTwilioSMS({
+      to: phone,
+      body: `${code} is your Rummage verification code. Expires in 10 minutes.`,
     });
     if (result.devMode) return res.json(result);
-    console.log(`✉️  Verification email sent to ${email} (id: ${result.id})`);
+    console.log(`📲 Verification text sent to ${phone} (sid: ${result.id})`);
     res.json({ ok: true });
   } catch (err) {
-    console.error('Resend error:', err.message);
-    res.status(500).json({ error: 'Failed to send email: ' + err.message });
+    console.error('Twilio error:', err.message);
+    res.status(500).json({ error: 'Failed to send text: ' + err.message });
   }
 });
 
-// POST /api/check-code  { email, code }
+// POST /api/check-code  { phone, code }
 app.post('/api/check-code', (req, res) => {
-  const email = (req.body.email || '').trim().toLowerCase();
-  const code  = (req.body.code  || '').trim();
-  const entry = verifyCodes.get(email);
+  const phone = normalizePhone(req.body.phone);
+  const code  = (req.body.code || '').trim();
+  const entry = phone ? verifyCodes.get(phone) : null;
 
-  if (!entry)              return res.status(400).json({ error: 'No code found for this email' });
-  if (Date.now() > entry.expiresAt) { verifyCodes.delete(email); return res.status(400).json({ error: 'Code expired' }); }
+  if (!entry)              return res.status(400).json({ error: 'No code found for this number' });
+  if (Date.now() > entry.expiresAt) { verifyCodes.delete(phone); return res.status(400).json({ error: 'Code expired' }); }
   if (entry.code !== code) return res.status(400).json({ error: 'Incorrect code' });
 
-  verifyCodes.delete(email);
+  verifyCodes.delete(phone);
   res.json({ ok: true });
 });
 

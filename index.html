@@ -1490,7 +1490,7 @@ function Field({ label, value, onChange, type='text', placeholder, error, traili
 // ── Auth Screen ───────────────────────────────────────────────────────────────
 function AuthScreen({ onAuth }) {
   const [mode, setMode]         = useState('signin'); // 'signin' | 'signup'
-  const [email, setEmail]       = useState('');
+  const [phone, setPhone]       = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm]   = useState('');
   const [fullName, setFullName] = useState('');
@@ -1513,8 +1513,8 @@ function AuthScreen({ onAuth }) {
   const validate = () => {
     const e = {};
     if (!fullName.trim() && mode==='signup') e.fullName = 'Name is required';
-    if (!email.trim())    e.email    = 'Email is required';
-    else if (!/\S+@\S+\.\S+/.test(email)) e.email = 'Enter a valid email';
+    if (!phone.trim())    e.phone    = 'Phone number is required';
+    else if (phone.replace(/\D/g,'').length < 10) e.phone = 'Enter a valid phone number';
     if (!password)        e.password = 'Password is required';
     else if (password.length < 6) e.password = 'At least 6 characters';
     if (mode==='signup' && password !== confirm) e.confirm = "Passwords don't match";
@@ -1525,7 +1525,7 @@ function AuthScreen({ onAuth }) {
     setResendTimer(30);
     return fetch('/api/send-verification', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email: email.trim() }),
+      body: JSON.stringify({ phone: phone.trim() }),
     }).then(r => r.json());
   };
 
@@ -1536,19 +1536,19 @@ function AuthScreen({ onAuth }) {
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
-        onAuth({ name: email.split('@')[0], email: email.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
+        onAuth({ name: fullName.trim() || 'Rummager', phone: phone.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
       }, 600);
       return;
     }
     setLoading(true);
     sendCode().then(res => {
       setLoading(false);
-      if (res.error) { setErrors({ email: res.error }); return; }
+      if (res.error) { setErrors({ phone: res.error }); return; }
       setAuthStep(res.devMode ? 'verify-dev' : 'verify');
       setTimeout(() => codeRefs[0].current?.focus(), 100);
     }).catch(() => {
       setLoading(false);
-      setErrors({ email: 'Could not reach the server. Make sure server.js is running on port 3002.' });
+      setErrors({ phone: 'Could not reach the server. Make sure server.js is running on port 3002.' });
     });
   };
 
@@ -1575,11 +1575,11 @@ function AuthScreen({ onAuth }) {
     setLoading(true);
     fetch('/api/check-code', {
       method:'POST', headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({ email: email.trim(), code }),
+      body: JSON.stringify({ phone: phone.trim(), code }),
     }).then(r=>r.json()).then(res => {
       setLoading(false);
       if (res.error) { setCodeError(res.error); setCodeDigits(['','','','','','']); setTimeout(()=>codeRefs[0].current?.focus(),0); return; }
-      onAuth({ name: fullName.trim(), email: email.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
+      onAuth({ name: fullName.trim(), phone: phone.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
     }).catch(() => { setLoading(false); setCodeError('Could not verify — is the backend server running?'); });
   };
 
@@ -1588,13 +1588,13 @@ function AuthScreen({ onAuth }) {
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
         <div style={{width:72,height:72,borderRadius:22,background:'linear-gradient(135deg,var(--brand-500),var(--brand-300))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(78,79,42,.30)'}}>
-          {Icon('Mail',34,{stroke:'#fff',sw:1.75})}
+          {Icon('MessageSquare',34,{stroke:'#fff',sw:1.75})}
         </div>
-        <h1 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 8px'}}>Check your email</h1>
+        <h1 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 8px'}}>Check your texts</h1>
         <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',lineHeight:1.6,margin:'0 0 28px',maxWidth:280}}>
           {isDevMode
-            ? <>No SMTP configured — check the <strong style={{color:'var(--ink-900)'}}>server.js console</strong> for your code.</>
-            : <>We sent a 6-digit code to<br/><strong style={{color:'var(--ink-900)'}}>{email}</strong></>
+            ? <>No SMS provider configured — check the <strong style={{color:'var(--ink-900)'}}>server.js console</strong> for your code.</>
+            : <>We texted a 6-digit code to<br/><strong style={{color:'var(--ink-900)'}}>{phone}</strong></>
           }
         </p>
 
@@ -1617,7 +1617,7 @@ function AuthScreen({ onAuth }) {
         <Btn variant="primary" size="lg" fullWidth onClick={verifyCode}
           style={{marginBottom:14,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
           leadingIcon={loading?Icon('Loader',18,{stroke:'#fff'}):null}>
-          {loading ? 'Verifying…' : 'Verify Email'}
+          {loading ? 'Verifying…' : 'Verify Phone'}
         </Btn>
 
         <div style={{display:'flex',alignItems:'center',gap:8,fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)'}}>
@@ -1701,8 +1701,8 @@ function AuthScreen({ onAuth }) {
             placeholder="Your name" error={errors.fullName} />
         )}
 
-        <Field label="Email address" value={email} onChange={v=>{setEmail(v);setErrors(p=>({...p,email:''}));}}
-          type="email" placeholder="you@example.com" error={errors.email} autoCapitalize="none" />
+        <Field label="Phone number" value={phone} onChange={v=>{setPhone(v);setErrors(p=>({...p,phone:''}));}}
+          type="tel" placeholder="(555) 123-4567" error={errors.phone} autoCapitalize="none" />
 
         <Field label="Password" value={password} onChange={v=>{setPassword(v);setErrors(p=>({...p,password:''}));}}
           type={showPw?'text':'password'} placeholder={mode==='signup'?'At least 6 characters':'Your password'} error={errors.password}
@@ -1929,11 +1929,11 @@ function PrivacyScreen({ onBack }) {
         <p style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)',margin:0}}>Last updated: June 2026</p>
 
         <Section title="What we collect">
-          When you use Rummage, we may collect your approximate location (to show nearby sales), your email address (for account creation and verification), and any sale listings you publish, including address, photos, and contact information you choose to share.
+          When you use Rummage, we may collect your approximate location (to show nearby sales), your phone number (for account creation and verification), an email address if you choose to add one for the daily digest, and any sale listings you publish, including address, photos, and contact information you choose to share.
         </Section>
 
         <Section title="How we use it">
-          Your location is used only to calculate distances to sales and is never stored on our servers. Your email is used to send a one-time verification code and, if you opt in, sale reminders. We do not sell or share your personal information with third parties for advertising.
+          Your location is used only to calculate distances to sales and is never stored on our servers. Your phone number is used to send a one-time verification code at sign-up. If you add an email and opt in, we use it to send a daily digest of nearby sales. We do not sell or share your personal information with third parties for advertising.
         </Section>
 
         <Section title="Sale listings">
@@ -1941,7 +1941,7 @@ function PrivacyScreen({ onBack }) {
         </Section>
 
         <Section title="Third-party services">
-          Rummage uses Resend (resend.com) to deliver email verification codes. Your email address is passed to Resend solely for this purpose and is governed by their privacy policy. We do not use third-party analytics or advertising SDKs.
+          Rummage uses Twilio (twilio.com) to deliver SMS verification codes and Resend (resend.com) to deliver daily digest emails. Your phone number or email address is passed to these providers solely for that purpose and is governed by their respective privacy policies. We do not use third-party analytics or advertising SDKs.
         </Section>
 
         <Section title="Data retention">
@@ -1949,7 +1949,7 @@ function PrivacyScreen({ onBack }) {
         </Section>
 
         <Section title="Your rights">
-          You can stop using Rummage at any time. To request deletion of any data associated with your email address, contact us using the feedback form in the app.
+          You can stop using Rummage at any time. To request deletion of any data associated with your phone number or email address, contact us using the feedback form in the app.
         </Section>
 
         <Section title="Contact">
@@ -1964,6 +1964,9 @@ function PrivacyScreen({ onBack }) {
 function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough }) {
   const [name, setName] = useState(authUser?.name || 'Rummager');
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
+  // Accounts sign up with a phone number now, so there's no email on file
+  // by default — this is a separate, optional address just for the digest.
+  const [digestEmail, setDigestEmail] = useState(authUser?.email || '');
   const [saleTypes, setSaleTypes] = useState({estate:true,yard:true,moving:true});
   const [push, setPush] = useState(true);
   const [newSales, setNewSales] = useState(true);
@@ -1972,18 +1975,19 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   const [digestToast, setDigestToast] = useState(null);
 
   const syncDigestSubscription = (enabled, overrides={}) => {
-    if (!authUser?.email) return;
+    const emailToUse = overrides.email ?? digestEmail;
+    if (!emailToUse) return;
     const body = enabled
-      ? { email: authUser.email, zip: overrides.zip ?? zip, radiusMi: overrides.radiusMi ?? radiusMi, saleTypes: overrides.saleTypes ?? saleTypes }
-      : { email: authUser.email };
+      ? { email: emailToUse, zip: overrides.zip ?? zip, radiusMi: overrides.radiusMi ?? radiusMi, saleTypes: overrides.saleTypes ?? saleTypes }
+      : { email: emailToUse };
     fetch(enabled ? '/api/subscribe' : '/api/unsubscribe', {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
     }).catch(()=>{});
   };
 
   const toggleDailyDigest = (checked) => {
-    if (checked && !authUser?.email) {
-      setDigestToast('Sign in with an email to get the daily digest');
+    if (checked && !digestEmail) {
+      setDigestToast('Add an email above to get the daily digest');
       setTimeout(()=>setDigestToast(null), 3000);
       return;
     }
@@ -1994,7 +1998,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     setTimeout(()=>setDigestToast(null), 3000);
   };
 
-  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types'
+  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types' | 'email'
   const [sheet, setSheet] = useState(null);
   const [draft, setDraft] = useState({});
   const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'privacy'
@@ -2006,6 +2010,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       zip:     { zip },
       radius:  { radiusMi },
       types:   { saleTypes: {...saleTypes} },
+      email:   { email: digestEmail },
     };
     setDraft(defaults[key]);
     setSheet(key);
@@ -2022,6 +2027,12 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     if (sheet==='zip')    setZip(draft.zip);
     if (sheet==='radius') setRadiusMi(draft.radiusMi);
     if (sheet==='types')  setSaleTypes(draft.saleTypes);
+    if (sheet==='email') {
+      const newEmail = (draft.email || '').trim();
+      setDigestEmail(newEmail);
+      onUpdateUser?.({ ...authUser, email: newEmail });
+      if (dailyDigest && newEmail) syncDigestSubscription(true, { email: newEmail });
+    }
     if (dailyDigest && ['zip','radius','types'].includes(sheet)) {
       syncDigestSubscription(true, {
         zip: sheet==='zip' ? draft.zip : undefined,
@@ -2086,7 +2097,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <ListRow first icon={Icon('Bell',18)} label="Push notifications" trailing={<Switch checked={push} onChange={setPush} />} />
           <ListRow icon={Icon('Sparkles',18)} label="New sales nearby" sublabel="Within your radius" trailing={<Switch checked={newSales} onChange={setNewSales} />} />
           <ListRow icon={Icon('Clock',18)} label="Sale reminders" sublabel="1 hour before saved sales" trailing={<Switch checked={reminders} onChange={setReminders} />} />
-          <ListRow icon={Icon('Mail',18)} label="Daily digest email" sublabel={authUser?.email ? `Today's sales, sent to ${authUser.email}` : 'Sign in to enable'} trailing={<Switch checked={dailyDigest} onChange={toggleDailyDigest} />} />
+          <ListRow icon={Icon('AtSign',18)} label="Email for digest" value={digestEmail || 'Not set'} trailing={chev} onClick={()=>openSheet('email')} />
+          <ListRow icon={Icon('Mail',18)} label="Daily digest email" sublabel={digestEmail ? `Today's sales, sent to ${digestEmail}` : 'Add an email above to enable'} trailing={<Switch checked={dailyDigest} onChange={toggleDailyDigest} />} />
           {onOpenNotifications && (
             <ListRow icon={Icon('BellRing',18)} label="View notifications" trailing={chev} onClick={onOpenNotifications} />
           )}
@@ -2252,6 +2264,15 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Sales are sorted by distance from this ZIP code.</p>
           <RmgInput leadingIcon={Icon('MapPin',19)} placeholder="e.g. 90601" inputMode="numeric"
             value={draft.zip||''} onChange={e=>setDraft(d=>({...d,zip:e.target.value}))} />
+        </EditSheet>
+      )}
+
+      {/* Edit digest email sheet */}
+      {sheet==='email' && (
+        <EditSheet title="Email for digest" onSave={saveSheet} onCancel={()=>setSheet(null)}>
+          <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Your account uses your phone number to sign in — add an email here only if you want the daily digest.</p>
+          <RmgInput leadingIcon={Icon('AtSign',19)} placeholder="you@example.com" type="email" autoCapitalize="none"
+            value={draft.email||''} onChange={e=>setDraft(d=>({...d,email:e.target.value}))} />
         </EditSheet>
       )}
 
