@@ -166,7 +166,7 @@ function RummageLogo({ markSize = 56, textSize = 26 }) {
   );
 }
 
-// ── Reminder helpers (Web Notifications + localStorage) ──────────────────────
+// ── Sale timing helpers ───────────────────────────────────────────────────────
 function parseSaleStart(dateLabel, timeLabel) {
   if (!timeLabel) return null;
   const tMatch = timeLabel.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
@@ -242,40 +242,6 @@ function saleSortDate(dateLabel) {
   const day = parseInt(m[2]);
   const year = m[3] ? parseInt(m[3]) : new Date().getFullYear();
   return new Date(year, mo, day).getTime();
-}
-
-function getReminders() {
-  try { return JSON.parse(localStorage.getItem('rummage_reminders') || '{}'); } catch(e) { return {}; }
-}
-function saveReminder(id, fireAt) {
-  const r = getReminders(); r[id] = fireAt; localStorage.setItem('rummage_reminders', JSON.stringify(r));
-}
-function removeReminder(id) {
-  const r = getReminders(); delete r[id]; localStorage.setItem('rummage_reminders', JSON.stringify(r));
-}
-function scheduleNotification(sale) {
-  const start = parseSaleStart(sale.dateLabel, sale.timeLabel);
-  if (!start) return null;
-  const fireAt = new Date(start.getTime() - 30 * 60 * 1000);
-  const delay = fireAt.getTime() - Date.now();
-  if (delay > 0) {
-    setTimeout(() => {
-      new Notification('🧺 Sale starting soon!', {
-        body: (sale.title || 'A sale') + ' starts in 30 min at ' + (sale.address || sale.neighborhood || ''),
-        tag: 'rummage-' + sale.id,
-      });
-    }, delay);
-  }
-  return fireAt;
-}
-function restoreReminders(allSales) {
-  const r = getReminders();
-  const now = Date.now();
-  Object.keys(r).forEach(id => {
-    if (r[id] < now) { removeReminder(id); return; }
-    const sale = allSales.find(s => s.id === id);
-    if (sale) scheduleNotification(sale);
-  });
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -1106,7 +1072,11 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
   const showMap = (!thumb || imgFailed) && lat != null && lng != null;
   const live = useCountdown(dateLabel, timeLabel).status==='live';
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="xs">
+    <Card interactive onClick={onClick} padded={false} elevation="xs"
+      style={live ? {
+        border:'1.5px solid var(--success)',
+        boxShadow:'0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)',
+      } : {}}>
       <div style={{position:'relative',aspectRatio:'1',background: thumb && !imgFailed ? 'var(--surface-sunken)' : ps.bg}}>
         {thumb && !imgFailed ? (
           <img src={proxyImgUrl(thumb)} onError={()=>setImgFailed(true)}
@@ -1399,11 +1369,6 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
             saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)}
             inTrip={tripIds.includes(s.id)} onToggleTrip={onToggleTrip ? ()=>onToggleTrip(s.id) : undefined} />
         ))}
-        {saved.length>0 && shown.length>0 && (
-          <div style={{display:'flex',alignItems:'center',gap:6,justifyContent:'center',padding:'8px 0',fontSize:13,color:'var(--text-muted)'}}>
-            {Icon('Bell',14)} We'll remind you before your saved sales start
-          </div>
-        )}
       </div>
     </div>
   );
@@ -1755,7 +1720,7 @@ const FAQ_ITEMS = [
   { q: 'How do I find sales near me?', a: 'Open the Explore tab to see a map of all nearby sales. Use the Search tab to set your ZIP code and radius. The map updates automatically as you adjust your area.' },
   { q: 'How do I save a sale?', a: 'Tap the heart icon on any sale card or detail page. Saved sales appear in your Saved tab so you can find them quickly later.' },
   { q: 'How do I list my own sale?', a: 'Tap the List tab at the bottom of the screen. Fill in your sale type, address, dates, hours, and a brief description. Your listing goes live on the map immediately.' },
-  { q: 'Can I be notified before a sale starts?', a: 'Yes. On any sale detail page, tap the bell icon to set a reminder. You\'ll receive a notification 30 minutes before the sale begins.' },
+  { q: 'Can I get sale listings sent to me?', a: 'Yes. Turn on Daily digest email in Account → Notifications and we\'ll email you that day\'s sales near your ZIP code each morning.' },
   { q: 'How do I change my search radius?', a: 'Go to the Search tab and drag the radius slider, or tap the preset buttons (5, 10, 25, 50 mi). You can also update your default radius in Account → Search defaults.' },
   { q: 'How do I contact a seller?', a: 'Open a sale listing and scroll to the contact section. Tap "Contact Seller" to send the seller a message using the contact method they provided.' },
   { q: 'Is Rummage free?', a: 'Yes — Rummage is completely free for shoppers. Listing your own sale is also free.' },
@@ -3022,40 +2987,6 @@ function openSaleDirections(s, onNavigateTo) {
   window.open(isIOS ? `maps://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
 }
 
-// Shared "remind me" state/behavior for a sale — used by the sale detail screen
-// and the item detail screen (reminders are always set at the sale level).
-function useSaleReminder(sale, onChange) {
-  const [reminded, setReminded] = useState(() => !!getReminders()[sale.id]);
-  const [toast, setToast] = useState(null);
-  const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3500); };
-
-  const toggleRemind = () => {
-    if (reminded) {
-      removeReminder(sale.id);
-      setReminded(false);
-      showToast('Reminder removed');
-      onChange?.();
-      return;
-    }
-    if (!('Notification' in window)) { showToast('Notifications not supported in this browser'); return; }
-    Notification.requestPermission().then(perm => {
-      if (perm === 'granted') {
-        const fireAt = scheduleNotification(sale);
-        saveReminder(sale.id, fireAt ? fireAt.getTime() : Date.now());
-        setReminded(true);
-        const start = parseSaleStart(sale.dateLabel, sale.timeLabel);
-        const timeStr = start ? start.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'}) : 'start time';
-        showToast("Reminder set! We'll notify you 30 min before " + timeStr);
-        onChange?.();
-      } else {
-        showToast('Notifications blocked — enable them in your browser settings');
-      }
-    });
-  };
-
-  return { reminded, toggleRemind, toast };
-}
-
 // ── Share sheet ─────────────────────────────────────────────────────────────────
 function ShareSheet({ sale, onClose }) {
   const [toast, setToast] = useState(null);
@@ -3143,9 +3074,8 @@ function ShareSheet({ sale, onClose }) {
   );
 }
 
-function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems, onReminderChange }) {
+function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems }) {
   const s = sale;
-  const { reminded, toggleRemind, toast } = useSaleReminder(s, onReminderChange);
   const countdown = useCountdown(s.dateLabel, s.timeLabel);
   const openDirections = () => openSaleDirections(s, onNavigateTo);
   const [shareOpen, setShareOpen] = useState(false);
@@ -3285,21 +3215,8 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
               </Btn>
             </div>
           )}
-          <div style={{flex:1,minWidth:0}}>
-            <Btn variant={reminded?'secondary':'primary'} fullWidth
-              leadingIcon={Icon(reminded?'BellOff':'Bell',16)}
-              onClick={toggleRemind}
-              style={reminded?{borderColor:'var(--green-600)',color:'var(--green-600)'}:{}}>
-              {reminded ? 'Reminder set' : 'Remind me'}
-            </Btn>
-          </div>
         </div>
       </div>
-      {toast && (
-        <div style={{position:'absolute',bottom:110,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',animation:'slideUp .3s var(--ease-out)',zIndex:100}}>
-          {toast}
-        </div>
-      )}
       {shareOpen && <ShareSheet sale={s} onClose={()=>setShareOpen(false)} />}
     </div>
   );
@@ -3382,10 +3299,9 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
 }
 
 // ── Item detail screen (photo view) ─────────────────────────────────────────────
-function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem, onReminderChange }) {
+function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem }) {
   const items = (sale.items || []).map((it, i) => normalizeItem(it, i, sale.id));
   const item = items[idx];
-  const { reminded, toggleRemind, toast } = useSaleReminder(sale, onReminderChange);
   if (!item) return null;
   const others = items.filter((_, i) => i !== idx);
 
@@ -3459,20 +3375,11 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem, onRemin
         )}
       </div>
       <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(237,230,214,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
-        <Btn variant="secondary" size="lg" leadingIcon={Icon(reminded?'BellOff':'Bell',18)}
-          onClick={toggleRemind} style={reminded?{borderColor:'var(--green-600)',color:'var(--green-600)'}:{}}>
-          {reminded ? 'Reminder set' : 'Remind me'}
-        </Btn>
         <div style={{flex:1}}>
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation',18)}
             onClick={()=>openSaleDirections(sale)}>Get directions</Btn>
         </div>
       </div>
-      {toast && (
-        <div style={{position:'absolute',bottom:110,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',animation:'slideUp .3s var(--ease-out)',zIndex:100}}>
-          {toast}
-        </div>
-      )}
     </div>
   );
 }
@@ -3501,7 +3408,7 @@ function NotificationsScreen({ notifications, onBack, onOpenSale }) {
               {Icon('Bell',24,{stroke:'var(--text-faint)'})}
             </div>
             <div style={{fontWeight:700,fontSize:15,color:'var(--ink-900)',marginBottom:4}}>No notifications yet</div>
-            <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.5}}>Save a sale or set a reminder and we'll keep you posted here.</div>
+            <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.5}}>List a sale and we'll keep you posted here.</div>
           </div>
         ) : notifications.map(n => (
           <button key={n.id} type="button" onClick={()=>n.saleId && onOpenSale?.(n.saleId)}
@@ -4078,7 +3985,6 @@ function App() {
   const [detailId, setDetailId] = useState(null);
   const [itemsView, setItemsView] = useState(null); // null | {mode:'gallery'} | {mode:'item', idx}
   const [notificationsOpen, setNotificationsOpen] = useState(false);
-  const [reminderTick, setReminderTick] = useState(0); // bumped whenever a reminder is set/cleared
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [tripIds, setTripIds] = useState(() => { try { return JSON.parse(localStorage.getItem('rummage-trip') || '[]'); } catch { return []; } });
 
@@ -4123,10 +4029,6 @@ function App() {
     const poll = setInterval(() => {
       if (window.lucide?.icons) { clearInterval(poll); setLibsReady(true); }
     }, 60);
-    // Restore any pending reminders from localStorage
-    // ('Notification' isn't defined at all on iOS — Safari and any iOS
-    // browser, since Apple mandates WebKit — so guard before touching it.)
-    if ('Notification' in window && Notification.permission === 'granted') restoreReminders(ALL_SALES);
     return () => { window.removeEventListener('resize', fit); clearInterval(poll); };
   }, []);
 
@@ -4196,19 +4098,9 @@ function App() {
 
   const closeDetail = () => { setDetailId(null); setItemsView(null); };
 
-  // Notifications feed — built from real in-app activity (reminders set, sales published).
+  // Notifications feed — built from real in-app activity (sales published).
   const notifications = React.useMemo(() => {
-    const rem = getReminders();
     const list = [];
-    Object.entries(rem).forEach(([id, fireAt]) => {
-      const sale = allSales.find(s => s.id === id);
-      if (!sale) return;
-      list.push({
-        id:'rem-'+id, icon:'BellRing', iconBg:'var(--accent)', iconFg:'#fff',
-        title:'Reminder set', body:`${sale.title} — we'll notify you 30 min before it starts.`,
-        time: sale.dateLabel || 'Upcoming', unread:true, saleId:sale.id,
-      });
-    });
     userListings.forEach(l => {
       list.push({
         id:'listing-'+l.id, icon:'Tag', iconBg:'var(--surface-sunken)', iconFg:'var(--text-secondary)',
@@ -4217,8 +4109,7 @@ function App() {
       });
     });
     return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userListings, reminderTick, allSales.length]);
+  }, [userListings]);
 
   const tabItems = [
     {key:'explore',label:'Explore',  icon:ic('Map',24)},
@@ -4301,7 +4192,6 @@ function App() {
           <div style={{position:'absolute',inset:0,zIndex:60,overflow:'hidden'}}>
             <DetailScreen sale={detailSale} onBack={closeDetail} onToggleSave={toggleSave}
               inTrip={tripIds.includes(detailSale.id)} onToggleTrip={()=>toggleTrip(detailSale.id)}
-              onReminderChange={()=>setReminderTick(t=>t+1)}
               onOpenItems={detailSale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined}
               onNavigateTo={() => {
                 if (!tripIds.includes(detailSale.id)) toggleTrip(detailSale.id);
@@ -4325,8 +4215,7 @@ function App() {
               <ItemDetailScreen sale={detailSale} idx={itemsView.idx}
                 onBack={()=>setItemsView({mode:'gallery'})}
                 onOpenSale={()=>setItemsView(null)}
-                onSelectItem={idx=>setItemsView({mode:'item', idx})}
-                onReminderChange={()=>setReminderTick(t=>t+1)} />
+                onSelectItem={idx=>setItemsView({mode:'item', idx})} />
             )}
           </div>
         )}
