@@ -1519,6 +1519,7 @@ function AuthScreen({ onAuth }) {
   const [codeDigits, setCodeDigits] = useState(['','','','','','']);
   const [codeError, setCodeError]   = useState('');
   const [resendTimer, setResendTimer] = useState(0);
+  const [legalPage, setLegalPage]     = useState(null); // null | 'terms' | 'privacy'
   const codeRefs = [useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
 
   useEffect(() => {
@@ -1526,6 +1527,9 @@ function AuthScreen({ onAuth }) {
     const t = setTimeout(() => setResendTimer(n => n-1), 1000);
     return () => clearTimeout(t);
   }, [resendTimer]);
+
+  if (legalPage === 'terms')   return <TermsScreen   onBack={()=>setLegalPage(null)} />;
+  if (legalPage === 'privacy') return <PrivacyScreen onBack={()=>setLegalPage(null)} />;
 
   const validate = () => {
     const e = {};
@@ -1750,8 +1754,8 @@ function AuthScreen({ onAuth }) {
 
         <div style={{textAlign:'center',fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)',lineHeight:1.5,marginTop:4}}>
           By continuing you agree to our{' '}
-          <span style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Terms</span>{' '}and{' '}
-          <span style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Privacy Policy</span>
+          <span onClick={()=>setLegalPage('terms')} style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Terms</span>{' '}and{' '}
+          <span onClick={()=>setLegalPage('privacy')} style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Privacy Policy</span>
         </div>
       </div>
     </div>
@@ -1983,6 +1987,56 @@ function PrivacyScreen({ onBack }) {
   );
 }
 
+function TermsScreen({ onBack }) {
+  const Section = ({ title, children }) => (
+    <div style={{display:'flex',flexDirection:'column',gap:8}}>
+      <h2 style={{fontSize:16,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>{title}</h2>
+      <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-secondary)',lineHeight:1.7,margin:0}}>{children}</p>
+    </div>
+  );
+  return (
+    <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
+          <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
+          <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Terms of Service</h1>
+        </div>
+      </div>
+      <div style={{flex:1,overflowY:'auto',padding:'20px 20px 48px',display:'flex',flexDirection:'column',gap:22}}>
+        <p style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)',margin:0}}>Last updated: June 2026</p>
+
+        <Section title="Using Rummage">
+          Rummage helps you find and list local yard, estate, and moving sales. You must be at least 13 years old to create an account. You're responsible for keeping your account credentials confidential and for anything posted under your account.
+        </Section>
+
+        <Section title="Listing a sale">
+          You're responsible for the accuracy of any sale you list — address, dates, hours, and description. Don't post fraudulent, illegal, or misleading listings, or content you don't have the right to share (like photos you didn't take or don't have permission to use).
+        </Section>
+
+        <Section title="Sale listings aren't verified">
+          Rummage aggregates listings from third-party sources (Craigslist, OfferUp, EstateSales.org, and others) in addition to sales users list directly. We don't inspect, verify, or endorse any listing. Use your own judgment when visiting a sale or contacting a seller.
+        </Section>
+
+        <Section title="No warranty">
+          Rummage is provided "as is," without warranties of any kind. We don't guarantee that listings are accurate, complete, or currently active, or that the service will be uninterrupted or error-free.
+        </Section>
+
+        <Section title="Limitation of liability">
+          To the fullest extent permitted by law, Rummage and its operators aren't liable for any damages arising from your use of the app, including from attending a listed sale, interacting with a buyer or seller, or relying on listing information.
+        </Section>
+
+        <Section title="Changes">
+          We may update these terms as the app evolves. Continuing to use Rummage after a change means you accept the updated terms.
+        </Section>
+
+        <Section title="Contact">
+          Questions about these terms? Use the Send Feedback option in your Account tab to reach us directly.
+        </Section>
+      </div>
+    </div>
+  );
+}
+
 // ── Account Screen ─────────────────────────────────────────────────────────────
 function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough }) {
   const [name, setName] = useState(authUser?.name || 'Rummager');
@@ -2024,7 +2078,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types' | 'email'
   const [sheet, setSheet] = useState(null);
   const [draft, setDraft] = useState({});
-  const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'privacy'
+  const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'terms' | 'privacy'
   const [deleteConfirm, setDeleteConfirm] = useState(null); // listing id pending delete
 
   const openSheet = (key) => {
@@ -2186,6 +2240,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         <Card padded={false}>
           <ListRow first icon={Icon('CircleHelp',18)} label="Help & FAQ" trailing={chev} onClick={()=>setPage('help')} />
           <ListRow icon={Icon('MessageSquare',18)} label="Send feedback" trailing={chev} onClick={()=>setPage('feedback')} />
+          <ListRow icon={Icon('FileText',18)} label="Terms of Service" trailing={chev} onClick={()=>setPage('terms')} />
           <ListRow icon={Icon('Shield',18)} label="Privacy" trailing={chev} onClick={()=>setPage('privacy')} />
           {onReplayWalkthrough && (
             <ListRow icon={Icon('Sparkles',18)} label="Replay app tutorial" trailing={chev} onClick={onReplayWalkthrough} />
@@ -2335,6 +2390,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       {/* Support pages */}
       {page==='help'     && <HelpScreen     onBack={()=>setPage(null)} />}
       {page==='feedback' && <FeedbackScreen onBack={()=>setPage(null)} userEmail={authUser?.email} />}
+      {page==='terms'    && <TermsScreen    onBack={()=>setPage(null)} />}
       {page==='privacy'  && <PrivacyScreen  onBack={()=>setPage(null)} />}
       {digestToast && (
         <div style={{position:'fixed',bottom:100,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',zIndex:100}}>
