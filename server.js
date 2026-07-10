@@ -880,22 +880,192 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
 // ── Craigslist scraper ────────────────────────────────────────────────────────
 // CL hides the pre-rendered <ol class="cl-static-search-results"> via CSS when
 // JS runs. Disabling JS exposes the static HTML which is fully populated.
+// Craigslist splits the whole country into ~420 independent regional sites,
+// each with its own subdomain, and has no API to resolve "which site covers
+// this ZIP" — so a nationwide search has to pick the nearest region(s) by
+// straight-line distance from a curated list of major metro coordinates.
+// This covers the largest metro in (at minimum) every state, weighted
+// toward population, so most US ZIPs land near a real, active CL site.
+// Subdomains are the actual Craigslist site slugs, not just city names.
+const CRAIGSLIST_REGIONS = [
+  {sub:'newyork',lat:40.7128,lng:-74.0060},{sub:'losangeles',lat:34.0522,lng:-118.2437},
+  {sub:'inlandempire',lat:34.0630,lng:-117.4587},{sub:'orangecounty',lat:33.7175,lng:-117.8311},
+  {sub:'sfbay',lat:37.7749,lng:-122.4194},{sub:'chicago',lat:41.8781,lng:-87.6298},
+  {sub:'houston',lat:29.7604,lng:-95.3698},{sub:'phoenix',lat:33.4484,lng:-112.0740},
+  {sub:'philadelphia',lat:39.9526,lng:-75.1652},{sub:'sandiego',lat:32.7157,lng:-117.1611},
+  {sub:'dallas',lat:32.7767,lng:-96.7970},{sub:'fortworth',lat:32.7555,lng:-97.3308},
+  {sub:'austin',lat:30.2672,lng:-97.7431},{sub:'sacramento',lat:38.5816,lng:-121.4944},
+  {sub:'fresno',lat:36.7378,lng:-119.7871},{sub:'bakersfield',lat:35.3733,lng:-119.0187},
+  {sub:'seattle',lat:47.6062,lng:-122.3321},{sub:'denver',lat:39.7392,lng:-104.9903},
+  {sub:'washingtondc',lat:38.9072,lng:-77.0369},{sub:'boston',lat:42.3601,lng:-71.0589},
+  {sub:'detroit',lat:42.3314,lng:-83.0458},{sub:'portland',lat:45.5152,lng:-122.6784},
+  {sub:'lasvegas',lat:36.1699,lng:-115.1398},{sub:'baltimore',lat:39.2904,lng:-76.6122},
+  {sub:'albuquerque',lat:35.0844,lng:-106.6504},{sub:'tucson',lat:32.2226,lng:-110.9747},
+  {sub:'kansascity',lat:39.0997,lng:-94.5786},{sub:'atlanta',lat:33.7490,lng:-84.3880},
+  {sub:'miami',lat:25.7617,lng:-80.1918},{sub:'raleigh',lat:35.7796,lng:-78.6382},
+  {sub:'omaha',lat:41.2565,lng:-95.9345},{sub:'minneapolis',lat:44.9778,lng:-93.2650},
+  {sub:'tulsa',lat:36.1540,lng:-95.9928},{sub:'tampa',lat:27.9506,lng:-82.4572},
+  {sub:'neworleans',lat:29.9511,lng:-90.0715},{sub:'cleveland',lat:41.4993,lng:-81.6944},
+  {sub:'stlouis',lat:38.6270,lng:-90.1994},{sub:'pittsburgh',lat:40.4406,lng:-79.9959},
+  {sub:'cincinnati',lat:39.1031,lng:-84.5120},{sub:'orlando',lat:28.5383,lng:-81.3792},
+  {sub:'sanantonio',lat:29.4241,lng:-98.4936},{sub:'columbus',lat:39.9612,lng:-82.9988},
+  {sub:'charlotte',lat:35.2271,lng:-80.8431},{sub:'indianapolis',lat:39.7684,lng:-86.1581},
+  {sub:'jacksonville',lat:30.3322,lng:-81.6557},{sub:'elpaso',lat:31.7619,lng:-106.4850},
+  {sub:'memphis',lat:35.1495,lng:-90.0490},{sub:'louisville',lat:38.2527,lng:-85.7585},
+  {sub:'milwaukee',lat:43.0389,lng:-87.9065},{sub:'honolulu',lat:21.3069,lng:-157.8583},
+  {sub:'providence',lat:41.8240,lng:-71.4128},{sub:'hartford',lat:41.7658,lng:-72.6734},
+  {sub:'rochester',lat:43.1566,lng:-77.6088},{sub:'buffalo',lat:42.8864,lng:-78.8784},
+  {sub:'syracuse',lat:43.0481,lng:-76.1474},{sub:'albany',lat:42.6526,lng:-73.7562},
+  {sub:'newhaven',lat:41.3083,lng:-72.9279},{sub:'longisland',lat:40.7891,lng:-73.1350},
+  {sub:'newjersey',lat:40.2171,lng:-74.7429},{sub:'southjersey',lat:39.7391,lng:-75.1196},
+  {sub:'delaware',lat:39.1582,lng:-75.5244},{sub:'richmond',lat:37.5407,lng:-77.4360},
+  {sub:'norfolk',lat:36.8508,lng:-76.2859},{sub:'roanoke',lat:37.2710,lng:-79.9414},
+  {sub:'charlestonwv',lat:38.3498,lng:-81.6326},{sub:'columbia',lat:34.0007,lng:-81.0348},
+  {sub:'greenville',lat:34.8526,lng:-82.3940},{sub:'charleston',lat:32.7765,lng:-79.9311},
+  {sub:'knoxville',lat:35.9606,lng:-83.9207},{sub:'chattanooga',lat:35.0456,lng:-85.3097},
+  {sub:'nashville',lat:36.1627,lng:-86.7816},{sub:'jackson',lat:32.2988,lng:-90.1848},
+  {sub:'shreveport',lat:32.5252,lng:-93.7502},{sub:'batonrouge',lat:30.4515,lng:-91.1871},
+  {sub:'lafayette',lat:30.2241,lng:-92.0198},{sub:'littlerock',lat:34.7465,lng:-92.2896},
+  {sub:'wichita',lat:37.6872,lng:-97.3301},{sub:'topeka',lat:39.0473,lng:-95.6752},
+  {sub:'desmoines',lat:41.5868,lng:-93.6250},{sub:'cedarrapids',lat:41.9779,lng:-91.6656},
+  {sub:'madison',lat:43.0731,lng:-89.4012},{sub:'greenbay',lat:44.5133,lng:-88.0133},
+  {sub:'duluth',lat:46.7867,lng:-92.1005},{sub:'fargo',lat:46.8772,lng:-96.7898},
+  {sub:'siouxfalls',lat:43.5460,lng:-96.7313},{sub:'rapidcity',lat:44.0805,lng:-103.2310},
+  {sub:'billings',lat:45.7833,lng:-108.5007},{sub:'boise',lat:43.6150,lng:-116.2023},
+  {sub:'spokane',lat:47.6588,lng:-117.4260},{sub:'eugene',lat:44.0521,lng:-123.0868},
+  {sub:'reno',lat:39.5296,lng:-119.8138},{sub:'santafe',lat:35.6870,lng:-105.9378},
+  {sub:'lubbock',lat:33.5779,lng:-101.8552},{sub:'amarillo',lat:35.1991,lng:-101.8313},
+  {sub:'corpuschristi',lat:27.8006,lng:-97.3964},{sub:'rgv',lat:26.2034,lng:-98.2300},
+  {sub:'killeen',lat:31.1171,lng:-97.7278},{sub:'waco',lat:31.5493,lng:-97.1467},
+  {sub:'tyler',lat:32.3513,lng:-95.3011},{sub:'beaumont',lat:30.0802,lng:-94.1266},
+  {sub:'montgomery',lat:32.3792,lng:-86.3077},{sub:'mobile',lat:30.6954,lng:-88.0399},
+  {sub:'huntsville',lat:34.7304,lng:-86.5861},{sub:'tuscaloosa',lat:33.2098,lng:-87.5692},
+  {sub:'augusta',lat:33.4735,lng:-82.0105},{sub:'macon',lat:32.8407,lng:-83.6324},
+  {sub:'savannah',lat:32.0809,lng:-81.0912},{sub:'albanyga',lat:31.5785,lng:-84.1557},
+  {sub:'gainesville',lat:29.6516,lng:-82.3248},{sub:'ocala',lat:29.1872,lng:-82.1401},
+  {sub:'fortmyers',lat:26.6406,lng:-81.8723},{sub:'treasure',lat:27.4467,lng:-80.3256},
+  {sub:'spacecoast',lat:28.3922,lng:-80.6077},{sub:'keys',lat:24.5551,lng:-81.7800},
+  {sub:'panamacity',lat:30.1588,lng:-85.6602},{sub:'pensacola',lat:30.4213,lng:-87.2169},
+  {sub:'tallahassee',lat:30.4383,lng:-84.2807},{sub:'daytona',lat:29.2108,lng:-81.0228},
+  {sub:'lakeland',lat:28.0395,lng:-81.9498},{sub:'grandrapids',lat:42.9634,lng:-85.6681},
+  {sub:'annarbor',lat:42.2808,lng:-83.7430},{sub:'flint',lat:43.0125,lng:-83.6875},
+  {sub:'lansing',lat:42.7325,lng:-84.5555},{sub:'kalamazoo',lat:42.2917,lng:-85.5872},
+  {sub:'toledo',lat:41.6528,lng:-83.5379},{sub:'dayton',lat:39.7589,lng:-84.1916},
+  {sub:'akroncanton',lat:40.9993,lng:-81.5182},{sub:'youngstown',lat:41.0998,lng:-80.6495},
+  {sub:'fortwayne',lat:41.0793,lng:-85.1394},{sub:'southbend',lat:41.6764,lng:-86.2520},
+  {sub:'evansville',lat:37.9716,lng:-87.5711},{sub:'bloomington',lat:39.1653,lng:-86.5264},
+  {sub:'appleton',lat:44.2619,lng:-88.4154},{sub:'lacrosse',lat:43.8014,lng:-91.2396},
+  {sub:'wausau',lat:44.9591,lng:-89.6301},{sub:'stcloud',lat:45.5579,lng:-94.1632},
+  {sub:'rochester_mn',lat:44.0121,lng:-92.4802},{sub:'yakima',lat:46.6021,lng:-120.5059},
+  {sub:'bellingham',lat:48.7519,lng:-122.4787},{sub:'tricities',lat:46.2396,lng:-119.1006},
+  {sub:'medford',lat:42.3265,lng:-122.8756},{sub:'bend',lat:44.0582,lng:-121.3153},
+  {sub:'flagstaff',lat:35.1983,lng:-111.6513},{sub:'yuma',lat:32.6927,lng:-114.6277},
+  {sub:'anchorage',lat:61.2181,lng:-149.9003},{sub:'fairbanks',lat:64.8378,lng:-147.7164},
+  {sub:'monroe',lat:32.5093,lng:-92.1193},{sub:'wichitafalls',lat:33.9137,lng:-98.4934},
+  {sub:'abilene',lat:32.4487,lng:-99.7331},{sub:'sanangelo',lat:31.4638,lng:-100.4370},
+  {sub:'brownsville',lat:25.9017,lng:-97.4975},{sub:'laredo',lat:27.5306,lng:-99.4803},
+  {sub:'harrisburg',lat:40.2732,lng:-76.8867},{sub:'lehighvalley',lat:40.6259,lng:-75.3705},
+  {sub:'scranton',lat:41.4090,lng:-75.6624},{sub:'erie',lat:42.1292,lng:-80.0851},
+  {sub:'lancaster',lat:40.0379,lng:-76.3055},{sub:'poconos',lat:41.0334,lng:-75.3266},
+];
+function nearestCraigslistRegions(lat, lng, n = 3) {
+  return CRAIGSLIST_REGIONS
+    .map(r => ({ ...r, dist: distanceMiles(lat, lng, r.lat, r.lng) }))
+    .sort((a, b) => a.dist - b.dist)
+    .slice(0, n);
+}
+
+// Shared place-name geocoder used by every scraper (Craigslist, OfferUp,
+// EstateSales-Puppeteer, Facebook). Tries a static LA/partial-match table
+// first, then Census → Nominatim → Photon, in that order, using the real
+// state abbreviation instead of a hardcoded "CA"/"California" (the original
+// bug that made every scraper silently fail to geocode outside California).
+// Callers should dedupe place names and call this via Promise.all in small
+// batches — never in a sequential per-item loop, which is what caused the
+// nationwide-search hangs (up to 8s per Photon timeout, times N listings).
+async function geocodePlaceName(name, state) {
+  const key = name.toLowerCase().trim();
+  const addrKey = `addr:${key.replace(/\s+/g,'-')}`;
+  let coords = fromCache(addrKey) || LA_NEIGHBORHOODS[key];
+
+  // Partial match: "East Whittier" → "whittier", etc.
+  if (!coords) {
+    const parts = key.split(/[\s,\/]+/);
+    for (let p = parts.length - 1; p >= 1; p--) {
+      const sub = parts.slice(parts.length - p).join(' ');
+      if (LA_NEIGHBORHOODS[sub]) { coords = LA_NEIGHBORHOODS[sub]; break; }
+    }
+  }
+
+  if (!coords) {
+    try {
+      const q = encodeURIComponent(state ? `${name}, ${state.toUpperCase()}` : name);
+      const res = await fetchTimeout(
+        `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${q}&benchmark=Public_AR_Current&format=json`,
+        3000
+      );
+      const data = await res.json();
+      const match = data?.result?.addressMatches?.[0];
+      if (match) { coords = { lat: match.coordinates.y, lng: match.coordinates.x }; toCache(addrKey, coords); }
+    } catch (_) {}
+  }
+
+  if (!coords) {
+    try {
+      const q = encodeURIComponent(state ? `${name}, ${state.toUpperCase()}` : name);
+      const res = await fetchTimeout(
+        `https://nominatim.openstreetmap.org/search?q=${q}&format=json&limit=1`, 4000,
+        { headers: { 'User-Agent': 'RummageApp/1.0 (local sale finder; contact via app feedback)' } }
+      );
+      const data = await res.json();
+      const match = data?.[0];
+      if (match) { coords = { lat: parseFloat(match.lat), lng: parseFloat(match.lon) }; toCache(addrKey, coords); }
+    } catch (_) {}
+  }
+
+  if (!coords) {
+    try {
+      const q = encodeURIComponent(state ? `${name} ${state.toUpperCase()}` : name);
+      const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${q}&limit=1&lang=en`, 3000);
+      const data = await res.json();
+      const feat = data?.features?.[0];
+      if (feat) { coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] }; toCache(addrKey, coords); }
+    } catch (_) {}
+  }
+  return coords || null;
+}
+
+// Dedupe a list of raw place-name strings and resolve them all concurrently
+// (small batches, to respect Nominatim's usage policy) instead of one at a
+// time inside a per-listing loop.
+async function batchGeocodePlaceNames(names, state) {
+  const unique = [...new Set(names.filter(Boolean))];
+  const map = new Map();
+  const GEOCODE_CONCURRENCY = 3;
+  for (let i = 0; i < unique.length; i += GEOCODE_CONCURRENCY) {
+    const batch = unique.slice(i, i + GEOCODE_CONCURRENCY);
+    const coordsBatch = await Promise.all(batch.map(n => geocodePlaceName(n, state)));
+    batch.forEach((n, idx) => map.set(n, coordsBatch[idx]));
+  }
+  return map;
+}
+
 async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
   const cacheKey = `cl:${zip}:${radiusMi}`;
   const cached   = fromCache(cacheKey);
   if (cached) { console.log('  CL cache hit'); return cached; }
 
-  // Area URLs derived from python-craigslist-meta geographic hierarchy.
-  // Whittier (90601) sits in SGV; we also pull LGB, LAC, IE, and OC so listings
-  // near the borders don't get missed. Each URL uses CL's own postal+distance
-  // pre-filter; our geocoder then verifies the real distance and drops outliers.
-  // CL area sub-paths (/sgv/, /lgb/ etc.) return 404 — CL no longer supports them.
-  // Use the top-level site search for each CL region instead.
-  const searchUrls = [
-    `https://losangeles.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`,   // LA (covers SGV, LGB, LAC, SFV, WST)
-    `https://inlandempire.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`, // Inland Empire
-    `https://orangecounty.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`, // Orange County
-  ];
+  // Craigslist has no API to resolve "which regional site covers this
+  // location" — pick the nearest 3 by straight-line distance from a curated
+  // metro table (this reproduces the original LA/Inland-Empire/Orange-County
+  // trio exactly for Whittier, and generalizes the same approach anywhere in
+  // the US). Each URL uses CL's own postal+distance pre-filter; our geocoder
+  // then verifies the real distance and drops outliers.
+  const nearest = nearestCraigslistRegions(centerLat, centerLng, 3);
+  console.log(`  CL nearest regions: ${nearest.map(r => `${r.sub} (${r.dist.toFixed(0)}mi)`).join(', ')}`);
+  const searchUrls = nearest.map(r =>
+    `https://${r.sub}.craigslist.org/search/gms?postal=${zip}&search_distance=${radiusMi}`
+  );
 
   const browser  = await getBrowser();
   const results  = [];
@@ -938,6 +1108,21 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
   const items = allItems;
   console.log(`  CL total (deduped across ${searchUrls.length} areas): ${items.length} — geocoding…`);
 
+  // Geocode every distinct neighborhood name ONCE, concurrently, before the
+  // per-item loop below — resolving them one at a time inside that loop
+  // (the original approach) meant up to 3 sequential geocoder calls per
+  // listing, and outside LA almost nothing hits the LA_NEIGHBORHOODS
+  // fast-path, so a search with a dozen unique neighborhoods could take
+  // minutes. Also fixes a real correctness bug: the Census/Photon queries
+  // hardcoded ", CA" / " California" onto every neighborhood name, so a
+  // Chicago listing's "Hinsdale" was being geocoded as "Hinsdale, CA" and
+  // guaranteed to fail.
+  const state = stateFromZip(zip);
+  const neighborhoodCoords = await batchGeocodePlaceNames(
+    items.map(it => it.location).filter(n => n && n !== 'Nearby'),
+    state
+  );
+
   // Build result objects (without images)
   for (let i = 0; i < items.length; i++) {
     const item = items[i];
@@ -949,51 +1134,7 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
     let clPx = { x: 28 + (i % 8) * 7, y: 22 + (i % 5) * 13 };
 
     if (neighborhood && neighborhood !== 'Nearby') {
-      const key = neighborhood.toLowerCase().trim();
-      const addrKey = `addr:${key.replace(/\s+/g,'-')}`;
-      let coords = fromCache(addrKey) || LA_NEIGHBORHOODS[key];
-
-      // Partial match: "East Whittier" → "whittier", etc.
-      if (!coords) {
-        const parts = key.split(/[\s,\/]+/);
-        for (let p = parts.length - 1; p >= 1; p--) {
-          const sub = parts.slice(parts.length - p).join(' ');
-          if (LA_NEIGHBORHOODS[sub]) { coords = LA_NEIGHBORHOODS[sub]; break; }
-        }
-      }
-
-      // Census Bureau Geocoding API
-      if (!coords) {
-        try {
-          const q = encodeURIComponent(neighborhood + ', CA');
-          const res = await fetchTimeout(
-            `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${q}&benchmark=Public_AR_Current&format=json`
-          );
-          const data = await res.json();
-          const match = data?.result?.addressMatches?.[0];
-          if (match) { coords = { lat: match.coordinates.y, lng: match.coordinates.x }; toCache(addrKey, coords); }
-        } catch (_) {}
-      }
-
-      // Photon (Komoot) — OSM geocoder, two passes
-      if (!coords) {
-        try {
-          const q = encodeURIComponent(neighborhood + ' California');
-          const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${q}&limit=1&lang=en`);
-          const data = await res.json();
-          const feat = data?.features?.[0];
-          if (feat) { coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] }; toCache(addrKey, coords); }
-        } catch (_) {}
-        if (!coords) {
-          try {
-            const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(neighborhood)}&limit=1&lang=en`);
-            const data = await res.json();
-            const feat = data?.features?.[0];
-            if (feat) { coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] }; toCache(addrKey, coords); }
-          } catch (_) {}
-        }
-      }
-
+      const coords = neighborhoodCoords.get(neighborhood);
       if (coords) {
         clLat = coords.lat; clLng = coords.lng;
         clDistMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
@@ -1141,6 +1282,14 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
 
     const queries = ['yard sale', 'garage sale', 'estate sale', 'moving sale'];
 
+    // Step 2: run all 4 search queries, collecting raw tiles without
+    // geocoding yet. Geocoding every tile inline (the original approach)
+    // meant a sequential Photon call per listing, hardcoded to "California"
+    // — outside LA that fails every time and burns up to 8s per listing,
+    // which is what made nationwide searches hang for minutes. Instead we
+    // dedupe city names across all 4 queries and geocode them once, in
+    // parallel, after the search loop (same fix as scrapeCraigslist).
+    const rawTiles = []; // { tile, q }
     for (const q of queries) {
       const searchParams = [
         { key: 'q',               value: q },
@@ -1174,63 +1323,61 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
         const listing = tile.listing;
         if (!listing?.title || seen.has(listing.listingId)) continue;
         seen.add(listing.listingId);
-
-        // Geocode the listing's locationName city
-        const locationName = listing.locationName || '';
-        const cityKey = locationName.toLowerCase().replace(/,.*$/, '').trim();
-        let ouLat = null, ouLng = null, distMi = null;
-
-        const coords = LA_NEIGHBORHOODS[cityKey];
-        if (coords) {
-          ouLat = coords.lat; ouLng = coords.lng;
-          distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
-          if (distMi > radiusMi) continue;
-        } else {
-          // Try Photon for less-common city names
-          try {
-            const gr = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(cityKey + ' California')}&limit=1&lang=en`);
-            const gd = await gr.json();
-            const f  = gd?.features?.[0];
-            if (f) {
-              ouLat = f.geometry.coordinates[1]; ouLng = f.geometry.coordinates[0];
-              distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
-              if (distMi > radiusMi) continue;
-            }
-          } catch (_) {}
-          if (!ouLat) {
-            ouLat = centerLat + (Math.random()-0.5)*0.05;
-            ouLng = centerLng + (Math.random()-0.5)*0.05;
-            distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
-          }
-        }
-
-        const imgUrl = listing.image?.url || '';
-        const price  = listing.price != null ? `$${listing.price}` : '';
-        const px     = pinXY(ouLat, ouLng, centerLat, centerLng, radiusMi);
-
-        results.push({
-          id:          `ou-${listing.listingId}`,
-          source:      'offerup',
-          type:        detectType(listing.title + ' ' + q),
-          title:       listing.title,
-          address:     locationName,
-          neighborhood:locationName || 'Nearby',
-          distanceMi:  distMi,
-          lat:         ouLat,
-          lng:         ouLng,
-          dateLabel:   SALE_EVENT_RE.test(listing.title) ? parseCLDate(listing.title) : '',
-          timeLabel:   '',
-          photoCount:  imgUrl ? 1 : 0,
-          images:      imgUrl ? [imgUrl] : [],
-          live:        false,
-          blurb:       '',
-          price,
-          items:       extractItemTags(listing.title, q),
-          url:         `https://offerup.com/item/detail/${listing.listingId}`,
-          x:           px.x,
-          y:           px.y,
-        });
+        rawTiles.push({ tile, q });
       }
+    }
+
+    const ouState = stateFromZip(zip);
+    const cityCoords = await batchGeocodePlaceNames(
+      rawTiles.map(({ tile }) => (tile.listing.locationName || '').toLowerCase().replace(/,.*$/, '').trim()),
+      ouState
+    );
+
+    for (const { tile, q } of rawTiles) {
+      const listing = tile.listing;
+      const locationName = listing.locationName || '';
+      const cityKey = locationName.toLowerCase().replace(/,.*$/, '').trim();
+      let ouLat = null, ouLng = null, distMi = null;
+
+      const coords = cityKey ? cityCoords.get(cityKey) : null;
+      if (coords) {
+        ouLat = coords.lat; ouLng = coords.lng;
+        distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
+        if (distMi > radiusMi) continue;
+      } else {
+        // No resolvable city — place loosely near search center rather than
+        // dropping the listing entirely.
+        ouLat = centerLat + (Math.random()-0.5)*0.05;
+        ouLng = centerLng + (Math.random()-0.5)*0.05;
+        distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
+      }
+
+      const imgUrl = listing.image?.url || '';
+      const price  = listing.price != null ? `$${listing.price}` : '';
+      const px     = pinXY(ouLat, ouLng, centerLat, centerLng, radiusMi);
+
+      results.push({
+        id:          `ou-${listing.listingId}`,
+        source:      'offerup',
+        type:        detectType(listing.title + ' ' + q),
+        title:       listing.title,
+        address:     locationName,
+        neighborhood:locationName || 'Nearby',
+        distanceMi:  distMi,
+        lat:         ouLat,
+        lng:         ouLng,
+        dateLabel:   SALE_EVENT_RE.test(listing.title) ? parseCLDate(listing.title) : '',
+        timeLabel:   '',
+        photoCount:  imgUrl ? 1 : 0,
+        images:      imgUrl ? [imgUrl] : [],
+        live:        false,
+        blurb:       '',
+        price,
+        items:       extractItemTags(listing.title, q),
+        url:         `https://offerup.com/item/detail/${listing.listingId}`,
+        x:           px.x,
+        y:           px.y,
+      });
     }
 
     // The search feed only gives one thumbnail per listing — visit each
@@ -1276,6 +1423,32 @@ const ZIP_TO_CITY = {
   '91746':'la-puente','91748':'rowland-heights','91765':'diamond-bar','91766':'pomona','91770':'rosemead',
 };
 
+// Standard 3-digit ZIP-prefix → state ranges (each [min, max) inclusive of
+// min, exclusive of max), used to build the correct estatesales.org
+// state-level URL (/estate-sales/{state}) for any US ZIP instead of always
+// assuming California.
+const ZIP_PREFIX_TO_STATE = [
+  [10,27,'ma'],[28,30,'ri'],[30,39,'nh'],[39,50,'me'],[50,60,'vt'],[60,70,'ct'],
+  [70,90,'nj'],[100,150,'ny'],[150,197,'pa'],[197,200,'de'],[200,206,'dc'],
+  [206,220,'md'],[220,247,'va'],[247,269,'wv'],[270,290,'nc'],[290,300,'sc'],
+  [300,320,'ga'],[320,340,'fl'],[341,350,'fl'],[350,370,'al'],[370,386,'tn'],
+  [386,398,'ms'],[398,400,'ga'],[400,428,'ky'],[430,459,'oh'],[460,480,'in'],
+  [480,500,'mi'],[500,529,'ia'],[530,550,'wi'],[550,568,'mn'],[570,578,'sd'],
+  [580,589,'nd'],[590,600,'mt'],[600,630,'il'],[630,659,'mo'],[660,680,'ks'],
+  [680,694,'ne'],[700,715,'la'],[716,730,'ar'],[730,750,'ok'],[750,800,'tx'],
+  [885,886,'tx'],[800,817,'co'],[820,832,'wy'],[832,839,'id'],[840,848,'ut'],
+  [850,866,'az'],[870,885,'nm'],[889,899,'nv'],[900,962,'ca'],[967,969,'hi'],
+  [970,980,'or'],[980,995,'wa'],[995,1000,'ak'],
+];
+function stateFromZip(zip) {
+  const prefix = parseInt(String(zip).slice(0, 3), 10);
+  if (Number.isNaN(prefix)) return null;
+  for (const [min, max, state] of ZIP_PREFIX_TO_STATE) {
+    if (prefix >= min && prefix < max) return state;
+  }
+  return null;
+}
+
 function parseEstateSaleDate(text) {
   if (!text) return '';
   // 1. Named month: "Jun 20, 2026", "June 20-21, 2026", "Sat. Jun 20, 2026"
@@ -1314,22 +1487,40 @@ const ES_TYPE_MAP = {
   onlineonlyauctions: 'estate', auctionhouse: 'estate',
 };
 
-function apifyDateLabel(dates) {
+// A sale's own local timezone matters for its date/time label — hardcoding
+// Pacific made sense when every source was LA-only, but shows the wrong
+// time entirely for a sale in, say, Chicago or New York. There's no
+// lightweight IANA timezone-from-coordinates lookup without an extra
+// dependency, so approximate from longitude using the standard US zone
+// bands — accurate for the vast majority of the country, only fuzzy right
+// at a zone boundary (which only shifts the displayed hour by one).
+function estimateUSTimezone(lng) {
+  if (lng == null) return 'America/Los_Angeles';
+  if (lng >= -125 && lng < -114) return 'America/Los_Angeles'; // Pacific
+  if (lng >= -114 && lng < -102) return 'America/Denver';      // Mountain
+  if (lng >= -102 && lng < -87)  return 'America/Chicago';     // Central
+  if (lng >= -87  && lng < -67)  return 'America/New_York';    // Eastern
+  return 'America/Los_Angeles'; // outside the continental band — best guess
+}
+
+function apifyDateLabel(dates, lng) {
   if (!Array.isArray(dates) || !dates.length) return '';
+  const tz = estimateUSTimezone(lng);
   // Collect all unique calendar days across all date slots
   const days = [...new Set(dates.map(d => {
     const dt = new Date(d.start);
-    return dt.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:'America/Los_Angeles' });
+    return dt.toLocaleDateString('en-US', { weekday:'short', month:'short', day:'numeric', timeZone:tz });
   }))];
   if (days.length === 1) return days[0];
   if (days.length === 2) return `${days[0]} – ${days[1]}`;
   return `${days[0]} – ${days[days.length-1]}`;
 }
 
-function apifyTimeLabel(dates) {
+function apifyTimeLabel(dates, lng) {
   if (!Array.isArray(dates) || !dates.length) return '';
+  const tz = estimateUSTimezone(lng);
   const d = dates[0];
-  const fmt = dt => new Date(dt).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZone:'America/Los_Angeles' }).replace(':00','');
+  const fmt = dt => new Date(dt).toLocaleTimeString('en-US', { hour:'numeric', minute:'2-digit', timeZone:tz }).replace(':00','');
   return `${fmt(d.start)} – ${fmt(d.end)}`;
 }
 
@@ -1384,8 +1575,8 @@ async function scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng) {
         distanceMi:   distMi,
         lat:          esLat,
         lng:          esLng,
-        dateLabel:    apifyDateLabel(item.dates),
-        timeLabel:    apifyTimeLabel(item.dates),
+        dateLabel:    apifyDateLabel(item.dates, esLng),
+        timeLabel:    apifyTimeLabel(item.dates, esLng),
         photoCount:   imgList.length,
         images:       imgList,
         live:         false,
@@ -1408,14 +1599,20 @@ async function scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng) {
 
 // ── EstateSales — Puppeteer fallback (used when APIFY_TOKEN not set) ──────────
 async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
-  const city    = ZIP_TO_CITY[zip] || 'whittier';
+  const state   = stateFromZip(zip) || 'ca';
+  const city    = ZIP_TO_CITY[zip]; // only known for the original SGV-area zips
   const results = [];
 
-  const urls = [
-    `https://estatesales.org/estate-sales/ca/${city}`,
-    `https://estatesales.org/estate-sales/ca/los-angeles-county`,
-    `https://estatesales.org/estate-sales/ca`,
-  ];
+  // A known city slug narrows the first page nicely, but only exists for a
+  // handful of hardcoded LA-area zips — everywhere else falls straight back
+  // to the state-wide listing (still gets filtered to radiusMi afterward).
+  const urls = city
+    ? [
+        `https://estatesales.org/estate-sales/${state}/${city}`,
+        `https://estatesales.org/estate-sales/${state}/los-angeles-county`,
+        `https://estatesales.org/estate-sales/${state}`,
+      ]
+    : [`https://estatesales.org/estate-sales/${state}`];
 
   const browser = await getBrowser();
 
@@ -1433,7 +1630,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
         { timeout: 10000 }
       ).catch(() => {});
 
-      const items = await page.evaluate(() => {
+      const items = await page.evaluate((state) => {
         const seen  = new Set();
         const found = [];
 
@@ -1457,11 +1654,11 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
                (imgEl.src && !imgEl.src.startsWith('data:') && imgEl.src.includes('http') ? imgEl.src : ''))
             : '';
 
-          // City/location: find a city-level link (exactly 3 path segments: estate-sales/ca/city)
+          // City/location: find a city-level link (exactly 3 path segments: estate-sales/{state}/city)
           // Detail-page links have 5+ segments — exclude those to avoid grabbing the title link
-          const locEl = card ? Array.from(card.querySelectorAll('a[href*="/estate-sales/ca/"]')).find(el => {
+          const locEl = card ? Array.from(card.querySelectorAll(`a[href*="/estate-sales/${state}/"]`)).find(el => {
             const parts = el.pathname.split('/').filter(Boolean);
-            return parts.length === 3; // /estate-sales/ca/city-name
+            return parts.length === 3; // /estate-sales/{state}/city-name
           }) : null;
           const location = locEl ? locEl.textContent.trim() : '';
 
@@ -1474,7 +1671,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
 
         // Strategy B: fallback — any <a> whose href has 4+ path segments (detail page)
         if (found.length === 0) {
-          document.querySelectorAll('a[href*="/estate-sales/ca/"]').forEach(a => {
+          document.querySelectorAll(`a[href*="/estate-sales/${state}/"]`).forEach(a => {
             const parts = (a.pathname || '').split('/').filter(Boolean);
             if (parts.length < 4) return;
             const href = a.href;
@@ -1486,7 +1683,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
         }
 
         return found.slice(0, 30);
-      });
+      }, state);
 
       console.log(`  EstateSales found ${items.length} items from ${url}`);
       await page.close().catch(() => {});
@@ -1524,27 +1721,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
 
         // Fall back to city-name geocoding (handles listings with no ZIP in URL)
         if (!esLat && cityName) {
-          const cityKey = cityName.toLowerCase();
-          let coords = LA_NEIGHBORHOODS[cityKey];
-          if (!coords) {
-            try {
-              const q = encodeURIComponent(cityName + ', CA');
-              const res = await fetchTimeout(
-                `https://geocoding.geo.census.gov/geocoder/locations/onelineaddress?address=${q}&benchmark=Public_AR_Current&format=json`
-              );
-              const data = await res.json();
-              const match = data?.result?.addressMatches?.[0];
-              if (match) coords = { lat: match.coordinates.y, lng: match.coordinates.x };
-            } catch (_) {}
-          }
-          if (!coords) {
-            try {
-              const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(cityName + ' California')}&limit=1&lang=en`);
-              const data = await res.json();
-              const feat = data?.features?.[0];
-              if (feat) coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] };
-            } catch (_) {}
-          }
+          const coords = await geocodePlaceName(cityName, state);
           if (coords) { esLat = coords.lat; esLng = coords.lng; }
         }
 
@@ -1712,8 +1889,8 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
         distanceMi:   distMi,
         lat:          row.latitude,
         lng:          row.longitude,
-        dateLabel:    dates.length ? apifyDateLabel(dates) : '',
-        timeLabel:    dates.length ? apifyTimeLabel(dates) : '',
+        dateLabel:    dates.length ? apifyDateLabel(dates, row.longitude) : '',
+        timeLabel:    dates.length ? apifyTimeLabel(dates, row.longitude) : '',
         photoCount:   row.pictureCount || (img ? 1 : 0),
         images:       img ? [img] : [],
         live:         false,
@@ -2173,6 +2350,7 @@ async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
   const results = [];
   const seen    = new Set();
   const queries = ['garage sale', 'yard sale', 'estate sale', 'moving sale'];
+  const fbState = stateFromZip(zip);
 
   for (const query of queries) {
     try {
@@ -2215,16 +2393,7 @@ async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
 
         // Fall back to geocoding the location string
         if (!fbLat && locStr) {
-          const cityKey = locStr.toLowerCase().replace(/,.*$/, '').trim();
-          let coords = LA_NEIGHBORHOODS[cityKey];
-          if (!coords) {
-            try {
-              const gr = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(locStr + ' California')}&limit=1&lang=en`);
-              const gd = await gr.json();
-              const f  = gd?.features?.[0];
-              if (f) coords = { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
-            } catch (_) {}
-          }
+          const coords = await geocodePlaceName(locStr.replace(/,.*$/, '').trim(), fbState);
           if (coords) { fbLat = coords.lat; fbLng = coords.lng; }
         }
 
@@ -2346,18 +2515,17 @@ async function getListingsForZip(zip, radiusMi) {
   const center = await geocodeZip(zip);
   if (!center) throw new Error(`Cannot geocode ZIP: ${zip}${geocodeZip.lastErrors ? ' (' + geocodeZip.lastErrors.join(' | ') + ')' : ''}`);
 
-  // Every scraper here is hardcoded to Los Angeles County in some way
-  // (Craigslist's LA subdomain, EstateSales.net's CA/Los-Angeles path, the
-  // LA_NEIGHBORHOODS lookup, etc.) — a ZIP far outside that region would
-  // still geocode fine now that Zippopotam covers the whole country, but
-  // every scraper would run pointlessly and, worse, some hang rather than
-  // returning empty quickly. Fail fast instead of stalling the request.
-  const LA_DOWNTOWN = { lat: 34.0522, lng: -118.2437 };
-  const COVERAGE_RADIUS_MI = 100;
-  const distFromLA = distanceMiles(LA_DOWNTOWN.lat, LA_DOWNTOWN.lng, center.lat, center.lng);
-  if (distFromLA > COVERAGE_RADIUS_MI) {
-    console.log(`  ZIP ${zip} is ${distFromLA.toFixed(0)}mi from LA — outside coverage area, skipping scrape`);
-    const err = new Error(`Rummage currently only covers the Los Angeles area — ${zip} is about ${Math.round(distFromLA)} miles outside that.`);
+  // Every scraper here targets US sources specifically (Craigslist's
+  // regional US sites, estatesales.org/.net, etc.) — a ZIP that resolves
+  // somewhere off the continent would still geocode "successfully" via the
+  // Zippopotam/Photon fallbacks (which aren't US-scoped), but every scraper
+  // would run pointlessly and, worse, some hang rather than returning empty
+  // quickly. Fail fast for anything outside a generous US bounding box
+  // (continental US + Alaska + Hawaii) instead of stalling the request.
+  const inUSBounds = center.lat >= 18 && center.lat <= 72 && center.lng >= -180 && center.lng <= -65;
+  if (!inUSBounds) {
+    console.log(`  ZIP ${zip} (${center.lat},${center.lng}) is outside US bounds — skipping scrape`);
+    const err = new Error(`Rummage currently only covers the United States — ${zip} appears to be outside that.`);
     err.outOfCoverage = true;
     throw err;
   }
