@@ -184,10 +184,16 @@ function parseSaleStart(dateLabel, timeLabel) {
     const mo = MO[full[1].toLowerCase().slice(0,3)];
     if (mo !== undefined) {
       const d = new Date(now.getFullYear(), mo, parseInt(full[2]), h, m, 0);
-      // Only assume "next year" if the date is clearly a past day, not just
-      // today with a start time earlier than the current time (i.e. a sale
-      // that's already underway today is still today, not next year).
-      if (d.getTime() < now.getTime() - 24*60*60*1000) d.setFullYear(now.getFullYear() + 1);
+      // Only assume "next year" once the sale's LAST day has clearly passed
+      // — checking just the start day would push a still-in-progress
+      // multi-day sale (e.g. viewing day 2 of a "Jul 9 – Jul 11" sale, where
+      // day 1 is already >24h behind "now") a full year into the future.
+      const allHits = [...dateLabel.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})/g)]
+        .filter(hm => MO[hm[1].toLowerCase().slice(0,3)] !== undefined);
+      const lastHit = allHits[allHits.length - 1] || full;
+      const lastMo  = MO[lastHit[1].toLowerCase().slice(0,3)];
+      const rangeEnd = new Date(now.getFullYear(), lastMo, parseInt(lastHit[2]), 23, 59, 59);
+      if (rangeEnd.getTime() < now.getTime() - 24*60*60*1000) d.setFullYear(now.getFullYear() + 1);
       return d;
     }
   }
@@ -204,24 +210,50 @@ function parseSaleStart(dateLabel, timeLabel) {
   return null;
 }
 
+// Shared start/end resolver for a sale's date range. For multi-day sales
+// (e.g. "Thu, Jul 9 – Sat, Jul 11") the end time must land on the LAST day
+// of the range, not the start day — anchoring it to the start day's date
+// (the original bug here) made every multi-day sale look "ended" as soon as
+// the first day's closing time passed, even on day 2 or 3.
+function parseSaleDateRange(dateLabel, timeLabel) {
+  const start = parseSaleStart(dateLabel, timeLabel);
+  if (!start) return { start: null, end: null };
+
+  const MO = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  const allTimes = (timeLabel || '').match(/(\d+)(?::(\d+))?\s*(am|pm)/gi) || [];
+  if (allTimes.length < 2) return { start, end: null };
+
+  const last = allTimes[allTimes.length - 1].match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
+  if (!last) return { start, end: null };
+  let endH = parseInt(last[1]), endM = last[2] ? parseInt(last[2]) : 0;
+  const ap = last[3].toLowerCase();
+  if (ap === 'pm' && endH !== 12) endH += 12;
+  if (ap === 'am' && endH === 12) endH = 0;
+
+  // Find the actual end date — the LAST "Month Day" occurrence in the label
+  // — which may differ from the start date for multi-day sales.
+  const hits = [...(dateLabel || '').matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})/g)]
+    .filter(m => MO[m[1].toLowerCase().slice(0,3)] !== undefined);
+  let end;
+  if (hits.length) {
+    const h = hits[hits.length - 1];
+    const mo = MO[h[1].toLowerCase().slice(0,3)];
+    end = new Date(start.getFullYear(), mo, parseInt(h[2]), endH, endM, 0);
+    // Range spans a year boundary (e.g. "Dec 30 – Jan 2") — the end date
+    // must be next year if it would otherwise land before the start.
+    if (end.getTime() < start.getTime()) end.setFullYear(end.getFullYear() + 1);
+  } else {
+    end = new Date(start); end.setHours(endH, endM, 0, 0);
+    if (end <= start) end.setDate(end.getDate() + 1);
+  }
+  return { start, end };
+}
+
 // Whether a sale is happening right now, computed from its actual date/time
 // rather than a static flag (which would go stale the moment time passes).
 function isSaleLive(dateLabel, timeLabel) {
-  const start = parseSaleStart(dateLabel, timeLabel);
+  const { start, end } = parseSaleDateRange(dateLabel, timeLabel);
   if (!start) return false;
-  const allTimes = (timeLabel || '').match(/(\d+)(?::(\d+))?\s*(am|pm)/gi) || [];
-  let end = null;
-  if (allTimes.length >= 2) {
-    const last = allTimes[allTimes.length - 1].match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
-    if (last) {
-      let h = parseInt(last[1]), m = last[2] ? parseInt(last[2]) : 0;
-      const ap = last[3].toLowerCase();
-      if (ap === 'pm' && h !== 12) h += 12;
-      if (ap === 'am' && h === 12) h = 0;
-      end = new Date(start); end.setHours(h, m, 0, 0);
-      if (end <= start) end.setDate(end.getDate() + 1);
-    }
-  }
   const now = Date.now();
   if (now < start.getTime()) return false;
   return end ? now < end.getTime() : false;
@@ -844,21 +876,8 @@ function HeartBtn({ saved, onSave }) {
 function useCountdown(dateLabel, timeLabel) {
   const [info, setInfo] = useState({label:'', status:'upcoming'});
   useEffect(() => {
-    const start = parseSaleStart(dateLabel, timeLabel);
+    const { start, end } = parseSaleDateRange(dateLabel, timeLabel);
     if (!start) return;
-    const allTimes = (timeLabel||'').match(/(\d+)(?::(\d+))?\s*(am|pm)/gi) || [];
-    let end = null;
-    if (allTimes.length >= 2) {
-      const last = allTimes[allTimes.length - 1].match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
-      if (last) {
-        let h = parseInt(last[1]), m = last[2] ? parseInt(last[2]) : 0;
-        const ap = last[3].toLowerCase();
-        if (ap==='pm' && h!==12) h+=12;
-        if (ap==='am' && h===12) h=0;
-        end = new Date(start); end.setHours(h,m,0,0);
-        if (end <= start) end.setDate(end.getDate()+1);
-      }
-    }
     const calc = () => {
       const now = Date.now(), startMs = start.getTime();
       const diff = startMs - now;
