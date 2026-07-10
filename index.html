@@ -1287,7 +1287,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </button>
       )}
       {view==='map' ? (
-        <div style={{position:'relative',flex:1,overflow:'hidden'}}>
+        <div style={{position:'relative',flex:1,overflow:'hidden',zIndex:0,isolation:'isolate'}}>
           <RealMap sales={shown} selectedId={sel?.id} onSelect={setSelected} />
           <div style={{position:'absolute',right:14,top:14,display:'flex',flexDirection:'column',gap:10}}>
             <IconButton icon={Icon('Locate',20)} shape="circle" aria-label="Locate me" />
