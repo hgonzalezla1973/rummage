@@ -688,6 +688,32 @@ function parseCLDate(title = '') {
   return '';
 }
 
+// Extracts a time-of-day (or range) from free text like a Craigslist/OfferUp
+// title or description, e.g. "Yard sale 9am-2pm", "Sat 9-2", "8:30 AM to 1 PM".
+// Several sources have no structured time field of their own and previously
+// always shipped an empty timeLabel — without a time, the frontend's
+// isSaleLive()/useCountdown() can never resolve an end time, so a listing
+// could never show as "live" no matter how in-progress it actually was, even
+// though sellers very commonly write the hours directly into the title.
+function parseTimeFromText(text = '') {
+  if (!text) return '';
+  // Full range with explicit am/pm on both ends: "9am-2pm", "9:30 AM - 2:00 PM"
+  let m = text.match(/\b(\d{1,2}(?::\d{2})?)\s*(am|pm)\s*(?:-|–|to)\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)\b/i);
+  if (m) return `${m[1]}${m[2].toUpperCase()} - ${m[3]}${m[4].toUpperCase()}`;
+  // Range sharing one am/pm suffix at the end: "9-2pm", "9 to 2 pm" — the
+  // missing first suffix is almost always AM for typical daytime sale hours.
+  m = text.match(/\b(\d{1,2}(?::\d{2})?)\s*(?:-|–|to)\s*(\d{1,2}(?::\d{2})?)\s*(am|pm)\b/i);
+  if (m) {
+    const suffix2 = m[3].toLowerCase();
+    const suffix1 = (suffix2 === 'pm' && parseInt(m[1]) <= 11) ? 'AM' : suffix2.toUpperCase();
+    return `${m[1]}${suffix1} - ${m[2]}${suffix2.toUpperCase()}`;
+  }
+  // Single time: "starts at 9am", "doors open 9 AM"
+  m = text.match(/\b(\d{1,2}(?::\d{2})?)\s*(am|pm)\b/i);
+  if (m) return `${m[1]}${m[2].toUpperCase()}`;
+  return '';
+}
+
 // ── Browser pool (reuse one browser instance) ─────────────────────────────────
 let _browser = null;
 
@@ -1177,7 +1203,7 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
       lat:         clLat,
       lng:         clLng,
       dateLabel:   parseCLDate(item.title) || parseDateLabel(item.datetime),
-      timeLabel:   '',
+      timeLabel:   parseTimeFromText(item.title),
       photoCount:  0,
       images:      [],
       live:        false,
@@ -1383,7 +1409,7 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
         lat:         ouLat,
         lng:         ouLng,
         dateLabel:   SALE_EVENT_RE.test(listing.title) ? parseCLDate(listing.title) : '',
-        timeLabel:   '',
+        timeLabel:   parseTimeFromText(listing.title),
         photoCount:  imgUrl ? 1 : 0,
         images:      imgUrl ? [imgUrl] : [],
         live:        false,
@@ -1410,6 +1436,9 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
       // of dateLabel, so no need to re-check that gate here.)
       if (!listing.dateLabel && detail.description) {
         listing.dateLabel = parseCLDate(detail.description);
+      }
+      if (!listing.timeLabel && detail.description) {
+        listing.timeLabel = parseTimeFromText(detail.description);
       }
       // OfferUp's API only ever gives a city ("Whittier, CA") — never a real
       // street address — but sellers often write it into the description.
@@ -2022,7 +2051,7 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
         distanceMi:   distMi,
         lat, lng,
         dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
-        timeLabel:    '',
+        timeLabel:    parseTimeFromText(title + ' ' + desc),
         photoCount:   imgMatch ? 1 : 0,
         images:       imgMatch ? [imgMatch[1]] : [],
         live:         false,
@@ -2144,7 +2173,7 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
         distanceMi:   distMi,
         lat, lng,
         dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
-        timeLabel:    '',
+        timeLabel:    parseTimeFromText(title + ' ' + desc),
         photoCount:   saleData.photo_count || (imgMatch ? 1 : 0),
         images:       imgMatch ? [imgMatch[1]] : [],
         live:         false,
@@ -2232,7 +2261,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
         distanceMi:   distMi,
         lat, lng,
         dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
-        timeLabel:    '',
+        timeLabel:    parseTimeFromText(title + ' ' + desc),
         photoCount:   imgMatch ? 1 : 0,
         images:       imgMatch ? [imgMatch[1]] : [],
         live:         false,
@@ -2332,7 +2361,7 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
         lat:          coords.lat,
         lng:          coords.lng,
         dateLabel:    dateMatch ? parseCLDate(dateMatch[1]) : '',
-        timeLabel:    '',
+        timeLabel:    dateMatch ? parseTimeFromText(dateMatch[1]) : '',
         photoCount:   imgMatch ? 1 : 0,
         images:       imgMatch ? [imgMatch[1]] : [],
         live:         false,
@@ -2442,7 +2471,7 @@ async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
           lat:          fbLat,
           lng:          fbLng,
           dateLabel:    '',
-          timeLabel:    '',
+          timeLabel:    parseTimeFromText(title + ' ' + desc),
           photoCount:   imgUrls.length,
           images:       imgUrls,
           live:         false,
@@ -2496,7 +2525,7 @@ async function fetchGoogleListings(zip) {
             neighborhood: 'Nearby',
             distanceMi:  0,
             dateLabel:   SALE_EVENT_RE.test(item.title) ? parseCLDate(item.title + ' ' + (item.snippet || '')) : '',
-            timeLabel:   '',
+            timeLabel:   parseTimeFromText(item.title + ' ' + (item.snippet || '')),
             photoCount:  0,
             photos:      item.pagemap?.cse_image?.[0]?.src ? [item.pagemap.cse_image[0].src] : [],
             live:        false,
