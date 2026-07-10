@@ -1276,6 +1276,23 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',16,{stroke:'#fff'})}</span>
         </button>
       )}
+      {openNow && (
+        <button type="button" onClick={()=>setOpenNow(false)} style={{
+          flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
+          background:'var(--success-bg)',color:'var(--success)',padding:'10px 16px',margin:'10px 16px 0',
+          borderRadius:'var(--radius-pill)',border:'1.5px solid var(--success)',
+          cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
+        }}>
+          <span style={{width:8,height:8,borderRadius:'50%',background:'var(--success)',display:'inline-block'}} />
+          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>
+            Showing sales live now
+          </span>
+          <span style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:4}}>
+            {Icon('X',14,{stroke:'currentColor'})}
+            <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Show all</span>
+          </span>
+        </button>
+      )}
       {view==='map' ? (
         <div style={{position:'relative',flex:1,overflow:'hidden',zIndex:0,isolation:'isolate'}}>
           <RealMap sales={shown} selectedId={sel?.id} onSelect={setSelected} />
