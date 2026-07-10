@@ -1203,7 +1203,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
   );
 }
 
-function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus,
+function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage,
     activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
@@ -1312,10 +1312,10 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           </div>
           {shown.length===0 && apiStatus!=='loading' ? (
             <div style={{textAlign:'center',padding:'48px 16px'}}>
-              <div style={{fontSize:72,lineHeight:1,marginBottom:4}}>🔍</div>
-              <div style={{fontSize:32,lineHeight:1,marginBottom:12,marginTop:-8}}>😕</div>
-              <p style={{fontFamily:'var(--font-display)',fontSize:20,fontWeight:600,color:'var(--text-primary)',margin:'0 0 6px'}}>No sales found</p>
-              <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Try adjusting your filters or expanding your search radius.</p>
+              <div style={{fontSize:72,lineHeight:1,marginBottom:4}}>{coverageMessage ? '🗺️' : '🔍'}</div>
+              <div style={{fontSize:32,lineHeight:1,marginBottom:12,marginTop:-8}}>{coverageMessage ? '' : '😕'}</div>
+              <p style={{fontFamily:'var(--font-display)',fontSize:20,fontWeight:600,color:'var(--text-primary)',margin:'0 0 6px'}}>{coverageMessage ? "We don't cover this area yet" : 'No sales found'}</p>
+              <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>{coverageMessage || 'Try adjusting your filters or expanding your search radius.'}</p>
             </div>
           ) : (
           <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
@@ -4095,6 +4095,7 @@ function App() {
   const [userListings, setUserListings] = useState([]);
   const [apiListings, setApiListings]   = useState([]);
   const [apiStatus, setApiStatus]       = useState('idle'); // idle | loading | ok | error
+  const [coverageMessage, setCoverageMessage] = useState(null);
   const [scale, setScale] = useState(1);
   const [libsReady, setLibsReady] = useState(false);
   const frameRef = useRef(null);
@@ -4104,7 +4105,11 @@ function App() {
     setApiStatus('loading');
     fetch(`/api/listings?zip=${zip}&radius=${radius}`)
       .then(r => r.json())
-      .then(data => { setApiListings(data.listings || []); setApiStatus('ok'); })
+      .then(data => {
+        setApiListings(data.listings || []);
+        setCoverageMessage(data.outOfCoverage ? data.message : null);
+        setApiStatus('ok');
+      })
       .catch(() => setApiStatus('error'));
   };
 
@@ -4229,7 +4234,7 @@ function App() {
 
         {/* App screens */}
         {tab==='explore' && !detailSale && (
-          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={zip} apiStatus={apiStatus}
+          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={zip} apiStatus={apiStatus} coverageMessage={coverageMessage}
             onOpenSale={setDetailId} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             openNow={openNow} setOpenNow={setOpenNow}
