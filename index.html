@@ -1725,6 +1725,12 @@ function AuthScreen({ onAuth }) {
           {loading ? 'Just a sec…' : mode==='signin' ? 'Sign In' : 'Create Account'}
         </Btn>
 
+        <button type="button"
+          onClick={()=>onAuth({ name:'Guest', avatar:null, guest:true })}
+          style={{textAlign:'center',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:14,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:'2px 0'}}>
+          Continue as guest
+        </button>
+
         <div style={{textAlign:'center',fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)',lineHeight:1.5,marginTop:4}}>
           By continuing you agree to our{' '}
           <span style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Terms</span>{' '}and{' '}
