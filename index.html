@@ -211,6 +211,38 @@ function playCelebration() {
     });
   } catch (_) {}
 }
+function playBoom() {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    // Low pitch-dropping thump
+    const osc = ctx.createOscillator(), gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(150, now);
+    osc.frequency.exponentialRampToValueAtTime(40, now + 0.25);
+    gain.gain.setValueAtTime(0.5, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+    osc.connect(gain); gain.connect(ctx.destination);
+    osc.start(now); osc.stop(now + 0.4);
+
+    // Filtered noise burst layered on top for a percussive "thud" texture
+    const bufferSize = Math.floor(ctx.sampleRate * 0.2);
+    const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < bufferSize; i++) data[i] = (Math.random()*2-1) * (1 - i/bufferSize);
+    const noise = ctx.createBufferSource();
+    noise.buffer = buffer;
+    const noiseFilter = ctx.createBiquadFilter();
+    noiseFilter.type = 'lowpass';
+    noiseFilter.frequency.value = 400;
+    const noiseGain = ctx.createGain();
+    noiseGain.gain.setValueAtTime(0.3, now);
+    noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.2);
+    noise.connect(noiseFilter); noiseFilter.connect(noiseGain); noiseGain.connect(ctx.destination);
+    noise.start(now);
+  } catch (_) {}
+}
 
 // Confetti scoped to the phone-mockup frame (id="phone-frame") rather than
 // canvas-confetti's default full-browser-window canvas -- the app renders
@@ -4209,6 +4241,10 @@ function App() {
   const [withinTwoWeeks, setWithinTwoWeeks] = useState(false);
   const [keyword, setKeyword]         = useState('');
   const [detailId, setDetailId] = useState(null);
+  // Every "open this listing" entry point routes through here so the boom
+  // sound plays exactly once, consistently, regardless of which screen
+  // (Explore, Saved, Search, notifications...) the tap came from.
+  const openSaleDetail = (id) => { playBoom(); setDetailId(id); };
   const [itemsView, setItemsView] = useState(null); // null | {mode:'gallery'} | {mode:'item', idx}
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -4379,7 +4415,7 @@ function App() {
         {tab==='explore' && !detailSale && (
           <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={effectiveZip} apiStatus={apiStatus} coverageMessage={coverageMessage}
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
-            onOpenSale={setDetailId} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
+            onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             openNow={openNow} setOpenNow={setOpenNow}
             withinTwoWeeks={withinTwoWeeks} setWithinTwoWeeks={setWithinTwoWeeks}
@@ -4387,7 +4423,7 @@ function App() {
             tripIds={tripIds} onToggleTrip={toggleTrip} />
         )}
         {tab==='saved' && !detailSale && (
-          <SavedScreen sales={allSales} onOpenSale={setDetailId} onToggleSave={toggleSave}
+          <SavedScreen sales={allSales} onOpenSale={openSaleDetail} onToggleSave={toggleSave}
             tripIds={tripIds} onToggleTrip={toggleTrip} />
         )}
         {tab==='trip' && !detailSale && (
@@ -4395,7 +4431,7 @@ function App() {
             allSales={allSales} tripIds={tripIds}
             onToggleTrip={toggleTrip} onClearTrip={clearTrip}
             onClose={()=>setTab('explore')}
-            onOpenSale={id=>{ setDetailId(id); }}
+            onOpenSale={openSaleDetail}
             asTab={true}
           />
         )}
@@ -4419,7 +4455,7 @@ function App() {
                 userListings={userListings}
                 savedCount={savedCount}
                 onDeleteListing={id=>setUserListings(p=>p.filter(l=>l.id!==id))}
-                onOpenSale={id=>{setDetailId(id);}}
+                onOpenSale={openSaleDetail}
                 onOpenNotifications={()=>setNotificationsOpen(true)}
                 onReplayWalkthrough={()=>setShowWalkthrough(true)}
               />
@@ -4478,7 +4514,7 @@ function App() {
           <div style={{position:'absolute',inset:0,zIndex:80,overflow:'hidden'}}>
             <NotificationsScreen notifications={notifications}
               onBack={()=>setNotificationsOpen(false)}
-              onOpenSale={id=>{ setNotificationsOpen(false); setItemsView(null); setDetailId(id); }} />
+              onOpenSale={id=>{ setNotificationsOpen(false); setItemsView(null); openSaleDetail(id); }} />
           </div>
         )}
 
