@@ -2693,6 +2693,37 @@ async function getListingsForZip(zip, radiusMi) {
   return all;
 }
 
+// GET /api/reverse-geocode?lat=&lng=  -> { zip }
+// Used by the frontend's "you're away from your home ZIP" detection: turns
+// a GPS fix into a ZIP code so the rest of the app can keep working in
+// terms of ZIP + radius, same as every other search path.
+app.get('/api/reverse-geocode', async (req, res) => {
+  const lat = parseFloat(req.query.lat);
+  const lng = parseFloat(req.query.lng);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+    return res.status(400).json({ error: 'Invalid coordinates' });
+  }
+  const cacheKey = `rev:${lat.toFixed(3)}:${lng.toFixed(3)}`;
+  const cached = fromCache(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const r = await fetchTimeout(
+      `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json&zoom=18&addressdetails=1`,
+      5000,
+      { headers: { 'User-Agent': 'RummageApp/1.0 (local sale finder; contact via app feedback)' } }
+    );
+    const data = await r.json();
+    const zip = data?.address?.postcode?.slice(0, 5) || null;
+    if (!zip) return res.status(404).json({ error: 'Could not resolve a ZIP code for this location' });
+    const result = { zip, city: data.address.city || data.address.town || data.address.village || null };
+    toCache(cacheKey, result);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Main route ────────────────────────────────────────────────────────────────
 app.get('/api/listings', async (req, res) => {
   const zip      = String(req.query.zip || '90601').replace(/\D/g, '').slice(0, 5);

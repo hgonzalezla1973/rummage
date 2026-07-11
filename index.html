@@ -1194,6 +1194,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
 }
 
 function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage,
+    homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
     activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
@@ -1230,9 +1231,6 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
             <span style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)'}}>{radiusMi} mi</span>
-            {apiStatus==='loading' && <span style={{fontFamily:'var(--font-sans)',fontSize:10,color:'var(--text-faint)',display:'flex',alignItems:'center',gap:3}}><span style={{width:6,height:6,borderRadius:'50%',background:'var(--accent)',display:'inline-block',animation:'pulse 1s infinite'}} />Live</span>}
-            {apiStatus==='ok'      && <span style={{fontFamily:'var(--font-sans)',fontSize:10,color:'var(--green-600)',display:'flex',alignItems:'center',gap:3}}><span style={{width:6,height:6,borderRadius:'50%',background:'var(--green-600)',display:'inline-block'}} />Live</span>}
-            {apiStatus==='error'   && <span style={{fontFamily:'var(--font-sans)',fontSize:10,color:'var(--text-faint)'}}>Offline</span>}
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
@@ -1256,6 +1254,19 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <FilterChip leadingIcon={Icon('CalendarRange',15)} selected={withinTwoWeeks} onClick={()=>setWithinTwoWeeks(p=>!p)}>Within 2 weeks</FilterChip>
         </div>
       </div>
+      {awayFromHome && (
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:8,background:'var(--accent-soft)',color:'var(--accent)',padding:'10px 14px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)'}}>
+          {Icon('Navigation',15,{stroke:'currentColor'})}
+          <span style={{flex:1,minWidth:0,fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
+            {useHomeZip
+              ? `Showing your home ZIP, not ${detectedCity || 'here'}`
+              : `You're near ${detectedCity || zip}, not home`}
+          </span>
+          <button type="button" onClick={()=>setUseHomeZip(p=>!p)} style={{flexShrink:0,fontFamily:'var(--font-sans)',fontWeight:700,fontSize:12.5,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>
+            {useHomeZip ? 'Use current location' : 'Use home ZIP'}
+          </button>
+        </div>
+      )}
       {apiStatus==='loading' && (
         <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'var(--ink-900)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(33,29,23,.28)'}}>
           <span style={{display:'inline-flex',animation:'spin 1s linear infinite'}}>{Icon('Loader2',16,{stroke:'#fff'})}</span>
@@ -4126,6 +4137,31 @@ function App() {
   const [libsReady, setLibsReady] = useState(false);
   const frameRef = useRef(null);
 
+  // Auto geo-detection: if the device's current GPS location resolves to a
+  // different ZIP than the saved home ZIP (e.g. you're traveling), search
+  // near where you actually are instead of silently showing sales back
+  // home. Detected once per session on load, not continuously watched —
+  // this is "am I somewhere else right now," not live turn-by-turn
+  // tracking (that already exists separately, in the trip navigator).
+  const [detectedZip, setDetectedZip] = useState(null);
+  const [detectedCity, setDetectedCity] = useState(null);
+  const [useHomeZip, setUseHomeZip] = useState(false); // explicit "no, use my home ZIP" override
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => {
+        fetch(`/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
+          .then(r => r.json())
+          .then(data => { if (data.zip) { setDetectedZip(data.zip); setDetectedCity(data.city || null); } })
+          .catch(() => {});
+      },
+      () => {}, // permission denied or unavailable — fall back to home ZIP silently
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60 * 1000 }
+    );
+  }, []);
+  const awayFromHome = !!(detectedZip && detectedZip !== zip);
+  const effectiveZip = (awayFromHome && !useHomeZip) ? detectedZip : zip;
+
   // Fetch live listings from local backend
   const fetchApiListings = (zip, radius) => {
     setApiStatus('loading');
@@ -4152,12 +4188,13 @@ function App() {
     return () => { window.removeEventListener('resize', fit); clearInterval(poll); };
   }, []);
 
-  // Re-fetch whenever the search ZIP or radius changes (debounced 600ms) —
-  // also covers the initial load, since effects always run once on mount.
+  // Re-fetch whenever the effective search ZIP or radius changes (debounced
+  // 600ms) — also covers the initial load, since effects always run once
+  // on mount.
   useEffect(() => {
-    const t = setTimeout(() => fetchApiListings(zip, radiusMi), 600);
+    const t = setTimeout(() => fetchApiListings(effectiveZip, radiusMi), 600);
     return () => clearTimeout(t);
-  }, [zip, radiusMi]);
+  }, [effectiveZip, radiusMi]);
 
   const MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
@@ -4245,7 +4282,8 @@ function App() {
 
         {/* App screens */}
         {tab==='explore' && !detailSale && (
-          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={zip} apiStatus={apiStatus} coverageMessage={coverageMessage}
+          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={effectiveZip} apiStatus={apiStatus} coverageMessage={coverageMessage}
+            homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
             onOpenSale={setDetailId} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             openNow={openNow} setOpenNow={setOpenNow}
