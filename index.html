@@ -2137,6 +2137,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   const chev = Icon('ChevronRight',18,{stroke:'var(--text-faint)'});
 
   return (
+    <>
     <div style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)'}}>
       <div style={{paddingTop:'var(--safe-top)'}} />
       <div style={{padding:'8px 20px 120px'}}>
@@ -2265,8 +2266,17 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         </div>
         <div style={{textAlign:'center',marginTop:18,fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)'}}>Rummage · v1.0.0</div>
       </div>
+    </div>
 
-      {/* Delete confirmation sheet */}
+    {/* Overlays below render as siblings of the scrollable content above,
+        not descendants of it -- position:absolute,inset:0 on a descendant
+        of a scrolled overflowY:auto container is relative to that
+        container's (scrolled-away) top, not the current viewport, so an
+        overlay opened while scrolled down (e.g. any Support row, which
+        sits well below the fold) would mount pinned off-screen above the
+        visible area and look like the tap did nothing. */}
+
+    {/* Delete confirmation sheet */}
       {deleteConfirm && (
         <div style={{position:'absolute',inset:0,zIndex:80,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
           <div onClick={()=>setDeleteConfirm(null)} style={{position:'absolute',inset:0,background:'rgba(28,25,23,.42)',backdropFilter:'blur(2px)'}} />
@@ -2409,7 +2419,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           {digestToast}
         </div>
       )}
-    </div>
+    </>
   );
 }
 
