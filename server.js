@@ -208,6 +208,13 @@ app.get('/api/img', async (req, res) => {
 // ── Serve the frontend ────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
+// Standalone static page (not the React SPA) documenting SMS opt-in consent
+// -- required as "Opt-In Policy Proof" for Twilio Toll-Free Verification.
+// Needs to be a real, directly-loadable URL a carrier reviewer can open
+// without interacting with the app, which the in-app Privacy Policy screen
+// (client-side routed, no dedicated URL) can't provide.
+app.get('/sms-consent', (_req, res) => res.sendFile(path.join(__dirname, 'sms-consent.html')));
+
 // ── Chrome path ───────────────────────────────────────────────────────────────
 // Local Windows dev points at the already-installed system Chrome (faster,
 // no redundant download). Everywhere else (a hosted Linux box), leave this
