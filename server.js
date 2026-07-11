@@ -150,10 +150,12 @@ app.post('/api/feedback', async (req, res) => {
   if (!message) return res.status(400).json({ error: 'Message is required' });
 
   const html = `
-  <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:16px">
-    <h1 style="font-size:22px;font-weight:900;color:#18112E;margin:0 0 4px">Rummage feedback — ${category}</h1>
-    <p style="color:#8880A0;font-size:13px;margin:0 0 20px">${userEmail ? `From ${userEmail}` : 'From a signed-out user'}</p>
-    <div style="background:#F5F3FF;border-radius:12px;padding:20px;white-space:pre-wrap;color:#18112E;font-size:15px;line-height:1.6">${message.replace(/</g,'&lt;')}</div>
+  <div style="background:#EDE6D6;padding:32px 16px">
+    <div style="max-width:480px;margin:0 auto;background:#FBF8F0;border-radius:16px;padding:32px 24px;font-family:Arial,Helvetica,sans-serif">
+      <h1 style="font-size:22px;font-weight:900;color:#211D17;margin:0 0 4px;letter-spacing:-0.02em">Rummage feedback — ${category}</h1>
+      <p style="color:#9C9280;font-size:13px;margin:0 0 20px">${userEmail ? `From ${userEmail}` : 'From a signed-out user'}</p>
+      <div style="background:#F1EAD6;border-left:3px solid #C1272D;border-radius:8px;padding:20px;white-space:pre-wrap;color:#211D17;font-size:15px;line-height:1.6">${message.replace(/</g,'&lt;')}</div>
+    </div>
   </div>`;
 
   try {
@@ -206,7 +208,11 @@ app.get('/api/img', async (req, res) => {
 });
 
 // ── Serve the frontend ────────────────────────────────────────────────────────
-app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+// Marketing landing page lives at the root; the actual app moved to /app so
+// rummagedeals.com/ can be a proper SEO/sharing landing page instead of
+// dropping straight into the phone-frame SPA.
+app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'landing.html')));
+app.get(['/app', '/app/'], (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
 
 // Standalone static page (not the React SPA) documenting SMS opt-in consent
 // -- required as "Opt-In Policy Proof" for Twilio Toll-Free Verification.
@@ -2846,31 +2852,43 @@ function buildDigestHtml(listings, { zip, radiusMi }) {
   const rows = listings.map(l => {
     const img = l.images?.[0];
     const thumb = img
-      ? `<img src="${proxyImgUrlForEmail(img)}" width="72" height="72" style="width:72px;height:72px;border-radius:10px;object-fit:cover;flex-shrink:0;display:block" />`
-      : `<div style="width:72px;height:72px;border-radius:10px;background:#F5F3FF;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px">🧺</div>`;
-    const href = `${PUBLIC_BASE_URL}/?sale=${encodeURIComponent(l.id)}`;
+      ? `<img src="${proxyImgUrlForEmail(img)}" width="72" height="72" style="width:72px;height:72px;border-radius:10px;object-fit:cover;display:block" />`
+      : `<div style="width:72px;height:72px;line-height:72px;text-align:center;border-radius:10px;background:#F1EAD6;font-size:26px">📍</div>`;
+    const href = `${PUBLIC_BASE_URL}/app?sale=${encodeURIComponent(l.id)}`;
+    // Table-based row (not flex) so this survives Outlook's Word rendering
+    // engine, which ignores flexbox entirely.
     return `
-    <a href="${href}" style="display:flex;gap:12px;align-items:center;padding:14px 0;border-bottom:1px solid #EEE;text-decoration:none">
-      ${thumb}
-      <div style="min-width:0">
-        <div style="font-weight:800;color:#18112E;font-size:15px">${l.title || 'Sale'}</div>
-        <div style="color:#5E5380;font-size:13px;margin-top:2px">${[l.dateLabel, l.timeLabel, l.address || l.neighborhood].filter(Boolean).join(' · ')}</div>
-        <div style="color:#7C3AED;font-size:12px;font-weight:700;margin-top:4px">Open in app →</div>
-      </div>
-    </a>`;
+    <tr>
+      <td style="padding:14px 0;border-bottom:1px solid #D8CBB0">
+        <a href="${href}" style="text-decoration:none">
+          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+            <tr>
+              <td width="72" valign="top">${thumb}</td>
+              <td style="padding-left:12px" valign="top">
+                <div style="font-family:Arial,Helvetica,sans-serif;font-weight:800;color:#211D17;font-size:15px;line-height:1.3">${l.title || 'Sale'}</div>
+                <div style="font-family:Arial,Helvetica,sans-serif;color:#6B6252;font-size:13px;margin-top:3px">${[l.dateLabel, l.timeLabel, l.address || l.neighborhood].filter(Boolean).join(' · ')}</div>
+                <div style="font-family:Arial,Helvetica,sans-serif;color:#A81F24;font-size:12px;font-weight:700;margin-top:5px">Open in app &rarr;</div>
+              </td>
+            </tr>
+          </table>
+        </a>
+      </td>
+    </tr>`;
   }).join('');
 
   return `
-  <div style="font-family:'Segoe UI',Arial,sans-serif;max-width:480px;margin:0 auto;padding:32px 24px;background:#fff;border-radius:16px">
-    <div style="text-align:center;margin-bottom:20px">
-      <div style="display:inline-block;width:64px;height:64px;border-radius:18px;background:linear-gradient(135deg,#7C3AED,#A855F7);line-height:64px;font-size:32px">🧺</div>
-      <h1 style="font-size:24px;font-weight:900;color:#18112E;margin:16px 0 4px;letter-spacing:-0.03em">Today's sales near ${zip}</h1>
-      <p style="color:#5E5380;font-size:14px;margin:0">${listings.length} sale${listings.length===1?'':'s'} within ${radiusMi} mi today</p>
+  <div style="background:#EDE6D6;padding:32px 16px">
+    <div style="max-width:480px;margin:0 auto;background:#FBF8F0;border-radius:16px;padding:32px 24px">
+      <div style="text-align:center;margin-bottom:8px">
+        <div style="display:inline-block;width:60px;height:60px;border-radius:50%;background:#C1272D;line-height:60px;font-size:28px">📍</div>
+        <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:900;color:#211D17;margin:16px 0 4px;letter-spacing:-0.02em">Today's sales near ${zip}</h1>
+        <p style="font-family:Arial,Helvetica,sans-serif;color:#6B6252;font-size:14px;margin:0">${listings.length} sale${listings.length===1?'':'s'} within ${radiusMi} mi today</p>
+      </div>
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${rows}</table>
+      <p style="font-family:Arial,Helvetica,sans-serif;color:#9C9280;font-size:12px;text-align:center;margin-top:24px;margin-bottom:0">
+        You're getting this because you turned on daily digest emails in Rummage. Turn it off any time in Account &rarr; Notifications.
+      </p>
     </div>
-    <div>${rows}</div>
-    <p style="color:#8880A0;font-size:12px;text-align:center;margin-top:24px">
-      You're getting this because you turned on daily digest emails in Rummage. Turn it off any time in Account → Notifications.
-    </p>
   </div>`;
 }
 
