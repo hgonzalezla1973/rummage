@@ -1583,6 +1583,12 @@ function Field({ label, value, onChange, type='text', placeholder, error, traili
 }
 
 // ── Auth Screen ───────────────────────────────────────────────────────────────
+// Twilio toll-free SMS verification is wired up but the toll-free number
+// hasn't cleared Toll-Free Verification yet, so real users' texts don't
+// deliver -- requiring the SMS step would lock everyone out of sign-up.
+// Flip this back to true once that verification is approved.
+const PHONE_VERIFICATION_ENABLED = false;
+
 function AuthScreen({ onAuth }) {
   const [mode, setMode]         = useState('signin'); // 'signin' | 'signup'
   const [phone, setPhone]       = useState('');
@@ -1637,6 +1643,16 @@ function AuthScreen({ onAuth }) {
         setLoading(false);
         onAuth({ name: fullName.trim() || 'Rummager', phone: phone.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
       }, 600);
+      return;
+    }
+    if (!PHONE_VERIFICATION_ENABLED) {
+      setLoading(true);
+      setTimeout(() => {
+        setLoading(false);
+        playCelebration();
+        burstConfetti();
+        onAuth({ name: fullName.trim(), phone: phone.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
+      }, 500);
       return;
     }
     setLoading(true);
