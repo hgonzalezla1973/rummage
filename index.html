@@ -255,6 +255,30 @@ function playBoom() {
     noise.start(now);
   } catch (_) {}
 }
+// Two-note blip for adding/removing a sale from the trip planner -- lighter
+// than the celebration chime (this isn't as big a moment as finishing
+// sign-up), distinct from the ping/boom already used elsewhere. Rising
+// pitch reads as "added," the same two notes played in reverse read as
+// "removed," without needing two unrelated sounds.
+function playTripBlip(added) {
+  const ctx = getAudioCtx();
+  if (!ctx) return;
+  try {
+    const now = ctx.currentTime;
+    const [f1, f2] = added ? [600, 900] : [900, 600];
+    [[f1, 0], [f2, 0.07]].forEach(([freq, delay]) => {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.type = 'sine';
+      osc.frequency.value = freq;
+      const t = now + delay;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.linearRampToValueAtTime(0.16, t + 0.015);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.start(t); osc.stop(t + 0.13);
+    });
+  } catch (_) {}
+}
 
 // Confetti scoped to the phone-mockup frame (id="phone-frame") rather than
 // canvas-confetti's default full-browser-window canvas -- the app renders
@@ -4263,8 +4287,10 @@ function App() {
   const [tripIds, setTripIds] = useState(() => { try { return JSON.parse(localStorage.getItem('rummage-trip') || '[]'); } catch { return []; } });
 
   const toggleTrip = (id) => setTripIds(prev => {
-    const next = prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id];
+    const adding = !prev.includes(id);
+    const next = adding ? [...prev, id] : prev.filter(x => x !== id);
     localStorage.setItem('rummage-trip', JSON.stringify(next));
+    playTripBlip(adding);
     return next;
   });
   const clearTrip = () => { setTripIds([]); localStorage.removeItem('rummage-trip'); };
