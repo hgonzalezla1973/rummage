@@ -173,7 +173,19 @@ function RummageLogo({ markSize = 56, textSize = 26 }) {
 // couple of oscillators is plenty for a short UI ping/chime and avoids
 // bundling assets for something this small.
 let _audioCtx = null;
+// Plain module-level flag, not React state -- playPing/playBoom/etc. are
+// called from all over the app (avatar taps, listing opens, auth), and
+// gating each call site individually would mean threading a "sound on?"
+// prop through every one of them. The on-screen toggle button keeps its
+// own React state in sync with this via setSoundEnabled() so it re-renders.
+let _soundEnabled = (() => { try { return localStorage.getItem('rummage_sound') !== 'off'; } catch (_) { return true; } })();
+function isSoundEnabled() { return _soundEnabled; }
+function setSoundEnabled(v) {
+  _soundEnabled = v;
+  try { localStorage.setItem('rummage_sound', v ? 'on' : 'off'); } catch (_) {}
+}
 function getAudioCtx() {
+  if (!_soundEnabled) return null;
   if (!window.AudioContext && !window.webkitAudioContext) return null;
   if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
   if (_audioCtx.state === 'suspended') _audioCtx.resume().catch(()=>{});
@@ -1328,7 +1340,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             </div>
             <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
           </div>
-          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
+          <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4,marginTop:34}}>
             <span style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)'}}>{radiusMi} mi</span>
           </div>
         </div>
@@ -4267,6 +4279,8 @@ function App() {
   const [scale, setScale] = useState(1);
   const [libsReady, setLibsReady] = useState(false);
   const frameRef = useRef(null);
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const toggleSound = () => { const next = !soundOn; setSoundEnabled(next); setSoundOn(next); };
 
   // Auto geo-detection: if the device's current GPS location resolves to a
   // different ZIP than the saved home ZIP (e.g. you're traveling), search
@@ -4528,6 +4542,17 @@ function App() {
           </span>
         </div>
         <div style={{position:'absolute',top:11,left:'50%',transform:'translateX(-50%)',width:120,height:34,background:'#14110F',borderRadius:20,zIndex:75}} />
+
+        {/* Sound on/off toggle -- fixed in the same spot on every screen,
+            purely a mute switch (doesn't stop confetti or anything visual). */}
+        <div style={{position:'absolute',top:62,right:16,zIndex:76}}>
+          <IconButton
+            icon={Icon(soundOn ? 'Volume2' : 'VolumeX', 18)}
+            shape="circle"
+            aria-label={soundOn ? 'Mute sound effects' : 'Unmute sound effects'}
+            onClick={toggleSound}
+          />
+        </div>
 
         {/* First-run animated walkthrough */}
         {showWalkthrough && <WalkthroughScreen onDone={finishWalkthrough} />}
