@@ -2609,37 +2609,12 @@ function fmtTime(s) {
   if (m < 60) return `${m} min`;
   return `${Math.floor(m / 60)}h ${m % 60}m`;
 }
-function maneuverIcon(type, modifier) {
-  if (type === 'arrive') return 'MapPin';
-  if (type === 'depart') return 'Navigation';
-  if (type === 'roundabout' || type === 'rotary') return 'RefreshCw';
-  if (modifier === 'uturn') return 'RotateCcw';
-  if (modifier === 'slight left' || modifier === 'left' || modifier === 'sharp left') return 'ArrowLeft';
-  if (modifier === 'slight right' || modifier === 'right' || modifier === 'sharp right') return 'ArrowRight';
-  return 'ArrowUp';
-}
-function maneuverText(step) {
-  const { type, modifier } = step.maneuver;
-  const road = step.name || 'the road';
-  if (type === 'depart') return `Head ${modifier || 'forward'} on ${road}`;
-  if (type === 'arrive') return 'Arrive at stop';
-  if (type === 'turn') return `Turn ${modifier || ''} onto ${road}`;
-  if (type === 'new name') return `Continue onto ${road}`;
-  if (type === 'continue') return `Continue on ${road}`;
-  if (type === 'merge') return `Merge onto ${road}`;
-  if (type === 'fork') return `Keep ${modifier || 'straight'} toward ${road}`;
-  if (type === 'end of road') return `Turn ${modifier || ''} onto ${road}`;
-  if (type === 'roundabout' || type === 'rotary') {
-    const exit = step.maneuver.exit ? ` (exit ${step.maneuver.exit})` : '';
-    return `Take the roundabout${exit} onto ${road}`;
-  }
-  return `Continue on ${road}`;
-}
-
 async function fetchOsrmRoute(waypoints) {
-  // waypoints: [{lat,lng}, ...]
+  // waypoints: [{lat,lng}, ...]. steps=false -- the app only ever shows
+  // per-leg distance/duration (a passive preview), never turn-by-turn
+  // instructions, so there's no need to pay for OSRM's step breakdown.
   const coords = waypoints.map(p => `${p.lng},${p.lat}`).join(';');
-  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=true`;
+  const url = `https://router.project-osrm.org/route/v1/driving/${coords}?overview=full&geometries=geojson&steps=false`;
   const r = await fetch(url);
   if (!r.ok) throw new Error('OSRM error');
   const data = await r.json();
@@ -2653,19 +2628,26 @@ async function fetchOsrmRoute(waypoints) {
   };
 }
 
-// Distance in meters between two {lat,lng} points
-function geoDistM(a, b) {
-  const R = 6371000, rad = Math.PI / 180;
-  const dLat = (b.lat - a.lat) * rad, dLng = (b.lng - a.lng) * rad;
-  const sin = Math.sin(dLat / 2), cos = Math.cos(a.lat * rad) * Math.cos(b.lat * rad) * Math.sin(dLng / 2);
-  return 2 * R * Math.asin(Math.sqrt(sin * sin + cos * cos));
+// Builds a Google Maps multi-stop directions URL -- the one navigation app
+// with an actual documented multi-waypoint URL scheme (Apple Maps and Waze
+// only support a single destination), so "Start Trip" always hands off to
+// Google Maps regardless of platform. Origin is left out on purpose: Google
+// Maps resolves an omitted origin to the user's live location at the moment
+// the link opens, which is fresher than a location we fetched earlier.
+function buildGoogleMapsTripUrl(stops) {
+  const pts = stops.filter(s => s.lat != null && s.lng != null).map(s => `${s.lat},${s.lng}`);
+  if (!pts.length) return null;
+  const destination = pts[pts.length - 1];
+  const waypoints = pts.slice(0, -1);
+  const params = new URLSearchParams({ api: '1', destination, travelmode: 'driving' });
+  if (waypoints.length) params.set('waypoints', waypoints.join('|'));
+  return `https://www.google.com/maps/dir/?${params.toString()}`;
 }
 
 // ── Trip Map (Leaflet) ────────────────────────────────────────────────────────
-function TripMap({ stops, userLoc, livePos, routeCoords, height = 260, interactive = true }) {
+function TripMap({ stops, userLoc, routeCoords, height = 260, interactive = true }) {
   const divRef = useRef(null);
   const mapRef = useRef(null);
-  const liveDotRef = useRef(null);
 
   // Init map once
   useEffect(() => {
@@ -2680,7 +2662,6 @@ function TripMap({ stops, userLoc, livePos, routeCoords, height = 260, interacti
     const map = mapRef.current;
     if (!map || !window.L) return;
     map.eachLayer(l => { if (!(l instanceof window.L.TileLayer)) map.removeLayer(l); });
-    liveDotRef.current = null;
 
     const bounds = [];
 
@@ -2691,8 +2672,8 @@ function TripMap({ stops, userLoc, livePos, routeCoords, height = 260, interacti
       latlngs.forEach(p => bounds.push(p));
     }
 
-    // Origin dot (initial userLoc, greyed when live tracking)
-    if (userLoc && !livePos) {
+    // Origin dot
+    if (userLoc) {
       window.L.circleMarker([userLoc.lat, userLoc.lng], {
         radius: 9, fillColor: '#3b82f6', color: '#fff', weight: 2.5, fillOpacity: 1
       }).addTo(map);
@@ -2710,24 +2691,9 @@ function TripMap({ stops, userLoc, livePos, routeCoords, height = 260, interacti
       bounds.push([s.lat, s.lng]);
     });
 
-    // Live GPS dot
-    if (livePos) {
-      liveDotRef.current = window.L.circleMarker([livePos.lat, livePos.lng], {
-        radius: 10, fillColor: '#3b82f6', color: '#fff', weight: 2.5, fillOpacity: 1
-      }).addTo(map);
-      bounds.push([livePos.lat, livePos.lng]);
-    }
-
     if (bounds.length > 0) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 });
     else map.setView([33.979, -118.032], 12);
   }, [stops, userLoc, routeCoords]);
-
-  // Smoothly move live dot without redrawing everything
-  useEffect(() => {
-    if (!liveDotRef.current || !livePos) return;
-    liveDotRef.current.setLatLng([livePos.lat, livePos.lng]);
-    mapRef.current?.panTo([livePos.lat, livePos.lng], { animate: true, duration: 0.8 });
-  }, [livePos?.lat, livePos?.lng]);
 
   return <div ref={divRef} style={{ width: '100%', height, borderRadius: 'var(--radius-xl)', overflow: 'hidden' }} />;
 }
@@ -2735,69 +2701,10 @@ function TripMap({ stops, userLoc, livePos, routeCoords, height = 260, interacti
 // ── Trip Planner Panel ────────────────────────────────────────────────────────
 function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClose, onOpenSale, asTab=false }) {
   const [userLoc, setUserLoc]       = useState(null);
-  const [livePos, setLivePos]       = useState(null);
   const [locError, setLocError]     = useState(null);
   const [route, setRoute]           = useState(null);   // {geometry, legs, totalDist, totalTime}
   const [routeLoading, setRouteLoading] = useState(false);
   const [routeError, setRouteError] = useState(null);
-  const [tab, setTab]               = useState('stops'); // 'stops' | 'directions'
-  const [navMode, setNavMode]       = useState(false);
-  const [voiceOn, setVoiceOn]       = useState(true);
-  const [currentLeg, setCurrentLeg] = useState(0);
-  const [currentStepIdx, setCurrentStepIdx] = useState(0);
-  const [arrived, setArrived]       = useState(false);
-  const watchRef                    = useRef(null);
-  const routeRef                    = useRef(null);
-  const legRef                      = useRef(0);
-  const stepRef                     = useRef(0);
-  const arrivedRef                  = useRef(false);
-  const voiceRef                    = useRef(true);
-  const approachAnnouncedRef        = useRef(-1); // step idx of last approach announcement
-
-  // Keep voice ref in sync so GPS callback can read it without stale closure
-  useEffect(() => { voiceRef.current = voiceOn; }, [voiceOn]);
-
-  // Short two-note "arrival" chime, synthesized so no external audio file is needed.
-  const audioCtxRef = useRef(null);
-  const playArrivalChime = () => {
-    try {
-      const Ctx = window.AudioContext || window.webkitAudioContext;
-      if (!Ctx) return;
-      const ctx = audioCtxRef.current || (audioCtxRef.current = new Ctx());
-      if (ctx.state === 'suspended') ctx.resume();
-      const now = ctx.currentTime;
-      [{freq:880, start:0}, {freq:1318.5, start:0.14}].forEach(({freq, start}) => {
-        const osc = ctx.createOscillator();
-        const gain = ctx.createGain();
-        osc.type = 'sine';
-        osc.frequency.value = freq;
-        gain.gain.setValueAtTime(0, now + start);
-        gain.gain.linearRampToValueAtTime(0.28, now + start + 0.02);
-        gain.gain.exponentialRampToValueAtTime(0.001, now + start + 0.45);
-        osc.connect(gain).connect(ctx.destination);
-        osc.start(now + start);
-        osc.stop(now + start + 0.5);
-      });
-    } catch (_) {}
-  };
-
-  const speak = (text) => {
-    if (!voiceRef.current || !window.speechSynthesis) return;
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    const voices = window.speechSynthesis.getVoices();
-    const female =
-      voices.find(v => /\bsamantha\b/i.test(v.name)) ||
-      voices.find(v => /\bkaren\b/i.test(v.name)) ||
-      voices.find(v => /female/i.test(v.name)) ||
-      voices.find(v => /\b(victoria|moira|tessa|fiona|allison|ava|susan|zira)\b/i.test(v.name)) ||
-      voices.find(v => /google us english/i.test(v.name)) ||
-      voices.find(v => v.lang === 'en-US') ||
-      null;
-    if (female) u.voice = female;
-    u.rate = 1.05; u.pitch = 1.1; u.volume = 1.0;
-    window.speechSynthesis.speak(u);
-  };
 
   const tripSales = allSales.filter(s => tripIds.includes(s.id));
   const ordered   = userLoc
@@ -2813,10 +2720,11 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
       pos => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
       ()  => setLocError('Could not get your location')
     );
-    return () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current); };
   }, []);
 
-  // Fetch OSRM route whenever stops or userLoc change
+  // Fetch OSRM route whenever stops or userLoc change -- purely a passive
+  // preview (polyline + per-stop distance/time on the map below), not
+  // turn-by-turn guidance. Actual navigation is handed off to Google Maps.
   useEffect(() => {
     const stops = ordered.filter(s => s.lat && s.lng);
     if (stops.length < 1) { setRoute(null); return; }
@@ -2824,246 +2732,9 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
     if (waypoints.length < 2) { setRoute(null); return; }
     setRouteLoading(true); setRouteError(null);
     fetchOsrmRoute(waypoints)
-      .then(r => { setRoute(r); routeRef.current = r; setRouteLoading(false); })
+      .then(r => { setRoute(r); setRouteLoading(false); })
       .catch(() => { setRouteError('Could not load route'); setRouteLoading(false); });
   }, [tripIds, userLoc?.lat, userLoc?.lng]);
-
-  // Keep refs in sync so the GPS callback can read current values without stale closure
-  useEffect(() => { legRef.current = currentLeg; }, [currentLeg]);
-  useEffect(() => { stepRef.current = currentStepIdx; }, [currentStepIdx]);
-  useEffect(() => { arrivedRef.current = arrived; }, [arrived]);
-
-  // Start/stop GPS watch when navMode changes
-  useEffect(() => {
-    if (!navMode) {
-      if (watchRef.current != null) { navigator.geolocation.clearWatch(watchRef.current); watchRef.current = null; }
-      window.speechSynthesis?.cancel();
-      setLivePos(null); setCurrentLeg(0); setCurrentStepIdx(0); setArrived(false);
-      approachAnnouncedRef.current = -1;
-      return;
-    }
-    if (!navigator.geolocation) return;
-    // Announce navigation start
-    if (ordered[0]) speak(`Starting navigation. Heading to ${ordered[0].title}.`);
-
-    watchRef.current = navigator.geolocation.watchPosition(pos => {
-      const p = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-      setLivePos(p);
-      if (arrivedRef.current) return;
-
-      const r = routeRef.current;
-      const leg = r?.legs?.[legRef.current];
-      if (!leg) return;
-
-      // Approach announcement: within 300m of next step, speak "In X, [instruction]"
-      const nextStep = leg.steps[stepRef.current + 1];
-      if (nextStep && approachAnnouncedRef.current !== stepRef.current + 1) {
-        const [nlng, nlat] = nextStep.maneuver.location;
-        const dist = geoDistM(p, { lat: nlat, lng: nlng });
-        if (dist < 320 && dist > 35) {
-          approachAnnouncedRef.current = stepRef.current + 1;
-          speak(`In ${fmtDist(dist)}, ${maneuverText(nextStep)}`);
-        }
-        // Advance step when within 30m
-        if (dist < 30) {
-          const newIdx = stepRef.current + 1;
-          stepRef.current = newIdx;
-          approachAnnouncedRef.current = newIdx;
-          setCurrentStepIdx(newIdx);
-          // Speak the step we just entered
-          const stepAfter = leg.steps[newIdx + 1];
-          if (stepAfter) speak(maneuverText(leg.steps[newIdx]));
-        }
-      }
-
-      // Detect arrival at the stop (within 80m)
-      const dest = ordered[legRef.current];
-      if (dest?.lat && dest?.lng && geoDistM(p, { lat: dest.lat, lng: dest.lng }) < 80) {
-        arrivedRef.current = true;
-        setArrived(true);
-        playArrivalChime();
-        const next = ordered[legRef.current + 1];
-        if (next) speak(`You have arrived at ${dest.title || 'your stop'}. Your next stop is ${next.title}.`);
-        else speak(`You have arrived at ${dest.title || 'your final stop'}. Trip complete!`);
-      }
-    }, () => {}, { enableHighAccuracy: true, maximumAge: 3000 });
-    return () => { if (watchRef.current != null) navigator.geolocation.clearWatch(watchRef.current); };
-  }, [navMode]);
-
-  const goToNextStop = () => {
-    const nextLeg = currentLeg + 1;
-    if (nextLeg < ordered.length) {
-      setCurrentLeg(nextLeg);          legRef.current = nextLeg;
-      setCurrentStepIdx(0);            stepRef.current = 0;
-      setArrived(false);               arrivedRef.current = false;
-      approachAnnouncedRef.current = -1;
-      speak(`Heading to stop ${nextLeg + 1}, ${ordered[nextLeg]?.title || ''}.`);
-    } else {
-      setNavMode(false);
-    }
-  };
-
-  const legSteps    = route?.legs?.[currentLeg]?.steps || [];
-  const currentStep = legSteps[currentStepIdx] || legSteps[0];
-
-  // ── Navigate mode (full-screen map + HUD) ────────────────────────────────
-  if (navMode) {
-    const destStop   = ordered[currentLeg];
-    const nextStop   = ordered[currentLeg + 1];
-    const legDist    = route?.legs?.[currentLeg]?.distance;
-    const legTime    = route?.legs?.[currentLeg]?.duration;
-    const tripDone   = arrived && currentLeg >= ordered.length - 1;
-    // All remaining steps from the current position onward
-    const remaining  = legSteps.slice(currentStepIdx).filter(s => s.distance > 0 || s.maneuver.type === 'arrive');
-
-    return (
-      <div style={{ position: 'absolute', inset: 0, zIndex: 65, display: 'flex', flexDirection: 'column' }}>
-
-        {/* ── Map (top ~55%) ── */}
-        <div style={{ flex: '0 0 55%', position: 'relative' }}>
-          <TripMap stops={ordered} userLoc={userLoc} livePos={livePos} routeCoords={route?.geometry} height="100%" interactive />
-
-          {/* ── Map overlay buttons — zIndex 1100 beats Leaflet's max 1000 ── */}
-          {/* Back / exit */}
-          <div style={{ position: 'absolute', top: 14, left: 14, zIndex: 1100 }}>
-            <button type="button" onClick={() => setNavMode(false)}
-              style={{ width: 44, height: 44, borderRadius: '50%', background: '#fff', border: '2px solid rgba(0,0,0,.15)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 12px rgba(0,0,0,.3)' }}>
-              {Icon('ChevronDown', 24, { stroke: '#000', strokeWidth: 2.5 })}
-            </button>
-          </div>
-
-          {/* Voice toggle */}
-          <div style={{ position: 'absolute', top: 14, right: 14, zIndex: 1100 }}>
-            <button type="button"
-              onClick={() => {
-                const next = !voiceOn;
-                setVoiceOn(next);
-                if (next) { voiceRef.current = true; speak(currentStep ? maneuverText(currentStep) : `Heading to stop ${currentLeg + 1}`); }
-                else window.speechSynthesis?.cancel();
-              }}
-              style={{ width: 44, height: 44, borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 3px 12px rgba(0,0,0,.3)',
-                background: voiceOn ? 'var(--brand-500)' : '#fff',
-                border: voiceOn ? '2px solid var(--brand-600)' : '2px solid rgba(0,0,0,.15)',
-                color: voiceOn ? '#fff' : '#000' }}>
-              {Icon(voiceOn ? 'Volume2' : 'VolumeX', 22, { stroke: 'currentColor', strokeWidth: 2.5 })}
-            </button>
-          </div>
-
-          {/* Current instruction banner */}
-          {!arrived && (
-            <div style={{ position: 'absolute', top: 66, left: 14, right: 14, zIndex: 1050 }}>
-              <div style={{ background: 'rgba(255,251,247,.96)', backdropFilter: 'blur(16px)', borderRadius: 'var(--radius-xl)', padding: '11px 14px', boxShadow: 'var(--shadow-lg)', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div style={{ width: 38, height: 38, borderRadius: '50%', background: 'var(--brand-500)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                  {Icon(maneuverIcon(currentStep?.maneuver?.type, currentStep?.maneuver?.modifier), 18, { stroke: '#fff' })}
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontWeight: 800, fontSize: 15, color: 'var(--ink-900)', lineHeight: 1.2 }}>
-                    {currentStep ? maneuverText(currentStep) : `Head to Stop ${currentLeg + 1}`}
-                  </div>
-                  {currentStep?.distance > 0 && (
-                    <div style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--brand-600)', marginTop: 2 }}>{fmtDist(currentStep.distance)}</div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Stop counter pill */}
-          <div style={{ position: 'absolute', bottom: 12, left: 12, zIndex: 10 }}>
-            <div style={{ background: 'rgba(28,25,23,.7)', backdropFilter: 'blur(8px)', color: '#fff', borderRadius: 'var(--radius-pill)', padding: '4px 12px', fontSize: 12, fontWeight: 700 }}>
-              Stop {currentLeg + 1} of {ordered.length}
-            </div>
-          </div>
-        </div>
-
-        {/* ── Bottom panel (remaining ~45%) ── */}
-        <div style={{ flex: 1, background: 'var(--paper)', borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-
-          {/* Destination header */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px 10px', borderBottom: '1px solid var(--border-default)', flexShrink: 0 }}>
-            {destStop?.images?.[0]
-              ? <img src={proxyImgUrl(destStop.images[0])} style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }} />
-              : <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>{Icon('MapPin', 18, { stroke: 'var(--text-faint)' })}</div>
-            }
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--brand-600)', textTransform: 'uppercase', letterSpacing: '.05em', marginBottom: 1 }}>
-                {arrived ? (tripDone ? 'Trip complete' : 'Arrived') : `Heading to Stop ${currentLeg + 1}`}
-              </div>
-              <div style={{ fontWeight: 800, fontSize: 14, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{destStop?.title}</div>
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-muted)' }}>
-                {arrived ? destStop?.address || destStop?.neighborhood : legDist != null ? `${fmtDist(legDist)} · about ${fmtTime(legTime)}` : destStop?.dateLabel}
-              </div>
-            </div>
-            {arrived && (
-              <button type="button" onClick={() => setNavMode(false)}
-                style={{ padding: '6px 12px', borderRadius: 'var(--radius-pill)', background: 'var(--surface-sunken)', border: '1.5px solid var(--border-default)', fontWeight: 700, fontSize: 12, color: 'var(--text-secondary)', cursor: 'pointer', flexShrink: 0 }}>
-                End
-              </button>
-            )}
-          </div>
-
-          {/* Arrived card OR step list */}
-          {arrived ? (
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '16px 20px 28px', gap: 14 }}>
-              <div style={{ width: 56, height: 56, borderRadius: '50%', background: 'var(--green-bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                {Icon('CircleCheck', 28, { stroke: 'var(--green-600)' })}
-              </div>
-              {tripDone ? (
-                <>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontWeight: 900, fontSize: 20, color: 'var(--ink-900)', letterSpacing: '-0.02em' }}>Trip complete!</div>
-                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>You visited all {ordered.length} stops.</div>
-                  </div>
-                  <Btn variant="primary" size="lg" fullWidth onClick={() => setNavMode(false)}>Done</Btn>
-                </>
-              ) : (
-                <>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontWeight: 900, fontSize: 20, color: 'var(--ink-900)', letterSpacing: '-0.02em' }}>You've arrived!</div>
-                    <div style={{ fontFamily: 'var(--font-sans)', fontSize: 14, color: 'var(--text-muted)', marginTop: 4 }}>
-                      Next: <strong>{nextStop?.title}</strong>
-                      {route?.legs?.[currentLeg + 1] && ` · ${fmtDist(route.legs[currentLeg + 1].distance)}`}
-                    </div>
-                  </div>
-                  <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation', 18)} onClick={goToNextStop}>
-                    Head to Stop {currentLeg + 2}
-                  </Btn>
-                </>
-              )}
-            </div>
-          ) : (
-            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 16px 24px' }}>
-              {remaining.map((step, i) => {
-                const isCurrent = i === 0;
-                return (
-                  <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 12, padding: '9px 0',
-                    borderBottom: i < remaining.length - 1 ? '1px solid var(--border-default)' : 'none',
-                    opacity: isCurrent ? 1 : 0.55 }}>
-                    <div style={{ width: 32, height: 32, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: isCurrent ? 'var(--brand-500)' : 'var(--surface-sunken)',
-                      marginTop: 1 }}>
-                      {Icon(maneuverIcon(step.maneuver.type, step.maneuver.modifier), 15,
-                        { stroke: isCurrent ? '#fff' : 'var(--text-muted)' })}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0, paddingTop: 3 }}>
-                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, fontWeight: isCurrent ? 700 : 500, color: isCurrent ? 'var(--ink-900)' : 'var(--text-secondary)', lineHeight: 1.3 }}>
-                        {maneuverText(step)}
-                      </div>
-                    </div>
-                    {step.distance > 0 && (
-                      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: isCurrent ? 'var(--brand-600)' : 'var(--text-faint)', paddingTop: 5, flexShrink: 0 }}>
-                        {fmtDist(step.distance)}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   // ── Plan mode ────────────────────────────────────────────────────────────
   const planContent = (
@@ -3094,23 +2765,7 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
           }
         </div>
 
-        {/* Tabs (only when stops exist) */}
-        {tripSales.length > 0 && (
-          <div style={{ display: 'flex', borderBottom: '1px solid var(--border-default)', margin: '0 14px' }}>
-            {[['stops','Stops'],['directions','Directions']].map(([k,label]) => (
-              <button key={k} type="button" onClick={() => setTab(k)}
-                style={{ flex: 1, padding: '10px 0', background: 'none', border: 'none', cursor: 'pointer',
-                  fontWeight: 700, fontSize: 14,
-                  color: tab === k ? 'var(--brand-600)' : 'var(--text-muted)',
-                  borderBottom: tab === k ? '2px solid var(--brand-500)' : '2px solid transparent',
-                  marginBottom: -1 }}>
-                {label}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Content */}
+        {/* Stops */}
         <div style={{ flex: 1, overflowY: 'auto', padding: '0 14px' }}>
           {tripSales.length === 0 ? (
             <div style={{ textAlign: 'center', padding: '24px 0 28px' }}>
@@ -3120,8 +2775,7 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
                 Tap <strong>Add to trip</strong> on any sale card to build your route.
               </div>
             </div>
-
-          ) : tab === 'stops' ? (
+          ) : (
             ordered.map((s, i) => (
               <div key={s.id} onClick={() => { onOpenSale(s.id); onClose(); }}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
@@ -3142,37 +2796,6 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
                 </button>
               </div>
             ))
-
-          ) : routeError ? (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: 14 }}>
-              {routeError}
-            </div>
-          ) : routeLoading ? (
-            <div style={{ textAlign: 'center', padding: '24px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: 14 }}>
-              Loading directions…
-            </div>
-          ) : (
-            // Directions tab: steps grouped by leg
-            route?.legs?.map((leg, li) => (
-              <div key={li}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '10px 0 6px' }}>
-                  <div style={{ width: 22, height: 22, borderRadius: '50%', background: 'var(--brand-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 11, flexShrink: 0 }}>{li + 1}</div>
-                  <div style={{ fontWeight: 700, fontSize: 13, color: 'var(--ink-900)', flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{ordered[li]?.title || `Stop ${li + 1}`}</div>
-                  <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-muted)', flexShrink: 0 }}>{fmtDist(leg.distance)} · {fmtTime(leg.duration)}</div>
-                </div>
-                {leg.steps.filter(step => step.distance > 0 || step.maneuver.type === 'arrive').map((step, si) => (
-                  <div key={si} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 0 7px 8px', borderLeft: '2px solid var(--border-default)' }}>
-                    <div style={{ width: 28, height: 28, borderRadius: '50%', background: step.maneuver.type === 'arrive' ? 'var(--brand-50)' : 'var(--surface-sunken)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                      {Icon(maneuverIcon(step.maneuver.type, step.maneuver.modifier), 14, { stroke: step.maneuver.type === 'arrive' ? 'var(--brand-600)' : 'var(--text-muted)' })}
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0, paddingTop: 4 }}>
-                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: 13, color: 'var(--text-primary)', fontWeight: 500, lineHeight: 1.3 }}>{maneuverText(step)}</div>
-                      {step.distance > 0 && <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--text-faint)', marginTop: 2 }}>{fmtDist(step.distance)}</div>}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ))
           )}
           <div style={{ height: 8 }} />
         </div>
@@ -3191,19 +2814,12 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
             )}
             <Btn variant="primary" size="lg" fullWidth
               leadingIcon={Icon('Navigation', 18)}
-              style={{ opacity: (tripSales.length && route) ? 1 : 0.5 }}
+              style={{ opacity: tripSales.length ? 1 : 0.5 }}
               onClick={() => {
-                if (tripSales.length && route) {
-                  // Create/unlock the AudioContext inside this click handler so the
-                  // browser's autoplay gate is satisfied before the arrival chime fires later.
-                  try {
-                    const Ctx = window.AudioContext || window.webkitAudioContext;
-                    if (Ctx) { const ctx = audioCtxRef.current || (audioCtxRef.current = new Ctx()); if (ctx.state === 'suspended') ctx.resume(); }
-                  } catch (_) {}
-                  setNavMode(true);
-                }
+                const url = tripSales.length ? buildGoogleMapsTripUrl(ordered) : null;
+                if (url) window.open(url, '_blank');
               }}>
-              Start Route
+              Open in Google Maps
             </Btn>
           </div>
         </div>
