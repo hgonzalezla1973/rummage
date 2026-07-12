@@ -2182,6 +2182,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   const [reminders, setReminders] = useState(true);
   const [dailyDigest, setDailyDigest] = useState(!!authUser?.digestOptIn);
   const [digestToast, setDigestToast] = useState(null);
+  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
+  const toggleSound = (checked) => { setSoundEnabled(checked); setSoundOn(checked); };
 
   const syncDigestSubscription = (enabled, overrides={}) => {
     const emailToUse = overrides.email ?? digestEmail;
@@ -2312,6 +2314,12 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           {onOpenNotifications && (
             <ListRow icon={Icon('BellRing',18)} label="View notifications" trailing={chev} onClick={onOpenNotifications} />
           )}
+        </Card>
+
+        {/* Sound */}
+        <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Sound</div>
+        <Card padded={false}>
+          <ListRow first icon={Icon(soundOn ? 'Volume2' : 'VolumeX',18)} label="Sound effects" sublabel="Pings, chimes, and confetti sounds" trailing={<Switch checked={soundOn} onChange={toggleSound} />} />
         </Card>
 
         {/* My Listings */}
@@ -3889,8 +3897,6 @@ function App() {
   const [scale, setScale] = useState(1);
   const [libsReady, setLibsReady] = useState(false);
   const frameRef = useRef(null);
-  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
-  const toggleSound = () => { const next = !soundOn; setSoundEnabled(next); setSoundOn(next); };
 
   // Auto geo-detection: if the device's current GPS location resolves to a
   // different ZIP than the saved home ZIP (e.g. you're traveling), search
@@ -4152,21 +4158,6 @@ function App() {
           </span>
         </div>
         <div style={{position:'absolute',top:11,left:'50%',transform:'translateX(-50%)',width:120,height:34,background:'#14110F',borderRadius:20,zIndex:75}} />
-
-        {/* Sound on/off toggle -- lives in the status bar's dead space between
-            the clock and the notch, since that band is a fixed overlay no
-            screen ever renders into. (It used to float over the screen
-            content itself, top-right, which collided with the heart/share
-            buttons on the sale detail screen.) */}
-        <div style={{position:'absolute',top:11,left:88,zIndex:76}}>
-          <IconButton
-            icon={Icon(soundOn ? 'Volume2' : 'VolumeX', 16)}
-            shape="circle"
-            size="sm"
-            aria-label={soundOn ? 'Mute sound effects' : 'Unmute sound effects'}
-            onClick={toggleSound}
-          />
-        </div>
 
         {/* First-run animated walkthrough */}
         {showWalkthrough && <WalkthroughScreen onDone={finishWalkthrough} />}
