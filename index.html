@@ -1067,7 +1067,7 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
         </div>
         <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(0,0,0,.32) 0%,transparent 30%,transparent 65%,rgba(0,0,0,.18) 100%)',pointerEvents:'none'}} />
         <div style={{position:'absolute',top:'var(--safe-top)',left:14,right:14,display:'flex',justifyContent:'space-between'}}>
-          <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
+          <IconButton icon={Icon('ChevronLeft',22,{stroke:'var(--brand-500)',sw:2.5})} shape="circle" aria-label="Back" onClick={onBack} />
           <div style={{display:'flex',gap:8}}>
             <IconButton icon={Icon('Share',19)} shape="circle" aria-label="Share" onClick={()=>onShare && onShare()} />
             <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
