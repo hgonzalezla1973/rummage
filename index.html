@@ -1857,6 +1857,13 @@ function AuthScreen({ onAuth }) {
         <Field label="Phone number" value={phone} onChange={v=>{setPhone(v);setErrors(p=>({...p,phone:''}));}}
           type="tel" placeholder="(555) 123-4567" error={errors.phone} autoCapitalize="none" />
 
+        {mode==='signup' && (
+          <p style={{fontFamily:'var(--font-sans)',fontSize:11.5,color:'var(--text-faint)',lineHeight:1.5,margin:'-6px 0 0'}}>
+            By entering your phone number and creating an account, you agree to receive a one-time SMS verification code from Rummage. Message and data rates may apply. We don't send marketing texts. See our{' '}
+            <a href="/sms-consent" target="_blank" rel="noopener noreferrer" style={{color:'var(--accent)',fontWeight:600}}>SMS Policy</a>.
+          </p>
+        )}
+
         <Field label="Password" value={password} onChange={v=>{setPassword(v);setErrors(p=>({...p,password:''}));}}
           type={showPw?'text':'password'} placeholder={mode==='signup'?'At least 6 characters':'Your password'} error={errors.password}
           trailing={{icon:Icon(showPw?'EyeOff':'Eye',18,{stroke:'currentColor'}),onClick:()=>setShowPw(p=>!p)}} />
