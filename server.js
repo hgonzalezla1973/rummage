@@ -38,7 +38,10 @@ const PORT = process.env.PORT || 8080;
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://rummage-lgxw.onrender.com';
 
 app.use(cors());
-app.use(express.json());
+// Default 100kb is way too small for a base64-encoded photo upload (Price
+// Check feature) -- the client downscales images before sending, but a
+// generous limit is still needed as headroom.
+app.use(express.json({ limit: '12mb' }));
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // In-memory verification codes: email → { code, expiresAt }
@@ -2580,6 +2583,94 @@ async function fetchGoogleListings(zip) {
   toCache(cacheKey, results);
   return results;
 }
+
+// ── Price Check (Google Vision + Google Custom Search) ─────────────────────
+// Identifies an item from a photo via Vision API's Web Detection (the same
+// reverse-image-search tech behind Google Lens), then runs a real Google
+// search for that item via Custom Search and pulls price mentions out of
+// the result snippets to build a high/low estimate with cited sources.
+// Reuses the same GOOGLE_API_KEY/GOOGLE_CX env vars as fetchGoogleListings
+// above -- one Google Cloud project with both Vision API and a Programmable
+// Search Engine enabled covers both features.
+
+const PRICE_RE = /\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/g;
+
+function extractPrices(text) {
+  if (!text) return [];
+  const out = [];
+  let m;
+  PRICE_RE.lastIndex = 0;
+  while ((m = PRICE_RE.exec(text))) {
+    const n = parseFloat(m[1].replace(/,/g, ''));
+    // Sanity range -- filters out stray dollar amounts that are clearly not
+    // a resale price for a secondhand item (e.g. "$1 million" mentions).
+    if (Number.isFinite(n) && n >= 1 && n <= 50000) out.push(n);
+  }
+  return out;
+}
+
+async function identifyItemFromImage(base64Image) {
+  const key = process.env.GOOGLE_API_KEY;
+  const body = {
+    requests: [{
+      image: { content: base64Image },
+      features: [
+        { type: 'WEB_DETECTION', maxResults: 10 },
+        { type: 'LABEL_DETECTION', maxResults: 5 },
+      ],
+    }],
+  };
+  const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Vision API error');
+  const annotation = data.responses?.[0];
+  const web = annotation?.webDetection;
+  const bestGuess = web?.bestGuessLabels?.[0]?.label;
+  const webEntity = web?.webEntities?.find(e => e.description && e.score > 0.5)?.description;
+  const topLabel = annotation?.labelAnnotations?.[0]?.description;
+  const itemName = bestGuess || webEntity || topLabel;
+  if (!itemName) throw new Error("Couldn't identify this item from the photo -- try a clearer or closer shot.");
+  return itemName;
+}
+
+async function searchItemPrices(itemName) {
+  const key = process.env.GOOGLE_API_KEY;
+  const cx  = process.env.GOOGLE_CX;
+  const url = `https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}&q=${encodeURIComponent(itemName + ' price')}&num=10`;
+  const res  = await fetch(url);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error?.message || 'Search API error');
+  const sources = [];
+  for (const item of (data.items || [])) {
+    const prices = extractPrices(`${item.title} ${item.snippet || ''}`);
+    if (prices.length) sources.push({ title: item.title, url: item.link, price: prices[0] });
+  }
+  return sources;
+}
+
+// POST /api/price-check  { image: base64 (with or without data: prefix) }
+app.post('/api/price-check', async (req, res) => {
+  const key = process.env.GOOGLE_API_KEY;
+  const cx  = process.env.GOOGLE_CX;
+  if (!key || !cx) {
+    return res.status(503).json({ error: "Price Check isn't set up yet — add GOOGLE_API_KEY and GOOGLE_CX in the server environment." });
+  }
+  const image = (req.body.image || '').replace(/^data:image\/\w+;base64,/, '');
+  if (!image) return res.status(400).json({ error: 'No photo provided' });
+
+  try {
+    const itemName = await identifyItemFromImage(image);
+    const sources = await searchItemPrices(itemName);
+    if (!sources.length) return res.json({ itemName, low: null, high: null, sources: [] });
+    const prices = sources.map(s => s.price);
+    res.json({ itemName, low: Math.min(...prices), high: Math.max(...prices), sources: sources.slice(0, 8) });
+  } catch (err) {
+    console.error('Price Check error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Listings aggregation (shared by the /api/listings route and the daily digest job) ──
 async function getListingsForZip(zip, radiusMi) {

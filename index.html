@@ -2237,6 +2237,160 @@ function TermsScreen({ onBack }) {
   );
 }
 
+// ── Price Check ───────────────────────────────────────────────────────────────
+// Downscales a photo client-side (long edge capped, re-encoded as JPEG)
+// before it ever reaches the server -- a phone camera photo can be 4-12MB;
+// nothing about identifying an item needs that resolution, and keeping the
+// upload small matters more on mobile data than the quality difference.
+function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Could not read that file'));
+    reader.onload = () => {
+      img.onerror = () => reject(new Error('Could not read that image'));
+      img.onload = () => {
+        const scale = Math.min(1, maxEdge / Math.max(img.width, img.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function PriceCheckScreen({ onBack }) {
+  const [photo, setPhoto]     = useState(null); // data URL, downscaled
+  const [loading, setLoading] = useState(false);
+  const [result, setResult]   = useState(null); // { itemName, low, high, sources }
+  const [error, setError]     = useState(null);
+  const fileInputRef = useRef(null);
+
+  const onFilePicked = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ''; // allow picking the same file again later
+    if (!file) return;
+    setError(null); setResult(null);
+    try {
+      setPhoto(await downscalePhoto(file));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
+
+  const checkValue = () => {
+    if (!photo) return;
+    setLoading(true); setError(null); setResult(null);
+    fetch('/api/price-check', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image: photo }),
+    }).then(r => r.json()).then(data => {
+      setLoading(false);
+      if (data.error) { setError(data.error); return; }
+      setResult(data);
+    }).catch(() => { setLoading(false); setError('Could not reach the server. Make sure server.js is running.'); });
+  };
+
+  const reset = () => { setPhoto(null); setResult(null); setError(null); };
+
+  return (
+    <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
+          <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
+          <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Price Check</h1>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'20px 20px 48px',display:'flex',flexDirection:'column',gap:18}}>
+        {!photo && (
+          <>
+            <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',lineHeight:1.5,margin:0}}>
+              Snap or upload a photo of an item — Rummage identifies it and estimates a value range from real prices found across the web.
+            </p>
+            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={onFilePicked} />
+            <button type="button" onClick={()=>fileInputRef.current?.click()} style={{
+              border:'2px dashed var(--border-strong)', borderRadius:'var(--radius-xl)', background:'var(--surface-sunken)',
+              padding:'48px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:10, cursor:'pointer',
+            }}>
+              <div style={{width:56,height:56,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                {Icon('Camera',26,{stroke:'var(--brand-500)'})}
+              </div>
+              <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--text-primary)'}}>Take or choose a photo</span>
+              <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)'}}>JPEG or PNG</span>
+            </button>
+          </>
+        )}
+
+        {error && (
+          <div style={{display:'flex',alignItems:'flex-start',gap:10,background:'var(--amber-bg)',borderRadius:'var(--radius-lg)',padding:'12px 14px'}}>
+            {Icon('AlertTriangle',16,{stroke:'var(--amber-600)'})}
+            <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--amber-600)',lineHeight:1.5}}>{error}</span>
+          </div>
+        )}
+
+        {photo && (
+          <div style={{borderRadius:'var(--radius-xl)',overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+            <img src={photo} style={{width:'100%',display:'block',maxHeight:280,objectFit:'cover'}} />
+          </div>
+        )}
+
+        {photo && !result && (
+          <Btn variant="primary" size="lg" fullWidth onClick={checkValue}
+            style={{opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
+            leadingIcon={loading?Icon('Loader',18,{stroke:'#fff'}):Icon('Search',18)}>
+            {loading ? 'Analyzing photo…' : 'Check Value'}
+          </Btn>
+        )}
+
+        {result && (
+          <>
+            <div style={{textAlign:'center',padding:'8px 0'}}>
+              <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',marginBottom:6}}>{result.itemName}</div>
+              {result.low != null ? (
+                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--brand-500)',letterSpacing:'-0.02em'}}>
+                  ${result.low}{result.high !== result.low ? ` – $${result.high}` : ''}
+                </div>
+              ) : (
+                <div style={{fontFamily:'var(--font-sans)',fontSize:15,color:'var(--text-muted)',padding:'12px 0'}}>
+                  Couldn't find pricing for this item — try a clearer photo or a different angle.
+                </div>
+              )}
+            </div>
+
+            {result.sources?.length > 0 && (
+              <div>
+                <div className="rmg-eyebrow" style={{marginBottom:8}}>Sources</div>
+                <Card padded={false}>
+                  {result.sources.map((s,i) => (
+                    <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" style={{
+                      display:'flex',alignItems:'center',gap:10,padding:'12px 14px',textDecoration:'none',
+                      borderTop: i>0 ? '1px solid var(--line)' : 'none',
+                    }}>
+                      <div style={{flex:1,minWidth:0}}>
+                        <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.title}</div>
+                        <div style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{new URL(s.url).hostname.replace(/^www\./,'')}</div>
+                      </div>
+                      <div style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:14,color:'var(--brand-500)',flexShrink:0}}>${s.price}</div>
+                    </a>
+                  ))}
+                </Card>
+              </div>
+            )}
+
+            <Btn variant="ghost" size="lg" fullWidth leadingIcon={Icon('RotateCcw',16)} onClick={reset}>Check another item</Btn>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Account Screen ─────────────────────────────────────────────────────────────
 function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough }) {
   const [name, setName] = useState(authUser?.name || 'Rummager');
@@ -2278,7 +2432,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types'
   const [sheet, setSheet] = useState(null);
   const [draft, setDraft] = useState({});
-  const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'terms' | 'privacy'
+  const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'terms' | 'privacy' | 'pricecheck'
   const [deleteConfirm, setDeleteConfirm] = useState(null); // listing id pending delete
 
   const openSheet = (key) => {
@@ -2433,6 +2587,12 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
             ))}
           </div>
         )}
+
+        {/* Tools */}
+        <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Tools</div>
+        <Card padded={false}>
+          <ListRow first icon={Icon('Camera',18)} label="Price Check" sublabel="Snap a photo, get an estimated value" trailing={chev} onClick={()=>setPage('pricecheck')} />
+        </Card>
 
         {/* Support */}
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Support</div>
@@ -2591,6 +2751,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       {page==='feedback' && <FeedbackScreen onBack={()=>setPage(null)} userEmail={authUser?.email} />}
       {page==='terms'    && <TermsScreen    onBack={()=>setPage(null)} />}
       {page==='privacy'  && <PrivacyScreen  onBack={()=>setPage(null)} />}
+      {page==='pricecheck' && <PriceCheckScreen onBack={()=>setPage(null)} />}
       {digestToast && (
         <div style={{position:'fixed',bottom:100,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',zIndex:100}}>
           {digestToast}
