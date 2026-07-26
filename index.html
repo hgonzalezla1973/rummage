@@ -1397,7 +1397,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
 
 function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage,
     homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
-    activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip }) {
+    activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
   const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
@@ -1452,6 +1452,18 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
               {t.label}
             </FilterChip>
           ))}
+          {onOpenVintageStores && (
+            <button type="button" onClick={onOpenVintageStores} style={{
+              display:'inline-flex', alignItems:'center', gap:5,
+              padding:'9px 18px', borderRadius:'var(--radius-pill)', border:'none',
+              background:'var(--tape-500)', color:'var(--ink-900)',
+              fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
+              cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
+              boxShadow:'var(--shadow-sm)',
+            }}>
+              {Icon('Store',15,{stroke:'var(--ink-900)'})} Thrift Stores
+            </button>
+          )}
           <FilterChip leadingIcon={Icon('Clock',15)} selected={openNow} onClick={()=>{ setOpenNow(p=>!p); setWithinTwoWeeks(false); }}>Open now</FilterChip>
           <FilterChip leadingIcon={Icon('CalendarRange',15)} selected={withinTwoWeeks} onClick={()=>{ setWithinTwoWeeks(p=>!p); setOpenNow(false); }}>Within 2 weeks</FilterChip>
         </div>
@@ -4203,6 +4215,7 @@ function App() {
   const [itemsView, setItemsView] = useState(null); // null | {mode:'gallery'} | {mode:'item', idx}
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [vintageStoresOpen, setVintageStoresOpen] = useState(false);
   const [tripIds, setTripIds] = useState(() => { try { return JSON.parse(localStorage.getItem('rummage-trip') || '[]'); } catch { return []; } });
 
   const toggleTrip = (id) => setTripIds(prev => {
@@ -4391,7 +4404,8 @@ function App() {
             openNow={openNow} setOpenNow={setOpenNow}
             withinTwoWeeks={withinTwoWeeks} setWithinTwoWeeks={setWithinTwoWeeks}
             keyword={keyword} onClearKeyword={()=>setKeyword('')}
-            tripIds={tripIds} onToggleTrip={toggleTrip} />
+            tripIds={tripIds} onToggleTrip={toggleTrip}
+            onOpenVintageStores={()=>setVintageStoresOpen(true)} />
         )}
         {tab==='saved' && !detailSale && (
           <SavedScreen sales={allSales} onOpenSale={openSaleDetail} onToggleSave={toggleSave}
@@ -4446,6 +4460,10 @@ function App() {
         {/* Filters sheet */}
         {filtersOpen && (
           <FiltersSheet onClose={()=>setFiltersOpen(false)} radiusMi={radiusMi} setRadiusMi={setRadiusMi} count={salesInRadius.length} />
+        )}
+
+        {vintageStoresOpen && (
+          <VintageStoresScreen onBack={()=>setVintageStoresOpen(false)} zip={zip} tripIds={tripIds} onToggleTrip={toggleTrip} onStoresLoaded={addVintageStores} />
         )}
 
 
