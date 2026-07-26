@@ -41,7 +41,7 @@ app.use(cors());
 app.use(express.json());
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
-// In-memory verification codes: phone (E.164) → { code, expiresAt }
+// In-memory verification codes: email → { code, expiresAt }
 const verifyCodes = new Map();
 
 function makeCode() {
@@ -102,39 +102,60 @@ async function sendTwilioSMS({ to, body }) {
   return { ok: true, id: data.sid };
 }
 
-// POST /api/send-verification  { phone }
+// POST /api/send-verification  { email }
+// Reverted from phone/Twilio SMS back to email/Resend -- the toll-free SMS
+// number is stuck in a Twilio verification limbo (rejected, then blocked
+// from re-registering entirely) with no fast resolution in sight, while
+// Resend email has been working reliably all along. sendTwilioSMS() and
+// normalizePhone() above are left in place, unused, in case SMS verification
+// gets revisited once/if the Twilio account issue is resolved.
 app.post('/api/send-verification', async (req, res) => {
-  const phone = normalizePhone(req.body.phone);
-  if (!phone) return res.status(400).json({ error: 'Enter a valid phone number' });
+  const email = (req.body.email || '').trim().toLowerCase();
+  if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Enter a valid email' });
 
   const code = makeCode();
-  verifyCodes.set(phone, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+  verifyCodes.set(email, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
+
+  const html = `
+  <div style="background:#EDE6D6;padding:32px 16px">
+    <div style="max-width:480px;margin:0 auto;background:#FBF8F0;border-radius:16px;padding:32px 24px;font-family:Arial,Helvetica,sans-serif;text-align:center">
+      <div style="display:inline-block;width:60px;height:60px;border-radius:50%;background:#C1272D;line-height:60px;font-size:28px">📍</div>
+      <h1 style="font-size:24px;font-weight:900;color:#211D17;margin:16px 0 4px;letter-spacing:-0.02em">Verify your email</h1>
+      <p style="color:#6B6252;font-size:14px;margin:0 0 24px">Enter this code in Rummage to confirm your account.</p>
+      <div style="background:#F1EAD6;border-radius:12px;padding:24px;margin:0 0 20px">
+        <div style="font-size:38px;font-weight:900;letter-spacing:10px;color:#C1272D;font-family:monospace">${code}</div>
+      </div>
+      <p style="color:#9C9280;font-size:12px;margin:0">Expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+    </div>
+  </div>`;
 
   try {
-    const result = await sendTwilioSMS({
-      to: phone,
-      body: `${code} is your Rummage verification code. Expires in 10 minutes.`,
+    const result = await sendResendEmail({
+      to: email,
+      subject: `${code} is your Rummage verification code`,
+      html,
+      text: `Your Rummage verification code is: ${code}\n\nExpires in 10 minutes.`,
     });
     if (result.devMode) return res.json(result);
-    console.log(`📲 Verification text sent to ${phone} (sid: ${result.id})`);
+    console.log(`✉️  Verification email sent to ${email} (id: ${result.id})`);
     res.json({ ok: true });
   } catch (err) {
-    console.error('Twilio error:', err.message);
-    res.status(500).json({ error: 'Failed to send text: ' + err.message });
+    console.error('Resend error:', err.message);
+    res.status(500).json({ error: 'Failed to send email: ' + err.message });
   }
 });
 
-// POST /api/check-code  { phone, code }
+// POST /api/check-code  { email, code }
 app.post('/api/check-code', (req, res) => {
-  const phone = normalizePhone(req.body.phone);
+  const email = (req.body.email || '').trim().toLowerCase();
   const code  = (req.body.code || '').trim();
-  const entry = phone ? verifyCodes.get(phone) : null;
+  const entry = verifyCodes.get(email);
 
-  if (!entry)              return res.status(400).json({ error: 'No code found for this number' });
-  if (Date.now() > entry.expiresAt) { verifyCodes.delete(phone); return res.status(400).json({ error: 'Code expired' }); }
+  if (!entry)              return res.status(400).json({ error: 'No code found for this email' });
+  if (Date.now() > entry.expiresAt) { verifyCodes.delete(email); return res.status(400).json({ error: 'Code expired' }); }
   if (entry.code !== code) return res.status(400).json({ error: 'Incorrect code' });
 
-  verifyCodes.delete(phone);
+  verifyCodes.delete(email);
   res.json({ ok: true });
 });
 
