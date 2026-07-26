@@ -927,7 +927,7 @@ function PhotoPlaceholder({ height, type = 'yard', blurb, title }) {
 // of a photo when a listing has no images (but does have coordinates).
 function MapPlaceholder({ height, width, lat, lng, type='yard', id='ph', zoom=15 }) {
   return (
-    <div style={{position:'relative', height, width: width || '100%', flexShrink:0, overflow:'hidden', background:'var(--surface-sunken)'}}>
+    <div style={{position:'relative', zIndex:0, isolation:'isolate', height, width: width || '100%', flexShrink:0, overflow:'hidden', background:'var(--surface-sunken)'}}>
       <RealMap sales={[{ id, lat, lng, type }]} selectedId={id} onSelect={()=>{}}
         centerLat={lat} centerLng={lng} zoom={zoom} interactive={false} />
     </div>
@@ -1007,6 +1007,81 @@ function useCountdown(dateLabel, timeLabel) {
 }
 
 // ── Photo gallery ─────────────────────────────────────────────────────────────
+// Full-screen photo viewer -- tap any real photo in PhotoGallery to open.
+// Swipe or use the arrow buttons to move between photos, double-tap (or the
+// zoom button) to enlarge further, pinch on touch devices. Purely a viewer:
+// no save/share actions duplicated here, just Escape/X to close.
+function PhotoLightbox({ images, startIndex=0, onClose }) {
+  const [idx, setIdx] = useState(startIndex);
+  const [zoomed, setZoomed] = useState(false);
+  const [dragStart, setDragStart] = useState(null);
+  const [dragDelta, setDragDelta] = useState(0);
+  const total = images.length;
+  const clamp = n => Math.max(0, Math.min(total-1, n));
+
+  useEffect(() => {
+    const onKey = e => { if (e.key==='Escape') onClose(); if (e.key==='ArrowLeft') setIdx(i=>clamp(i-1)); if (e.key==='ArrowRight') setIdx(i=>clamp(i+1)); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
+  const onTouchStart = e => { if (zoomed) return; setDragStart(e.touches[0].clientX); };
+  const onTouchMove  = e => { if (zoomed || dragStart==null) return; setDragDelta(e.touches[0].clientX - dragStart); };
+  const onTouchEnd   = () => {
+    if (Math.abs(dragDelta) > 60) setIdx(i => clamp(i + (dragDelta<0?1:-1)));
+    setDragStart(null); setDragDelta(0);
+  };
+
+  return (
+    <div style={{position:'absolute',inset:0,zIndex:200,background:'rgba(10,9,7,.97)',display:'flex',flexDirection:'column'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'var(--safe-top) 14px 0',flexShrink:0}}>
+        <span style={{fontFamily:'var(--font-mono)',fontSize:12,color:'rgba(255,255,255,.7)',padding:'8px 0'}}>{idx+1} / {total}</span>
+        <div style={{display:'flex',gap:8}}>
+          <button type="button" onClick={()=>setZoomed(z=>!z)} aria-label={zoomed?'Zoom out':'Zoom in'}
+            style={{width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,.14)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {Icon(zoomed?'ZoomOut':'ZoomIn',18,{stroke:'#fff'})}
+          </button>
+          <button type="button" onClick={onClose} aria-label="Close"
+            style={{width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,.14)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+            {Icon('X',20,{stroke:'#fff'})}
+          </button>
+        </div>
+      </div>
+      <div style={{flex:1,position:'relative',overflow:'hidden'}}
+        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+        <div style={{display:'flex',width:total*100+'%',height:'100%',
+          transform:'translateX(calc('+(-idx*(100/total))+'% + '+(zoomed?0:dragDelta/total)+'px))',
+          transition:dragStart!=null?'none':'transform .32s var(--ease-out)'}}>
+          {images.map((src,i) => (
+            <div key={i} onDoubleClick={()=>setZoomed(z=>!z)} style={{width:(100/total)+'%',height:'100%',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
+              <img src={proxyImgUrl(src)} style={{
+                width: zoomed && i===idx ? 'auto' : '100%',
+                height: zoomed && i===idx ? 'auto' : '100%',
+                maxWidth: zoomed && i===idx ? 'none' : '100%',
+                maxHeight: zoomed && i===idx ? 'none' : '100%',
+                transform: zoomed && i===idx ? 'scale(2.2)' : 'scale(1)',
+                transformOrigin:'center',
+                objectFit:'contain',cursor:zoomed?'zoom-out':'zoom-in',
+                transition:'transform .25s var(--ease-out)',
+              }} onClick={()=>i===idx && setZoomed(z=>!z)} />
+            </div>
+          ))}
+        </div>
+      </div>
+      {!zoomed && idx>0 && (
+        <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,.14)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          {Icon('ChevronLeft',20,{stroke:'#fff'})}
+        </button>
+      )}
+      {!zoomed && idx<total-1 && (
+        <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,.14)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
+          {Icon('ChevronRight',20,{stroke:'#fff'})}
+        </button>
+      )}
+    </div>
+  );
+}
+
 function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, onShare }) {
   const GRADS = {
     estate:['linear-gradient(135deg,#DCE4EF 0%,#B7C7DE 100%)','linear-gradient(135deg,#C7D3E5 0%,#7C97BE 100%)','linear-gradient(135deg,#A8BEDA 0%,#2C4A7C 100%)'],
@@ -1021,6 +1096,7 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
   const [dragDelta, setDragDelta] = useState(0);
   const [dragging, setDragging] = useState(false);
   const thumbsRef = useRef(null);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
   const clamp = n => Math.max(0, Math.min(total-1, n));
   const isUrl = s => typeof s==='string' && (s.startsWith('http') || s.startsWith('data:'));
 
@@ -1053,8 +1129,8 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
             transform:'translateX(calc('+(-idx*(100/total))+'% + '+(dragDelta/total)+'px))',
             transition:dragging?'none':'transform .32s var(--ease-out)',userSelect:'none'}}>
           {slides.map((slide,i) => (
-            <div key={i} style={{width:(100/total)+'%',height:'100%',flexShrink:0,overflow:'hidden',
-              background:isUrl(slide)?'#111':'transparent'}}>
+            <div key={i} onClick={()=>isUrl(slide) && setLightboxOpen(true)} style={{width:(100/total)+'%',height:'100%',flexShrink:0,overflow:'hidden',
+              background:isUrl(slide)?'#111':'transparent',cursor:isUrl(slide)?'zoom-in':'default'}}>
               {isUrl(slide)
                 ? <SaleImg src={slide} height="100%" type={type} blurb={sale?.blurb} title={sale?.title} style={{width:'100%',height:'100%',pointerEvents:'none'}} />
                 : slide==='__MAP__'
@@ -1103,6 +1179,10 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
             </button>
           ))}
         </div>
+      )}
+
+      {lightboxOpen && hasPhotos && (
+        <PhotoLightbox images={slides.filter(isUrl)} startIndex={idx} onClose={()=>setLightboxOpen(false)} />
       )}
     </div>
   );
@@ -2986,7 +3066,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
             ))}
           </div>
         </div>
-        <div style={{margin:'0 18px',height:130,borderRadius:'var(--radius-xl)',overflow:'hidden',position:'relative',boxShadow:'var(--shadow-sm)'}}>
+        <div style={{margin:'0 18px',height:130,borderRadius:'var(--radius-xl)',overflow:'hidden',position:'relative',zIndex:0,isolation:'isolate',boxShadow:'var(--shadow-sm)'}}>
           <RealMap sales={s.lat ? [s] : []} selectedId={s.id} onSelect={()=>{}}
             centerLat={s.lat || 33.9792} centerLng={s.lng || -118.0328}
             zoom={15} interactive={false} />
