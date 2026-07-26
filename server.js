@@ -2672,6 +2672,61 @@ app.post('/api/price-check', async (req, res) => {
   }
 });
 
+// ── Vintage store locator (Google Places API) ──────────────────────────────
+// Google has no "thrift_store" / "antique_store" place type, so this leans on
+// a keyword search rather than the `type` param -- the standard workaround
+// for niche categories the Places taxonomy doesn't cover.
+async function findVintageStores(lat, lng) {
+  const key = process.env.GOOGLE_API_KEY;
+  const url = `https://maps.googleapis.com/maps/api/place/nearbysearch/json?location=${lat},${lng}&rankby=distance&keyword=${encodeURIComponent('thrift vintage antique consignment')}&key=${key}`;
+  const res = await fetch(url);
+  const data = await res.json();
+  if (data.status !== 'OK' && data.status !== 'ZERO_RESULTS') {
+    throw new Error(data.error_message || `Places API error: ${data.status}`);
+  }
+  return (data.results || []).slice(0, 10).map(r => {
+    const sLat = r.geometry?.location?.lat, sLng = r.geometry?.location?.lng;
+    return {
+      id: `store-${r.place_id}`,
+      title: r.name,
+      type: 'store',
+      address: r.vicinity || '',
+      neighborhood: r.vicinity || '',
+      lat: sLat, lng: sLng,
+      distanceMi: (sLat != null && sLng != null) ? Math.round(distanceMiles(lat, lng, sLat, sLng) * 10) / 10 : null,
+      rating: r.rating || null,
+      ratingsCount: r.user_ratings_total || null,
+      openNow: r.opening_hours?.open_now ?? null,
+      dateLabel: '',
+    };
+  });
+}
+
+// GET /api/vintage-stores?zip=90601
+app.get('/api/vintage-stores', async (req, res) => {
+  const key = process.env.GOOGLE_API_KEY;
+  if (!key) {
+    return res.status(503).json({ error: "Vintage store search isn't set up yet — add GOOGLE_API_KEY in the server environment." });
+  }
+  const zip = req.query.zip;
+  if (!zip) return res.status(400).json({ error: 'Missing zip' });
+
+  const cacheKey = `vintage:${zip}`;
+  const cached = fromCache(cacheKey);
+  if (cached) return res.json(cached);
+
+  try {
+    const center = await geocodeZip(zip);
+    if (!center) throw new Error(`Cannot geocode ZIP: ${zip}`);
+    const payload = { stores: await findVintageStores(center.lat, center.lng) };
+    toCache(cacheKey, payload);
+    res.json(payload);
+  } catch (err) {
+    console.error('Vintage store search error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // ── Listings aggregation (shared by the /api/listings route and the daily digest job) ──
 async function getListingsForZip(zip, radiusMi) {
   const cacheKey = `all:${zip}:${radiusMi}`;

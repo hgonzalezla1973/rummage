@@ -938,16 +938,25 @@ function MapPlaceholder({ height, width, lat, lng, type='yard', id='ph', zoom=15
 // there are no coordinates either) on load error.
 function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }) {
   const [failed, setFailed] = React.useState(false);
+  const [tall, setTall] = React.useState(false);
   if (!src || failed) {
     if (lat != null && lng != null) return <MapPlaceholder height={height} width={width} lat={lat} lng={lng} type={type} id={id} />;
     return <PhotoPlaceholder height={height} type={type} blurb={blurb} title={title} />;
   }
+  const ps = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
+  // Sellers on OfferUp/Facebook often post a tall flyer graphic instead of a
+  // photo. Hard-cropping that to fill a landscape/square card slices off the
+  // date, address, or headline, so letterbox portrait images instead of
+  // cover-cropping them.
   return (
-    <img
-      src={proxyImgUrl(src)}
-      onError={() => setFailed(true)}
-      style={{ width: width || '100%', height, objectFit: 'cover', display: 'block', ...style }}
-    />
+    <div style={{ width: width || '100%', height, overflow:'hidden', background: tall ? ps.bg : 'transparent', ...style }}>
+      <img
+        src={proxyImgUrl(src)}
+        onError={() => setFailed(true)}
+        onLoad={e => { const { naturalWidth: w, naturalHeight: h } = e.target; if (w && h && h / w > 1.15) setTall(true); }}
+        style={{ width:'100%', height:'100%', objectFit: tall ? 'contain' : 'cover', display:'block' }}
+      />
+    </div>
   );
 }
 
@@ -1018,12 +1027,26 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   const [dragDelta, setDragDelta] = useState(0);
   const total = images.length;
   const clamp = n => Math.max(0, Math.min(total-1, n));
+  const zoomRef = useRef(null);
 
   useEffect(() => {
     const onKey = e => { if (e.key==='Escape') onClose(); if (e.key==='ArrowLeft') setIdx(i=>clamp(i-1)); if (e.key==='ArrowRight') setIdx(i=>clamp(i+1)); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  // transform:scale() only changes how the image is painted, not its layout
+  // box, so the scrollable container has nothing to scroll -- the zoomed-in
+  // detail beyond the original frame was unreachable. Sizing the image itself
+  // (instead of transforming it) gives the wrapper real scroll area, and we
+  // start centered since that's usually where the interesting detail is.
+  useEffect(() => {
+    if (zoomed && zoomRef.current) {
+      const el = zoomRef.current;
+      el.scrollLeft = (el.scrollWidth - el.clientWidth) / 2;
+      el.scrollTop = (el.scrollHeight - el.clientHeight) / 2;
+    }
+  }, [zoomed, idx]);
 
   const onTouchStart = e => { if (zoomed) return; setDragStart(e.touches[0].clientX); };
   const onTouchMove  = e => { if (zoomed || dragStart==null) return; setDragDelta(e.touches[0].clientX - dragStart); };
@@ -1052,30 +1075,35 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
         <div style={{display:'flex',width:total*100+'%',height:'100%',
           transform:'translateX(calc('+(-idx*(100/total))+'% + '+(zoomed?0:dragDelta/total)+'px))',
           transition:dragStart!=null?'none':'transform .32s var(--ease-out)'}}>
-          {images.map((src,i) => (
-            <div key={i} onDoubleClick={()=>setZoomed(z=>!z)} style={{width:(100/total)+'%',height:'100%',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',overflow:'auto'}}>
-              <img src={proxyImgUrl(src)} style={{
-                width: zoomed && i===idx ? 'auto' : '100%',
-                height: zoomed && i===idx ? 'auto' : '100%',
-                maxWidth: zoomed && i===idx ? 'none' : '100%',
-                maxHeight: zoomed && i===idx ? 'none' : '100%',
-                transform: zoomed && i===idx ? 'scale(2.2)' : 'scale(1)',
-                transformOrigin:'center',
-                objectFit:'contain',cursor:zoomed?'zoom-out':'zoom-in',
-                transition:'transform .25s var(--ease-out)',
-              }} onClick={()=>i===idx && setZoomed(z=>!z)} />
-            </div>
-          ))}
+          {images.map((src,i) => {
+            const active = zoomed && i===idx;
+            return (
+              <div key={i} ref={active ? zoomRef : null} onDoubleClick={()=>setZoomed(z=>!z)} style={{
+                width:(100/total)+'%',height:'100%',flexShrink:0,
+                display: active ? 'block' : 'flex',
+                alignItems:'center',justifyContent:'center',
+                overflow: active ? 'auto' : 'hidden',
+                WebkitOverflowScrolling:'touch',
+              }}>
+                <img src={proxyImgUrl(src)} style={{
+                  width: active ? '220%' : '100%',
+                  height: active ? '220%' : '100%',
+                  objectFit:'contain',display:'block',
+                  cursor: zoomed && i===idx ? 'zoom-out' : 'zoom-in',
+                }} onClick={()=>i===idx && setZoomed(z=>!z)} />
+              </div>
+            );
+          })}
         </div>
       </div>
       {!zoomed && idx>0 && (
-        <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,.14)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          {Icon('ChevronLeft',20,{stroke:'#fff'})}
+        <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
+          {Icon('ChevronLeft',20,{stroke:'#fff',sw:2.5})}
         </button>
       )}
       {!zoomed && idx<total-1 && (
-        <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(255,255,255,.14)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
-          {Icon('ChevronRight',20,{stroke:'#fff'})}
+        <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
+          {Icon('ChevronRight',20,{stroke:'#fff',sw:2.5})}
         </button>
       )}
     </div>
@@ -1143,20 +1171,23 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
         </div>
         <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(0,0,0,.32) 0%,transparent 30%,transparent 65%,rgba(0,0,0,.18) 100%)',pointerEvents:'none'}} />
         <div style={{position:'absolute',top:'var(--safe-top)',left:14,right:14,display:'flex',justifyContent:'space-between'}}>
-          <IconButton icon={Icon('ChevronLeft',22,{stroke:'var(--brand-500)',sw:2.5})} shape="circle" aria-label="Back" onClick={onBack} />
+          <button onClick={onBack} aria-label="Back" style={{display:'flex',alignItems:'center',gap:4,background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',borderRadius:'var(--radius-pill)',padding:'7px 14px 7px 10px',cursor:'pointer'}}>
+            {Icon('ChevronLeft',18,{stroke:'#fff',sw:2.5})}
+            <span style={{color:'#fff',fontSize:13,fontWeight:700,fontFamily:'var(--font-sans)'}}>Back</span>
+          </button>
           <div style={{display:'flex',gap:8}}>
             <IconButton icon={Icon('Share',19)} shape="circle" aria-label="Share" onClick={()=>onShare && onShare()} />
             <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
           </div>
         </div>
         {idx>0 && (
-          <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-            {Icon('ChevronLeft',18,{stroke:'var(--ink-900)'})}
+          <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
+            {Icon('ChevronLeft',18,{stroke:'#fff',sw:2.5})}
           </button>
         )}
         {idx<total-1 && (
-          <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-            {Icon('ChevronRight',18,{stroke:'var(--ink-900)'})}
+          <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
+            {Icon('ChevronRight',18,{stroke:'#fff',sw:2.5})}
           </button>
         )}
         {hasPhotos && (
@@ -1269,10 +1300,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
 // 2-column grid card — visual language borrowed from the items gallery screen
 // (square photo, capsule badges floated over it, name + meta line below).
 function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLabel, neighborhood, images, saved=false, onSave, onClick, inTrip=false, onToggleTrip, lat, lng }) {
-  const [imgFailed, setImgFailed] = useState(false);
   const thumb = images && images.length ? images[0] : null;
-  const ps = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
-  const showMap = (!thumb || imgFailed) && lat != null && lng != null;
   const live = useCountdown(dateLabel, timeLabel).status==='live';
   return (
     <Card interactive onClick={onClick} padded={false} elevation="xs"
@@ -1280,17 +1308,8 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
         border:'1.5px solid var(--success)',
         boxShadow:'0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)',
       } : {}}>
-      <div style={{position:'relative',aspectRatio:'1',background: thumb && !imgFailed ? 'var(--surface-sunken)' : ps.bg}}>
-        {thumb && !imgFailed ? (
-          <img src={proxyImgUrl(thumb)} onError={()=>setImgFailed(true)}
-            style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
-        ) : showMap ? (
-          <MapPlaceholder height="100%" width="100%" lat={lat} lng={lng} type={type} id={id} />
-        ) : (
-          <div style={{width:'100%',height:'100%',display:'flex',alignItems:'center',justifyContent:'center'}}>
-            {Icon(ps.icon,28,{stroke:ps.color,strokeWidth:1.5})}
-          </div>
-        )}
+      <div style={{position:'relative',aspectRatio:'1'}}>
+        <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
         <div style={{position:'absolute',top:6,right:6,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
         {live && <div style={{position:'absolute',bottom:8,left:8,zIndex:1000}}><Badge tone="live">Now</Badge></div>}
@@ -1381,7 +1400,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
     activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
-  const [sortBy, setSortBy] = useState('date'); // 'distance' | 'date'
+  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
   // The ±2 day / 2-week date windowing itself happens upstream in App's
   // allSales filter (withinTwoWeeks only widens that window's future edge) —
@@ -1413,7 +1432,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <span style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)'}}>{radiusMi} mi</span>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
@@ -1433,8 +1452,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
               {t.label}
             </FilterChip>
           ))}
-          <FilterChip leadingIcon={Icon('Clock',15)} selected={openNow} onClick={()=>setOpenNow(p=>!p)}>Open now</FilterChip>
-          <FilterChip leadingIcon={Icon('CalendarRange',15)} selected={withinTwoWeeks} onClick={()=>setWithinTwoWeeks(p=>!p)}>Within 2 weeks</FilterChip>
+          <FilterChip leadingIcon={Icon('Clock',15)} selected={openNow} onClick={()=>{ setOpenNow(p=>!p); setWithinTwoWeeks(false); }}>Open now</FilterChip>
+          <FilterChip leadingIcon={Icon('CalendarRange',15)} selected={withinTwoWeeks} onClick={()=>{ setWithinTwoWeeks(p=>!p); setOpenNow(false); }}>Within 2 weeks</FilterChip>
         </div>
       </div>
       {awayFromHome && (
@@ -1456,8 +1475,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
         </div>
       )}
-      {liveCount > 0 && !openNow && (
-        <button type="button" onClick={()=>setOpenNow(true)} style={{
+      {liveCount > 0 && !openNow && !withinTwoWeeks && (
+        <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
           flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
           background:'var(--success)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
           borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(22,163,74,.28)',
@@ -2391,8 +2410,102 @@ function PriceCheckScreen({ onBack }) {
   );
 }
 
+// ── Vintage Stores ────────────────────────────────────────────────────────────
+function VintageStoreCard({ store, inTrip, onToggleTrip }) {
+  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
+  return (
+    <Card padded={false} elevation="xs" style={{marginBottom:12}}>
+      <div style={{padding:'14px 16px'}}>
+        <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontWeight:800,fontSize:15,color:'var(--ink-900)',marginBottom:2}}>{store.title}</div>
+            <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{store.address}</div>
+          </div>
+          <span style={{fontSize:12,fontWeight:700,color:'var(--brand-600)',background:'var(--brand-50)',padding:'3px 9px',borderRadius:'var(--radius-pill)',flexShrink:0}}>{store.distanceMi} mi</span>
+        </div>
+        {(store.rating || store.openNow != null) && (
+          <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8}}>
+            {store.rating && (
+              <span style={{display:'inline-flex',alignItems:'center',gap:3,fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',fontWeight:600}}>
+                {Icon('Star',13,{fill:'#E8A93B',stroke:'#E8A93B'})} {store.rating}{store.ratingsCount ? ` (${store.ratingsCount})` : ''}
+              </span>
+            )}
+            {store.openNow != null && (
+              <span style={{fontFamily:'var(--font-sans)',fontSize:12,fontWeight:700,color: store.openNow ? 'var(--success)' : 'var(--text-faint)'}}>
+                {store.openNow ? 'Open now' : 'Closed'}
+              </span>
+            )}
+          </div>
+        )}
+        <div style={{display:'flex',gap:8,marginTop:12}}>
+          <Btn variant="secondary" size="sm" fullWidth leadingIcon={Icon('Navigation',14)} onClick={()=>window.open(mapsUrl,'_blank')}>Directions</Btn>
+          <Btn variant={inTrip ? 'primary' : 'secondary'} size="sm" fullWidth leadingIcon={Icon(inTrip?'Check':'Plus',14)} onClick={onToggleTrip}>
+            {inTrip ? 'In trip' : 'Add to trip'}
+          </Btn>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function VintageStoresScreen({ onBack, zip, tripIds=[], onToggleTrip, onStoresLoaded }) {
+  const [loading, setLoading] = useState(true);
+  const [stores, setStores]   = useState([]);
+  const [error, setError]     = useState(null);
+
+  useEffect(() => {
+    setLoading(true); setError(null);
+    fetch(`/api/vintage-stores?zip=${encodeURIComponent(zip)}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.error) { setError(data.error); setStores([]); }
+        else { setStores(data.stores || []); onStoresLoaded && onStoresLoaded(data.stores || []); }
+      })
+      .catch(() => setError('Could not reach the server. Make sure server.js is running.'))
+      .finally(() => setLoading(false));
+  }, [zip]);
+
+  return (
+    <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+        <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
+          <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
+          <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Vintage Stores</h1>
+        </div>
+      </div>
+
+      <div style={{flex:1,overflowY:'auto',padding:'18px 20px 48px'}}>
+        <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',lineHeight:1.5,margin:'0 0 16px'}}>
+          Thrift, vintage, antique &amp; consignment shops near {zip}, closest first.
+        </p>
+
+        {loading ? (
+          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:10,padding:'60px 0'}}>
+            {Icon('Loader',28,{stroke:'var(--text-faint)'})}
+            <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)'}}>Finding stores near you…</div>
+          </div>
+        ) : error ? (
+          <div style={{display:'flex',alignItems:'flex-start',gap:10,background:'var(--amber-bg)',borderRadius:'var(--radius-lg)',padding:'12px 14px'}}>
+            {Icon('AlertTriangle',16,{stroke:'var(--amber-600)'})}
+            <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--amber-600)',lineHeight:1.5}}>{error}</span>
+          </div>
+        ) : stores.length === 0 ? (
+          <div style={{textAlign:'center',padding:'48px 16px'}}>
+            <div style={{fontSize:40,marginBottom:10}}>🗺️</div>
+            <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>No vintage stores found nearby.</p>
+          </div>
+        ) : (
+          stores.map(store => (
+            <VintageStoreCard key={store.id} store={store} inTrip={tripIds.includes(store.id)} onToggleTrip={()=>onToggleTrip(store.id)} />
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
 // ── Account Screen ─────────────────────────────────────────────────────────────
-function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough }) {
+function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough, tripIds=[], onToggleTrip, onStoresLoaded }) {
   const [name, setName] = useState(authUser?.name || 'Rummager');
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
   const digestEmail = authUser?.email || '';
@@ -2592,6 +2705,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Tools</div>
         <Card padded={false}>
           <ListRow first icon={Icon('Camera',18)} label="Price Check" sublabel="Snap a photo, get an estimated value" trailing={chev} onClick={()=>setPage('pricecheck')} />
+          <ListRow icon={Icon('Store',18)} label="Vintage Stores" sublabel="Find thrift & antique shops near you" trailing={chev} onClick={()=>setPage('vintagestores')} />
         </Card>
 
         {/* Support */}
@@ -2752,6 +2866,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       {page==='terms'    && <TermsScreen    onBack={()=>setPage(null)} />}
       {page==='privacy'  && <PrivacyScreen  onBack={()=>setPage(null)} />}
       {page==='pricecheck' && <PriceCheckScreen onBack={()=>setPage(null)} />}
+      {page==='vintagestores' && <VintageStoresScreen onBack={()=>setPage(null)} zip={zip} tripIds={tripIds} onToggleTrip={onToggleTrip} onStoresLoaded={onStoresLoaded} />}
       {digestToast && (
         <div style={{position:'fixed',bottom:100,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',zIndex:100}}>
           {digestToast}
@@ -2995,7 +3110,10 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
             </div>
           ) : (
             ordered.map((s, i) => (
-              <div key={s.id} onClick={() => { onOpenSale(s.id); onClose(); }}
+              <div key={s.id} onClick={() => {
+                  if (s.type === 'store') { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.title)}&query_place_id=${s.id.replace('store-','')}`, '_blank'); return; }
+                  onOpenSale(s.id); onClose();
+                }}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--brand-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{i + 1}</div>
                 {s.images?.[0]
@@ -3005,7 +3123,7 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontWeight: 700, fontSize: 14, color: 'var(--ink-900)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.title}</div>
                   <div style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--text-muted)', marginTop: 1 }}>
-                    {route?.legs?.[i] ? `${fmtDist(route.legs[i].distance)} · ${fmtTime(route.legs[i].duration)}` : `${s.distanceMi} mi away`} · {s.dateLabel}
+                    {route?.legs?.[i] ? `${fmtDist(route.legs[i].distance)} · ${fmtTime(route.legs[i].duration)}` : `${s.distanceMi} mi away`}{s.dateLabel ? ` · ${s.dateLabel}` : ''}
                   </div>
                 </div>
                 <button type="button" onClick={e => { e.stopPropagation(); onToggleTrip(s.id); }}
@@ -3547,9 +3665,9 @@ function ListScreen({ onPublish }) {
   const handleFile = (e, idx) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const reader = new FileReader();
-    reader.onload = ev => setPhotos(prev => { const n=[...prev]; n[idx]=ev.target.result; return n; });
-    reader.readAsDataURL(file);
+    downscalePhoto(file).then(dataUrl => {
+      setPhotos(prev => { const n=[...prev]; n[idx]=dataUrl; return n; });
+    }).catch(() => {});
   };
 
   // Keep listing categories honest — the title has to say what kind of sale it is.
@@ -3789,10 +3907,10 @@ function ListScreen({ onPublish }) {
           <div>
             <div className="rmg-eyebrow" style={{marginBottom:10}}>
               Photos
-              <span style={{textTransform:'none',fontWeight:400,letterSpacing:0,fontSize:12,color:'var(--text-faint)',marginLeft:6}}>optional — up to 4</span>
+              <span style={{textTransform:'none',fontWeight:400,letterSpacing:0,fontSize:12,color:'var(--text-faint)',marginLeft:6}}>optional — up to 12</span>
             </div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
-              {[0,1,2,3].map(idx=>(
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+              {Array.from({length:12},(_,i)=>i).map(idx=>(
                 <label key={idx} htmlFor={`rmg-photo-${idx}`} style={{
                   aspectRatio:'4/3',borderRadius:'var(--radius-lg)',overflow:'hidden',
                   background:photos[idx]?'transparent':'var(--surface-sunken)',
@@ -4034,11 +4152,7 @@ function WalkthroughScreen({ onDone }) {
 
   return (
     <div style={{position:'absolute',inset:0,zIndex:9000,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{display:'flex',justifyContent:'flex-end',padding:'calc(var(--safe-top) + 8px) 20px 0'}}>
-        <button type="button" onClick={onDone} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:14,color:'var(--text-muted)'}}>
-          Skip
-        </button>
-      </div>
+      <div style={{paddingTop:'calc(var(--safe-top) + 8px)'}} />
       <div
         onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}
         style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'0 32px',textAlign:'center'}}>
@@ -4051,7 +4165,10 @@ function WalkthroughScreen({ onDone }) {
           <span key={i} style={{width: i===idx?20:7,height:7,borderRadius:'var(--radius-pill)',background: i===idx?'var(--accent)':'var(--ink-200)',transition:'all var(--dur-base) var(--ease-out)'}} />
         ))}
       </div>
-      <div style={{padding:'0 24px 40px'}}>
+      <div style={{display:'flex',alignItems:'center',gap:14,padding:'0 24px 40px'}}>
+        <button type="button" onClick={onDone} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:14,color:'var(--text-muted)',padding:'12px 4px'}}>
+          Skip
+        </button>
         <Btn variant="primary" size="lg" fullWidth
           onClick={()=> last ? onDone() : setIdx(i=>i+1)}>
           {last ? 'Get started' : 'Next'}
@@ -4064,8 +4181,8 @@ function WalkthroughScreen({ onDone }) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab] = useState('explore');
-  const [showWalkthrough, setShowWalkthrough] = useState(() => !localStorage.getItem('rummage_walkthrough_seen'));
-  const finishWalkthrough = () => { localStorage.setItem('rummage_walkthrough_seen', '1'); setShowWalkthrough(false); };
+  const [showWalkthrough, setShowWalkthrough] = useState(true);
+  const finishWalkthrough = () => setShowWalkthrough(false);
   const [authUser, _setAuthUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('rummage_user') || 'null'); } catch { return null; }
   });
@@ -4096,6 +4213,20 @@ function App() {
     return next;
   });
   const clearTrip = () => { setTripIds([]); localStorage.removeItem('rummage-trip'); };
+  // Vintage stores are fetched on-demand by VintageStoresScreen (Places API
+  // costs money per call, so we don't want this hitting on every app load).
+  // Kept in App state -- not just the screen -- so a store added to the trip
+  // can still be resolved to a full stop object (title/lat/lng) by
+  // TripPlannerPanel even after the user navigates away from that screen.
+  const [vintageStores, setVintageStores] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rummage_vintage_stores') || '[]'); } catch { return []; }
+  });
+  const addVintageStores = (stores) => setVintageStores(prev => {
+    const merged = [...prev];
+    stores.forEach(s => { if (!merged.find(m => m.id === s.id)) merged.push(s); });
+    localStorage.setItem('rummage_vintage_stores', JSON.stringify(merged));
+    return merged;
+  });
   const [radiusMi, setRadiusMi] = useState(15);
   const [zip, _setZip] = useState(() => localStorage.getItem('rummage_zip') || '90601');
   const setZip = (z) => { localStorage.setItem('rummage_zip', z); _setZip(z); };
@@ -4268,7 +4399,7 @@ function App() {
         )}
         {tab==='trip' && !detailSale && (
           <TripPlannerPanel
-            allSales={allSales} tripIds={tripIds}
+            allSales={[...allSales, ...vintageStores]} tripIds={tripIds}
             onToggleTrip={toggleTrip} onClearTrip={clearTrip}
             onClose={()=>setTab('explore')}
             onOpenSale={openSaleDetail}
@@ -4298,6 +4429,8 @@ function App() {
                 onOpenSale={openSaleDetail}
                 onOpenNotifications={()=>setNotificationsOpen(true)}
                 onReplayWalkthrough={()=>setShowWalkthrough(true)}
+                tripIds={tripIds} onToggleTrip={toggleTrip}
+                onStoresLoaded={addVintageStores}
               />
             : <AuthScreen onAuth={user=>setAuthUser(user)} />
         )}
