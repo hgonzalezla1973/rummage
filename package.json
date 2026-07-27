@@ -8,9 +8,13 @@
   },
   "scripts": {
     "start": "node server.js",
-    "dev": "node --watch server.js"
+    "dev": "node --watch server.js",
+    "cap:sync": "node scripts/sync-www.js && npx cap sync"
   },
   "dependencies": {
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
+    "@capacitor/ios": "^8.4.2",
     "cors": "^2.8.5",
     "express": "^4.19.2",
     "fast-xml-parser": "^4.4.0",

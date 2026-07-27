@@ -4,3 +4,10 @@ server.log
 server.err
 *.log
 subscribers.json
+
+# iOS native project — Pods/build artifacts are regenerated on the Mac via
+# `pod install`, not something to track in git.
+ios/App/Pods/
+ios/App/build/
+ios/App/DerivedData/
+ios/.build/

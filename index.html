@@ -120,6 +120,14 @@ window.addEventListener('error', function(e) {
 <script type="text/babel" data-presets="react">
 const { useState, useEffect, useRef } = React;
 
+// When this page is loaded from the live site, relative /api/... calls hit
+// the same origin as expected. When it's bundled inside the native app shell
+// (capacitor://, ionic://, or a file:// page with no real HTTP origin),
+// those relative calls have nowhere to go, so route them to the deployed
+// backend explicitly instead.
+const API_BASE = (window.Capacitor?.isNativePlatform?.() || !/^https?:$/.test(location.protocol))
+  ? 'https://rummagedeals.com'
+  : '';
 
 // ── Icon helper ───────────────────────────────────────────────────────────────
 function Icon(name, size = 20, opts = {}) {
@@ -649,7 +657,6 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
         <input type="range" min={min} max={max} value={value} onChange={e=>set(Number(e.target.value))}
           aria-label="Search radius in miles"
           style={{position:'absolute',left:0,right:0,width:'100%',margin:0,background:'transparent',height:28,cursor:'pointer',zIndex:1}} />
-        <span style={{position:'absolute',left:`calc(${pct}% - 13px)`,width:26,height:26,borderRadius:'50%',background:'var(--surface-card)',border:'2px solid var(--accent)',boxShadow:'var(--shadow-md)',pointerEvents:'none'}} />
       </div>
       <div style={{display:'flex',gap:8}}>
         {presets.map(p => {
@@ -889,7 +896,7 @@ function proxyImgUrl(url) {
         h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
         h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
         h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com'))
-      return `/api/img?url=${encodeURIComponent(url)}`;
+      return `${API_BASE}/api/img?url=${encodeURIComponent(url)}`;
   } catch(_) {}
   return url;
 }
@@ -1773,7 +1780,7 @@ function AuthScreen({ onAuth }) {
 
   const sendCode = () => {
     setResendTimer(30);
-    return fetch('/api/send-verification', {
+    return fetch(`${API_BASE}/api/send-verification`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email: email.trim() }),
     }).then(r => r.json());
@@ -1823,7 +1830,7 @@ function AuthScreen({ onAuth }) {
     const code = codeDigits.join('');
     if (code.length < 6) { setCodeError('Enter all 6 digits'); return; }
     setLoading(true);
-    fetch('/api/check-code', {
+    fetch(`${API_BASE}/api/check-code`, {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email: email.trim(), code }),
     }).then(r=>r.json()).then(res => {
@@ -2070,7 +2077,7 @@ function FeedbackScreen({ onBack, userEmail }) {
     if (!message.trim() || sending) return;
     setSending(true);
     setError('');
-    fetch('/api/feedback', {
+    fetch(`${API_BASE}/api/feedback`, {
       method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ category: cat, message: message.trim(), userEmail }),
     })
@@ -2317,7 +2324,7 @@ function PriceCheckScreen({ onBack }) {
   const checkValue = () => {
     if (!photo) return;
     setLoading(true); setError(null); setResult(null);
-    fetch('/api/price-check', {
+    fetch(`${API_BASE}/api/price-check`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ image: photo }),
     }).then(r => r.json()).then(data => {
@@ -2467,7 +2474,7 @@ function VintageStoresScreen({ onBack, zip, tripIds=[], onToggleTrip, onStoresLo
 
   useEffect(() => {
     setLoading(true); setError(null);
-    fetch(`/api/vintage-stores?zip=${encodeURIComponent(zip)}`)
+    fetch(`${API_BASE}/api/vintage-stores?zip=${encodeURIComponent(zip)}`)
       .then(r => r.json())
       .then(data => {
         if (data.error) { setError(data.error); setStores([]); }
@@ -2536,7 +2543,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     const body = enabled
       ? { email: emailToUse, zip: overrides.zip ?? zip, radiusMi: overrides.radiusMi ?? radiusMi, saleTypes: overrides.saleTypes ?? saleTypes }
       : { email: emailToUse };
-    fetch(enabled ? '/api/subscribe' : '/api/unsubscribe', {
+    fetch(`${API_BASE}${enabled ? '/api/subscribe' : '/api/unsubscribe'}`, {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
     }).catch(()=>{});
   };
@@ -2713,12 +2720,13 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           </div>
         )}
 
-        {/* Tools */}
-        <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Tools</div>
+        {/* Tools -- Price Check disabled pending a fix for the Custom Search
+            API access issue; Vintage Stores access moved to the Explore
+            screen's "Thrift Stores" chip, so its Account entry was removed. */}
+        {/* <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Tools</div>
         <Card padded={false}>
           <ListRow first icon={Icon('Camera',18)} label="Price Check" sublabel="Snap a photo, get an estimated value" trailing={chev} onClick={()=>setPage('pricecheck')} />
-          <ListRow icon={Icon('Store',18)} label="Vintage Stores" sublabel="Find thrift & antique shops near you" trailing={chev} onClick={()=>setPage('vintagestores')} />
-        </Card>
+        </Card> */}
 
         {/* Support */}
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Support</div>
@@ -3058,14 +3066,23 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
         Math.hypot((b.lat||0)-userLoc.lat,(b.lng||0)-userLoc.lng))
     : tripSales;
 
-  // Get user location once on open
+  // Get user location once on open. A locate attempt is bumped to retry
+  // without leaving the screen after the user grants permission late (e.g.
+  // they dismissed the browser prompt, then enabled it in settings).
+  const [locateAttempt, setLocateAttempt] = useState(0);
   useEffect(() => {
-    if (!navigator.geolocation) { setLocError('Location unavailable'); return; }
+    if (!navigator.geolocation) { setLocError('Location unavailable on this device'); return; }
+    setLocError(null);
     navigator.geolocation.getCurrentPosition(
-      pos => setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      ()  => setLocError('Could not get your location')
+      pos => { setUserLoc({ lat: pos.coords.latitude, lng: pos.coords.longitude }); setLocError(null); },
+      err => setLocError(
+        err.code === 1 ? "Location access is off — enable it for this site in your browser or device settings"
+        : err.code === 3 ? 'Location took too long to respond'
+        : 'Could not get your location'
+      ),
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 5 * 60 * 1000 }
     );
-  }, []);
+  }, [locateAttempt]);
 
   // Fetch OSRM route whenever stops or userLoc change -- purely a passive
   // preview (polyline + per-stop distance/time on the map below), not
@@ -3150,12 +3167,15 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
 
         {/* Bottom actions */}
         <div style={{ padding: '12px 14px 36px', borderTop: '1px solid var(--border-default)', display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {locError && (
+          {/* {locError && (
             <div style={{ display: 'flex', alignItems: 'center', gap: 8, background: 'var(--amber-bg)', borderRadius: 'var(--radius-lg)', padding: '10px 12px' }}>
               {Icon('AlertTriangle', 14, { stroke: 'var(--amber-600)' })}
-              <span style={{ fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--amber-600)' }}>{locError}</span>
+              <span style={{ flex: 1, fontFamily: 'var(--font-sans)', fontSize: 12, color: 'var(--amber-600)', lineHeight: 1.4 }}>{locError}</span>
+              <button type="button" onClick={() => setLocateAttempt(n => n + 1)} style={{ flexShrink: 0, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-sans)', fontWeight: 700, fontSize: 12, color: 'var(--amber-600)', textDecoration: 'underline', padding: 0 }}>
+                Retry
+              </button>
             </div>
-          )}
+          )} */}
           <div style={{ display: 'flex', gap: 10 }}>
             {tripSales.length > 0 && (
               <Btn variant="ghost" size="lg" leadingIcon={Icon('Trash2', 16)} onClick={onClearTrip}>Clear</Btn>
@@ -4147,7 +4167,7 @@ const TUTORIAL_SLIDES = [
   },
 ];
 
-function WalkthroughScreen({ onDone }) {
+function WalkthroughScreen({ onDone, userName }) {
   const [idx, setIdx] = useState(0);
   const [dragStart, setDragStart] = useState(null);
   const [dragDelta, setDragDelta] = useState(0);
@@ -4171,6 +4191,11 @@ function WalkthroughScreen({ onDone }) {
         <div style={{marginBottom:32}}>{TUTORIAL_SLIDES[idx].visual}</div>
         <h1 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:24,color:'var(--text-primary)',marginBottom:12,lineHeight:1.2}}>{TUTORIAL_SLIDES[idx].title}</h1>
         <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.55,color:'var(--text-secondary)',maxWidth:300,margin:0}}>{TUTORIAL_SLIDES[idx].body}</p>
+        {idx===0 && userName && (
+          <p style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--accent)',maxWidth:300,margin:'10px 0 0'}}>
+            Nice to see you again, {userName}!
+          </p>
+        )}
       </div>
       <div style={{display:'flex',justifyContent:'center',gap:7,paddingBottom:24}}>
         {TUTORIAL_SLIDES.map((_,i)=>(
@@ -4265,7 +4290,7 @@ function App() {
     if (!navigator.geolocation) return;
     navigator.geolocation.getCurrentPosition(
       pos => {
-        fetch(`/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
+        fetch(`${API_BASE}/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
           .then(r => r.json())
           .then(data => { if (data.zip) { setDetectedZip(data.zip); setDetectedCity(data.city || null); } })
           .catch(() => {});
@@ -4280,7 +4305,7 @@ function App() {
   // Fetch live listings from local backend
   const fetchApiListings = (zip, radius) => {
     setApiStatus('loading');
-    fetch(`/api/listings?zip=${zip}&radius=${radius}`)
+    fetch(`${API_BASE}/api/listings?zip=${zip}&radius=${radius}`)
       .then(r => r.json())
       .then(data => {
         setApiListings(data.listings || []);
@@ -4521,7 +4546,7 @@ function App() {
         <div style={{position:'absolute',top:11,left:'50%',transform:'translateX(-50%)',width:120,height:34,background:'#14110F',borderRadius:20,zIndex:75}} />
 
         {/* First-run animated walkthrough */}
-        {showWalkthrough && <WalkthroughScreen onDone={finishWalkthrough} />}
+        {showWalkthrough && <WalkthroughScreen onDone={finishWalkthrough} userName={authUser?.name} />}
       </div>
     </div>
   );
