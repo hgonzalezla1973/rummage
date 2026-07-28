@@ -3027,6 +3027,26 @@ app.post('/api/unsubscribe', (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /unsubscribe?email=x  — the digest email's footer link goes straight
+// here (not through the app), so this has to work with just a click, no
+// sign-in required, per CAN-SPAM's one-click unsubscribe requirement.
+app.get('/unsubscribe', (req, res) => {
+  const email = (req.query.email || '').trim().toLowerCase();
+  const subscribers = loadSubscribers();
+  const existing = subscribers.find(s => s.email === email);
+  if (existing) { existing.active = false; saveSubscribers(subscribers); }
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Unsubscribed</title></head>
+  <body style="margin:0;background:#F3ECDF;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box;">
+    <div style="max-width:420px;text-align:center;background:#FFFFFF;border:1px solid #E5DDCE;border-radius:20px;padding:36px 28px;">
+      <div style="font-size:32px;">${existing ? '👋' : '🤔'}</div>
+      <h1 style="font-size:20px;color:#1C1917;margin:12px 0 6px;">${existing ? "You're unsubscribed" : "We couldn't find that email"}</h1>
+      <p style="font-size:14px;color:#57534E;line-height:1.5;margin:0;">${existing
+        ? `${digestEscapeHtml(email)} won't receive the daily digest anymore. You can turn it back on anytime in the app.`
+        : `${digestEscapeHtml(email)} isn't on our digest list, so there's nothing to do here.`}</p>
+    </div>
+  </body></html>`);
+});
+
 // Whether a listing's display date label ("Sat, Jul 4" or a range like
 // "Sat, Jul 4 – Sun, Jul 5") includes today. Mirrors the parsing the
 // frontend does for saleSortDate/isSaleLive, but date-only (no time).
@@ -3067,63 +3087,314 @@ function proxyImgUrlForEmail(url) {
   return url;
 }
 
-function buildDigestHtml(listings, { zip, radiusMi }) {
-  const rows = listings.map(l => {
-    const img = l.images?.[0];
-    const thumb = img
-      ? `<img src="${proxyImgUrlForEmail(img)}" width="72" height="72" style="width:72px;height:72px;border-radius:10px;object-fit:cover;display:block" />`
-      : `<div style="width:72px;height:72px;line-height:72px;text-align:center;border-radius:10px;background:#F1EAD6;font-size:26px">📍</div>`;
-    const href = `${PUBLIC_BASE_URL}/app?sale=${encodeURIComponent(l.id)}`;
-    // Table-based row (not flex) so this survives Outlook's Word rendering
-    // engine, which ignores flexbox entirely.
-    return `
-    <tr>
-      <td style="padding:14px 0;border-bottom:1px solid #D8CBB0">
-        <a href="${href}" style="text-decoration:none">
-          <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
-            <tr>
-              <td width="72" valign="top">${thumb}</td>
-              <td style="padding-left:12px" valign="top">
-                <div style="font-family:Arial,Helvetica,sans-serif;font-weight:800;color:#211D17;font-size:15px;line-height:1.3">${l.title || 'Sale'}</div>
-                <div style="font-family:Arial,Helvetica,sans-serif;color:#6B6252;font-size:13px;margin-top:3px">${[l.dateLabel, l.timeLabel, l.address || l.neighborhood].filter(Boolean).join(' · ')}</div>
-                <div style="font-family:Arial,Helvetica,sans-serif;color:#A81F24;font-size:12px;font-weight:700;margin-top:5px">Open in app &rarr;</div>
-              </td>
-            </tr>
-          </table>
-        </a>
-      </td>
-    </tr>`;
-  }).join('');
+// ── Digest date/live-sale helpers (ported from index.html's client-side
+// parseSaleStart/parseSaleDateRange/isSaleLive) — the email is generated
+// server-side with no DOM/client JS available, so the "● NOW" badge needs
+// its own copy of that same date-parsing logic rather than being able to
+// share it directly with the frontend.
+const DIGEST_DOW_IDX = { sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6 };
+function digestParseSaleStart(dateLabel, timeLabel) {
+  if (!timeLabel) return null;
+  const tMatch = timeLabel.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
+  if (!tMatch) return null;
+  let h = parseInt(tMatch[1]);
+  const m = tMatch[2] ? parseInt(tMatch[2]) : 0;
+  const ap = tMatch[3].toLowerCase();
+  if (ap === 'pm' && h !== 12) h += 12;
+  if (ap === 'am' && h === 12) h = 0;
+  const now = new Date();
+  const full = dateLabel && dateLabel.match(/\w+,\s+(\w+)\s+(\d+)/);
+  if (full) {
+    const mo = DIGEST_MO_IDX[full[1].toLowerCase().slice(0,3)];
+    if (mo !== undefined) {
+      const d = new Date(now.getFullYear(), mo, parseInt(full[2]), h, m, 0);
+      const allHits = [...dateLabel.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})/g)]
+        .filter(hm => DIGEST_MO_IDX[hm[1].toLowerCase().slice(0,3)] !== undefined);
+      const lastHit = allHits[allHits.length - 1] || full;
+      const lastMo  = DIGEST_MO_IDX[lastHit[1].toLowerCase().slice(0,3)];
+      const rangeEnd = new Date(now.getFullYear(), lastMo, parseInt(lastHit[2]), 23, 59, 59);
+      if (rangeEnd.getTime() < now.getTime() - 24*60*60*1000) d.setFullYear(now.getFullYear() + 1);
+      return d;
+    }
+  }
+  const dm = dateLabel && dateLabel.match(/^(\w{3})/i);
+  if (dm) {
+    const dn = DIGEST_DOW_IDX[dm[1].toLowerCase()];
+    if (dn !== undefined) {
+      let diff = dn - now.getDay();
+      if (diff < 0) diff += 7;
+      if (diff === 0 && now.getHours() >= h) diff = 7;
+      return new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff, h, m, 0);
+    }
+  }
+  return null;
+}
+function digestSaleIsLive(dateLabel, timeLabel) {
+  const start = digestParseSaleStart(dateLabel, timeLabel);
+  if (!start) return false;
+  const now = Date.now();
+  if (now < start.getTime()) return false;
+  const allTimes = (timeLabel || '').match(/(\d+)(?::(\d+))?\s*(am|pm)/gi) || [];
+  if (allTimes.length < 2) return false; // no end time -- can't confirm still in progress
+  const last = allTimes[allTimes.length - 1].match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
+  let endH = parseInt(last[1]), endM = last[2] ? parseInt(last[2]) : 0;
+  const ap = last[3].toLowerCase();
+  if (ap === 'pm' && endH !== 12) endH += 12;
+  if (ap === 'am' && endH === 12) endH = 0;
+  const hits = [...(dateLabel || '').matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})/g)]
+    .filter(m => DIGEST_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
+  let end;
+  if (hits.length) {
+    const h = hits[hits.length - 1];
+    const mo = DIGEST_MO_IDX[h[1].toLowerCase().slice(0,3)];
+    end = new Date(start.getFullYear(), mo, parseInt(h[2]), endH, endM, 0);
+    if (end.getTime() < start.getTime()) end.setFullYear(end.getFullYear() + 1);
+  } else {
+    end = new Date(start); end.setHours(endH, endM, 0, 0);
+    if (end <= start) end.setDate(end.getDate() + 1);
+  }
+  return now < end.getTime();
+}
 
+function digestEscapeHtml(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+// Real listing `type` values only ever come back as estate/yard/moving/
+// auction (see detectType) -- no separate "thrift" category exists for
+// scraped sale listings, so that's not represented here.
+const DIGEST_TYPE_STYLES = {
+  estate:  { label: 'ESTATE SALE', badgeBg: '#ECE6FB', badgeFg: '#6D28D9', gradFrom: '#F4C3A4', gradTo: '#EC9D70', iconFg: '#7C2D12' },
+  yard:    { label: 'YARD SALE',   badgeBg: '#E4F1E5', badgeFg: '#15803D', gradFrom: '#E4F1E5', gradTo: '#CDE6CE', iconFg: '#15803D' },
+  moving:  { label: 'MOVING SALE', badgeBg: '#FAE8CD', badgeFg: '#B45309', gradFrom: '#FAE8CD', gradTo: '#F3D8AE', iconFg: '#7C4A0A' },
+  auction: { label: 'AUCTION',     badgeBg: '#FBE3E7', badgeFg: '#BE123C', gradFrom: '#FBE3E7', gradTo: '#F5C7CE', iconFg: '#881337' },
+};
+const DIGEST_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const DIGEST_DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+function digestCardHtml(l) {
+  const style = DIGEST_TYPE_STYLES[l.type] || DIGEST_TYPE_STYLES.yard;
+  const href = `${PUBLIC_BASE_URL}/app?sale=${encodeURIComponent(l.id)}`;
+  const live = digestSaleIsLive(l.dateLabel, l.timeLabel);
+  // Escape each raw field individually, then join with the (already-safe,
+  // not user data) &middot; entity -- escaping the joined string instead
+  // would turn "&middot;" itself into visible "&amp;middot;" text.
+  const cityLine = [l.distanceMi != null ? `${l.distanceMi}&nbsp;mi` : null, digestEscapeHtml(l.neighborhood || l.address)]
+    .filter(Boolean).join(' &middot; ');
+  const dateLine = [digestEscapeHtml(l.dateLabel), digestEscapeHtml(l.timeLabel)].filter(Boolean).join(' &middot; ');
   return `
-  <div style="background:#EDE6D6;padding:32px 16px">
-    <div style="max-width:480px;margin:0 auto;background:#FBF8F0;border-radius:16px;padding:32px 24px">
-      <div style="text-align:center;margin-bottom:8px">
-        <div style="display:inline-block;width:60px;height:60px;border-radius:50%;background:#C1272D;line-height:60px;font-size:28px">📍</div>
-        <h1 style="font-family:Arial,Helvetica,sans-serif;font-size:24px;font-weight:900;color:#211D17;margin:16px 0 4px;letter-spacing:-0.02em">Today's sales near ${zip}</h1>
-        <p style="font-family:Arial,Helvetica,sans-serif;color:#6B6252;font-size:14px;margin:0">${listings.length} sale${listings.length===1?'':'s'} within ${radiusMi} mi today</p>
-      </div>
-      <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">${rows}</table>
-      <p style="font-family:Arial,Helvetica,sans-serif;color:#9C9280;font-size:12px;text-align:center;margin-top:24px;margin-bottom:0">
-        You're getting this because you turned on daily digest emails in Rummage. Turn it off any time in Account &rarr; Notifications.
-      </p>
-    </div>
-  </div>`;
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:1px solid #E5DDCE; border-radius:20px;">
+                <tr>
+                  <td style="position:relative;">
+                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,${style.gradFrom},${style.gradTo}); border-radius:20px 20px 0 0;">
+                      <tr>
+                        <td height="120" align="center" valign="middle" style="font-family:Arial,sans-serif; font-size:26px; color:${style.iconFg};">&#128205;</td>
+                      </tr>
+                    </table>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="position:absolute; top:10px; left:10px;">
+                      <tr><td bgcolor="${style.badgeBg}" style="border-radius:100px; padding:4px 10px; font-family:Arial,sans-serif; font-size:10px; font-weight:700; color:${style.badgeFg};">${style.label}</td></tr>
+                    </table>
+                    ${live ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="position:absolute; top:10px; right:10px;">
+                      <tr><td bgcolor="#E6F1E7" style="border-radius:100px; padding:4px 8px; font-family:Arial,sans-serif; font-size:9px; font-weight:700; color:#15803D;">&#9679; NOW</td></tr>
+                    </table>` : ''}
+                  </td>
+                </tr>
+                <tr>
+                  <td style="padding:14px 16px 16px 16px;">
+                    <div style="font-family:Georgia,'Newsreader',serif; font-size:16px; font-weight:700; color:#1C1917; line-height:1.3; max-height:2.6em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${digestEscapeHtml(l.title || 'Sale')}</div>
+                    <div style="font-family:'Spline Sans Mono','Courier New',monospace; font-size:12px; color:#57534E; padding-top:6px;">${cityLine}</div>
+                    <div style="font-family:'Spline Sans Mono','Courier New',monospace; font-size:12px; color:#78716C; padding-top:2px;">${dateLine}</div>
+                    <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
+                      <tr><td style="font-family:Arial,sans-serif; font-size:13px; font-weight:700;"><a href="${href}" style="color:#0F766E;">View sale &rarr;</a></td></tr>
+                    </table>
+                  </td>
+                </tr>
+              </table>`;
+}
+
+function buildDigestHtml(listings, { zip, email }) {
+  const CARD_LIMIT = 6;
+  const shown = listings.slice(0, CARD_LIMIT);
+  const remaining = Math.max(0, listings.length - CARD_LIMIT);
+
+  const rows = [];
+  for (let i = 0; i < shown.length; i += 2) {
+    const a = shown[i], b = shown[i + 1];
+    rows.push(`
+    <tr>
+      <td style="padding:0 16px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td width="50%" valign="top" class="rm-col rm-col-pad" style="padding:0 8px 16px 8px;">${digestCardHtml(a)}</td>
+            <td width="50%" valign="top" class="rm-col rm-col-pad" style="padding:0 8px 16px 8px;">${b ? digestCardHtml(b) : ''}</td>
+          </tr>
+        </table>
+      </td>
+    </tr>`);
+  }
+
+  const moreSection = remaining > 0 ? `
+    <tr>
+      <td style="padding:8px 20px 32px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1C1917; border-radius:20px;">
+          <tr>
+            <td align="center" style="padding:32px 24px;">
+              <div style="font-family:Georgia,'Newsreader',serif; font-size:19px; font-weight:700; color:#FAF6EE; line-height:1.3;">
+                ${remaining} more sale${remaining===1?'':'s'} ${remaining===1?'is':'are'} waiting on the map.
+              </div>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
+                <tr>
+                  <td bgcolor="#C2410C" style="border-radius:14px;">
+                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 26px; font-family:Arial,Helvetica,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; border-radius:14px;">Open Rummage</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>` : '';
+
+  const now = new Date();
+  const dateStr = `${DIGEST_DAY_NAMES[now.getDay()]}, ${DIGEST_MONTH_NAMES[now.getMonth()]} ${now.getDate()}`;
+  const closestMi = shown[0]?.distanceMi;
+  const typesPresent = [...new Set(shown.map(l => (DIGEST_TYPE_STYLES[l.type] || DIGEST_TYPE_STYLES.yard).label.toLowerCase()))];
+  const preheader = `${listings.length} sale${listings.length===1?'':'s'} near you today${closestMi!=null?`, starting ${closestMi} mi away`:''}${typesPresent.length?` — ${typesPresent.join(', ')} and more.`:'.'}`;
+  const unsubUrl = `${PUBLIC_BASE_URL}/unsubscribe?email=${encodeURIComponent(email)}`;
+  const prefsUrl = `${PUBLIC_BASE_URL}/app`;
+
+  return `<!DOCTYPE html>
+<html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="X-UA-Compatible" content="IE=edge">
+<meta name="color-scheme" content="light dark">
+<meta name="supported-color-schemes" content="light dark">
+<title>Rummage — Sales near you today</title>
+<!--[if mso]>
+<noscript>
+<xml>
+<o:OfficeDocumentSettings>
+<o:PixelsPerInch>96</o:PixelsPerInch>
+</o:OfficeDocumentSettings>
+</xml>
+</noscript>
+<![endif]-->
+<style>
+  body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+  table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+  img { -ms-interpolation-mode: bicubic; border: 0; line-height: 100%; outline: none; text-decoration: none; }
+  body { margin: 0; padding: 0; width: 100% !important; height: 100% !important; }
+  a { text-decoration: none; }
+  @media screen and (max-width: 480px) {
+    .rm-container { width: 100% !important; }
+    .rm-col { display: block !important; width: 100% !important; }
+    .rm-col-pad { padding-bottom: 16px !important; }
+    .rm-stack-cell { display: block !important; width: 100% !important; }
+  }
+  @media (prefers-color-scheme: dark) {
+    .rm-bg-paper { background-color: #FAF6EE !important; }
+  }
+</style>
+</head>
+<body style="margin:0; padding:0; background-color:#F3ECDF; width:100%;">
+  <span style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all; font-family:Arial,sans-serif; color:#F3ECDF;">
+    ${preheader}
+  </span>
+
+  <center style="width:100%; background-color:#F3ECDF;">
+  <div style="max-width:600px; margin:0 auto;" class="rm-container">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; margin:0 auto; width:100%;" class="rm-container">
+    <tr>
+      <td style="padding:24px 20px 12px 20px; background-color:#F3ECDF;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="font-family:Arial,Helvetica,sans-serif; font-size:17px; font-weight:700; color:#1C1917; vertical-align:middle;">
+              <span style="color:#C2410C; font-size:18px;">&#9679;</span>&nbsp;Rummage
+            </td>
+            <td align="right" style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#78716C; vertical-align:middle;">
+              ${dateStr}
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding:8px 20px 24px 20px; background-color:#F3ECDF;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:1px solid #E5DDCE; border-radius:20px;">
+          <tr>
+            <td style="padding:28px 24px;">
+              <div style="font-family:Georgia,'Newsreader',serif; font-size:26px; line-height:1.25; color:#1C1917; font-weight:700;">
+                Good morning. Here's what's nearby today.
+              </div>
+              <div style="font-family:Arial,Helvetica,sans-serif; font-size:14px; line-height:1.5; color:#57534E; padding-top:8px;">
+                ${listings.length} sale${listings.length===1?'':'s'} near ${digestEscapeHtml(zip)}, closest first.
+              </div>
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
+                <tr>
+                  <td bgcolor="#C2410C" style="border-radius:14px;">
+                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:12px 22px; font-family:Arial,Helvetica,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; border-radius:14px; white-space:nowrap;">Open the app</a>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+
+    <tr>
+      <td style="padding:0 24px 12px 24px; background-color:#F3ECDF;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="font-family:'Spline Sans Mono','Courier New',monospace; font-size:11px; letter-spacing:0.06em; color:#78716C; text-transform:uppercase;">
+              Nearest to furthest
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+${rows.join('')}
+${moreSection}
+
+    <tr>
+      <td style="padding:8px 24px 32px 24px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td align="center" style="font-family:Arial,Helvetica,sans-serif; font-size:12px; color:#78716C; line-height:1.7; padding-top:8px;">
+              <span style="color:#C2410C;">&#9679;</span>&nbsp;Rummage &middot; Find the good stuff nearby.<br>
+              You're getting this because you opted into the daily digest.<br>
+              <a href="${prefsUrl}" style="color:#0F766E;">Manage email preferences</a>
+              &nbsp;&middot;&nbsp;
+              <a href="${unsubUrl}" style="color:#0F766E;">Unsubscribe</a><br>
+              <span style="color:#A8A29E;">Rummage &middot; 12313 Orange Dr, Whittier, CA 90601</span>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+  </div>
+  </center>
+</body>
+</html>`;
 }
 
 async function sendDigestToSubscriber(sub) {
   try {
     const all = await getListingsForZip(sub.zip, sub.radiusMi);
     const activeTypes = Object.keys(sub.saleTypes || {}).filter(k => sub.saleTypes[k]);
-    const todays = all.filter(l =>
-      saleTouchesToday(l.dateLabel) && (activeTypes.length === 0 || activeTypes.includes(l.type))
-    );
+    const todays = all
+      .filter(l => saleTouchesToday(l.dateLabel) && (activeTypes.length === 0 || activeTypes.includes(l.type)))
+      .sort((a, b) => (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
     if (!todays.length) { console.log(`  Digest: no sales today for ${sub.email}, skipping send`); return; }
 
     await sendResendEmail({
       to: sub.email,
       subject: `${todays.length} sale${todays.length===1?'':'s'} near ${sub.zip} today`,
-      html: buildDigestHtml(todays, sub),
+      html: buildDigestHtml(todays, { zip: sub.zip, email: sub.email }),
       text: todays.map(l => `${l.title} — ${[l.dateLabel,l.timeLabel,l.address||l.neighborhood].filter(Boolean).join(' · ')}`).join('\n'),
     });
     console.log(`  Digest sent to ${sub.email} (${todays.length} sales)`);
