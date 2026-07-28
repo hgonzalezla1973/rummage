@@ -3182,15 +3182,22 @@ function digestCardHtml(l) {
   const cityLine = [l.distanceMi != null ? `${l.distanceMi}&nbsp;mi` : null, digestEscapeHtml(l.neighborhood || l.address)]
     .filter(Boolean).join(' &middot; ');
   const dateLine = [digestEscapeHtml(l.dateLabel), digestEscapeHtml(l.timeLabel)].filter(Boolean).join(' &middot; ');
-  return `
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:1px solid #E5DDCE; border-radius:20px;">
-                <tr>
-                  <td style="position:relative;">
-                    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,${style.gradFrom},${style.gradTo}); border-radius:20px 20px 0 0;">
+  // Real photo when the listing has one; otherwise the same gradient + pin
+  // placeholder as before. bgcolor on the image cell (rather than just the
+  // <img> tag) gives a same-toned fallback if the photo is slow to load or
+  // gets blocked by the email client, instead of a bare broken-image icon.
+  const media = l.images?.[0]
+    ? `<img src="${proxyImgUrlForEmail(l.images[0])}" width="100%" height="120" alt="" style="width:100%; height:120px; object-fit:cover; display:block; border-radius:20px 20px 0 0;" />`
+    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,${style.gradFrom},${style.gradTo}); border-radius:20px 20px 0 0;">
                       <tr>
                         <td height="120" align="center" valign="middle" style="font-family:Arial,sans-serif; font-size:26px; color:${style.iconFg};">&#128205;</td>
                       </tr>
-                    </table>
+                    </table>`;
+  return `
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:1px solid #E5DDCE; border-radius:20px;">
+                <tr>
+                  <td style="position:relative;" bgcolor="${style.gradFrom}">
+                    ${media}
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="position:absolute; top:10px; left:10px;">
                       <tr><td bgcolor="${style.badgeBg}" style="border-radius:100px; padding:4px 10px; font-family:Arial,sans-serif; font-size:10px; font-weight:700; color:${style.badgeFg};">${style.label}</td></tr>
                     </table>
