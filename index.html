@@ -3693,13 +3693,20 @@ function ListScreen({ onPublish }) {
   const [touched, setTouched]     = useState({});
   const [published, setPublished] = useState(null);
   const [previewIdx, setPreviewIdx] = useState(0);
+  const [photoError, setPhotoError] = useState(null);
 
   const handleFile = (e, idx) => {
     const file = e.target.files?.[0];
+    e.target.value = ''; // allow re-picking the same file after an error
     if (!file) return;
+    setPhotoError(null);
     downscalePhoto(file).then(dataUrl => {
       setPhotos(prev => { const n=[...prev]; n[idx]=dataUrl; return n; });
-    }).catch(() => {});
+    }).catch(() => {
+      // Most likely cause: a HEIC/HEIF photo on a browser that can't decode
+      // it client-side (Safari/iOS can; desktop Chrome and Firefox can't).
+      setPhotoError("Couldn't read that photo — if it's a HEIC/HEIF file, try converting it to JPEG first, or use a different photo.");
+    });
   };
 
   // Keep listing categories honest — the title has to say what kind of sale it is.
@@ -3941,6 +3948,12 @@ function ListScreen({ onPublish }) {
               Photos
               <span style={{textTransform:'none',fontWeight:400,letterSpacing:0,fontSize:12,color:'var(--text-faint)',marginLeft:6}}>optional — up to 12</span>
             </div>
+            {photoError && (
+              <div style={{display:'flex',alignItems:'flex-start',gap:8,background:'var(--amber-bg)',borderRadius:'var(--radius-lg)',padding:'10px 12px',marginBottom:10}}>
+                {Icon('AlertTriangle',15,{stroke:'var(--amber-600)'})}
+                <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--amber-600)',lineHeight:1.4}}>{photoError}</span>
+              </div>
+            )}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
               {Array.from({length:12},(_,i)=>i).map(idx=>(
                 <label key={idx} htmlFor={`rmg-photo-${idx}`} style={{
@@ -4488,7 +4501,7 @@ function App() {
         )}
 
         {vintageStoresOpen && (
-          <VintageStoresScreen onBack={()=>setVintageStoresOpen(false)} zip={zip} tripIds={tripIds} onToggleTrip={toggleTrip} onStoresLoaded={addVintageStores} />
+          <VintageStoresScreen onBack={()=>setVintageStoresOpen(false)} zip={effectiveZip} tripIds={tripIds} onToggleTrip={toggleTrip} onStoresLoaded={addVintageStores} />
         )}
 
 
