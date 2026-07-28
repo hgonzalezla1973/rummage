@@ -162,6 +162,57 @@ app.post('/api/check-code', (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Sign in with Apple ──────────────────────────────────────────────────────
+// Verifies the identity token Apple's JS SDK hands back client-side after a
+// successful sign-in. This only checks the token's signature/claims against
+// Apple's public keys -- no client secret or server-to-server token exchange
+// needed, matching the rest of the app's "no persistent user database"
+// design (see Privacy screen): once verified, we just hand the caller back
+// the identity to store locally, same as the email-code flow already does.
+const jwt = require('jsonwebtoken');
+const jwksClient = require('jwks-rsa');
+const appleJwks = jwksClient({ jwksUri: 'https://appleid.apple.com/auth/keys' });
+
+function getAppleSigningKey(header, callback) {
+  appleJwks.getSigningKey(header.kid, (err, key) => {
+    if (err) return callback(err);
+    callback(null, key.getPublicKey());
+  });
+}
+
+// The identity token's `aud` claim is the Services ID for the web JS SDK
+// flow this app actually uses (com.rummagedeals.web, matching clientId in
+// index.html's AppleID.auth.init call) -- not the app's bundle ID, which
+// only applies to a true native Sign In with Apple integration.
+const APPLE_AUDIENCES = (process.env.APPLE_AUDIENCES || 'com.rummagedeals.web,com.rummagedeals.app')
+  .split(',').map(s => s.trim()).filter(Boolean);
+
+function verifyAppleIdentityToken(token) {
+  return new Promise((resolve, reject) => {
+    jwt.verify(token, getAppleSigningKey, {
+      algorithms: ['RS256'],
+      issuer: 'https://appleid.apple.com',
+      audience: APPLE_AUDIENCES,
+    }, (err, decoded) => err ? reject(err) : resolve(decoded));
+  });
+}
+
+// POST /api/auth/apple  { identityToken, name? }
+// `name` is only ever sent by the client on a user's very first Apple
+// sign-in -- Apple only includes it once and never again, so the client is
+// responsible for capturing and forwarding it that one time.
+app.post('/api/auth/apple', async (req, res) => {
+  const { identityToken, name } = req.body;
+  if (!identityToken) return res.status(400).json({ error: 'Missing identity token' });
+  try {
+    const claims = await verifyAppleIdentityToken(identityToken);
+    res.json({ email: claims.email || null, name: name || null, appleSub: claims.sub });
+  } catch (err) {
+    console.error('Apple sign-in verification failed:', err.message);
+    res.status(401).json({ error: "Could not verify Apple sign-in — please try again." });
+  }
+});
+
 // POST /api/feedback  { category, message, userEmail }
 // Sends straight to the developer's inbox via the same Resend integration
 // used for verification codes — no separate ticketing system for a beta.
@@ -237,6 +288,7 @@ app.get('/api/img', async (req, res) => {
 // dropping straight into the phone-frame SPA.
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'landing.html')));
 app.get(['/app', '/app/'], (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+app.get('/auth/apple/callback', (_req, res) => res.sendFile(path.join(__dirname, 'apple-callback.html')));
 
 // Standalone static page (not the React SPA) documenting SMS opt-in consent
 // -- required as "Opt-In Policy Proof" for Twilio Toll-Free Verification.

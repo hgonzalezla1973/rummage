@@ -112,6 +112,7 @@ window.addEventListener('error', function(e) {
   d.textContent = 'JS ERROR:\n' + e.message + '\n\n' + (e.filename||'') + ':' + e.lineno;
 });
 </script>
+<script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async></script>
 <script src="https://unpkg.com/lucide@0.460.0/dist/umd/lucide.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -1756,6 +1757,8 @@ function AuthScreen({ onAuth }) {
   const [codeError, setCodeError]   = useState('');
   const [resendTimer, setResendTimer] = useState(0);
   const [legalPage, setLegalPage]     = useState(null); // null | 'terms' | 'privacy'
+  const [appleLoading, setAppleLoading] = useState(false);
+  const [appleError, setAppleError]     = useState('');
   const codeRefs = [useRef(),useRef(),useRef(),useRef(),useRef(),useRef()];
 
   useEffect(() => {
@@ -1784,6 +1787,43 @@ function AuthScreen({ onAuth }) {
       method:'POST', headers:{'Content-Type':'application/json'},
       body: JSON.stringify({ email: email.trim() }),
     }).then(r => r.json());
+  };
+
+  // Sign in with Apple -- shown only inside the native app (see render below),
+  // since that's the actual Apple requirement (guideline 4.8) when offering
+  // email sign-up. Uses Apple's web JS SDK rather than a native Capacitor
+  // plugin: this app has no bundler, so there's nowhere for an npm-imported
+  // native plugin to be wired in without introducing one just for this.
+  const signInWithApple = async () => {
+    if (!window.AppleID) { setAppleError('Sign in with Apple is unavailable right now — try again in a moment.'); return; }
+    setAppleError(''); setAppleLoading(true);
+    try {
+      window.AppleID.auth.init({
+        clientId: 'com.rummagedeals.web',
+        scope: 'name email',
+        redirectURI: 'https://rummagedeals.com/auth/apple/callback',
+        usePopup: true,
+      });
+      const result = await window.AppleID.auth.signIn();
+      const idToken = result.authorization?.id_token;
+      // Apple only ever includes the user's name on their very first sign-in
+      // — never again after that — so this has to be captured and forwarded
+      // right now or it's gone for good.
+      const name = [result.user?.name?.firstName, result.user?.name?.lastName].filter(Boolean).join(' ') || null;
+      const res = await fetch(`${API_BASE}/api/auth/apple`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ identityToken: idToken, name }),
+      });
+      const data = await res.json();
+      setAppleLoading(false);
+      if (data.error) { setAppleError(data.error); return; }
+      playCelebration(); burstConfetti();
+      onAuth({ name: data.name || 'Rummager', email: data.email, avatar: null });
+    } catch (err) {
+      setAppleLoading(false);
+      if (err?.error === 'popup_closed_by_user') return; // user cancelled -- not a real error
+      setAppleError('Apple sign-in failed — please try again.');
+    }
   };
 
   const submit = () => {
@@ -1930,6 +1970,28 @@ function AuthScreen({ onAuth }) {
       </div>
 
       <div style={{padding:'0 24px 100px',display:'flex',flexDirection:'column',gap:14}}>
+
+        {/* Sign in with Apple — native app only; Apple requires this be
+            offered wherever email sign-up is (guideline 4.8) */}
+        {window.Capacitor?.isNativePlatform?.() && (
+          <>
+            <button type="button" onClick={signInWithApple} disabled={appleLoading} style={{
+              display:'flex',alignItems:'center',justifyContent:'center',gap:8,height:48,
+              borderRadius:'var(--radius-lg)',border:'none',background:'#000',color:'#fff',
+              fontFamily:'var(--font-sans)',fontWeight:600,fontSize:15,cursor:'pointer',
+              opacity:appleLoading?.6:1,
+            }}>
+              {appleLoading ? Icon('Loader',18,{stroke:'#fff'}) : <span style={{fontSize:19,lineHeight:1}}>{''}</span>}
+              {appleLoading ? 'Signing in…' : 'Sign in with Apple'}
+            </button>
+            {appleError && <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'#DC2626',textAlign:'center'}}>{appleError}</div>}
+            <div style={{display:'flex',alignItems:'center',gap:10,margin:'2px 0'}}>
+              <div style={{flex:1,height:1,background:'var(--border-default)'}} />
+              <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)'}}>or continue with email</span>
+              <div style={{flex:1,height:1,background:'var(--border-default)'}} />
+            </div>
+          </>
+        )}
 
         {/* Avatar picker — sign up only */}
         {mode==='signup' && (

@@ -1,0 +1,14 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Signing in…</title>
+<!-- Apple's popup sign-in flow redirects here after the user completes
+     sign-in on Apple's own page. Loading the same SDK script here is what
+     lets it recognize it's inside that popup and hand the result back to
+     the opener window (index.html) via postMessage -- this page itself
+     never needs to do anything beyond loading the script. -->
+<script src="https://appleid.cdn-apple.com/appleauth/static/jsapi/appleid/1/en_US/appleid.auth.js" async></script>
+</head>
+<body></body>
+</html>
