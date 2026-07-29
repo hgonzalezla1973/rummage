@@ -3008,6 +3008,10 @@ async function loadSubscribers() {
         headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
       });
       const data = await r.json();
+      // fetch() only throws on network failure, never on a non-2xx HTTP
+      // response -- a bad token or URL returns normally with an error body,
+      // so that has to be checked explicitly or it fails completely silently.
+      if (!r.ok) { console.error('Upstash load failed:', r.status, JSON.stringify(data)); return []; }
       return data.result ? JSON.parse(data.result) : [];
     } catch (err) {
       console.error('Upstash load failed:', err.message);
@@ -3019,11 +3023,12 @@ async function loadSubscribers() {
 async function saveSubscribers(list) {
   if (UPSTASH_URL && UPSTASH_TOKEN) {
     try {
-      await fetch(UPSTASH_URL, {
+      const r = await fetch(UPSTASH_URL, {
         method: 'POST',
         headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
         body: JSON.stringify(['SET', SUBSCRIBERS_KEY, JSON.stringify(list)]),
       });
+      if (!r.ok) console.error('Upstash save failed:', r.status, await r.text());
     } catch (err) {
       console.error('Upstash save failed:', err.message);
     }
@@ -3031,6 +3036,32 @@ async function saveSubscribers(list) {
   }
   fs.writeFileSync(SUBSCRIBERS_FILE, JSON.stringify(list, null, 2));
 }
+
+// TEMP -- remove before commit
+app.get('/__debug-upstash', async (_req, res) => {
+  const out = {
+    hasUrl: !!UPSTASH_URL,
+    hasToken: !!UPSTASH_TOKEN,
+    urlPrefix: UPSTASH_URL ? UPSTASH_URL.slice(0, 25) + '…' : null,
+  };
+  if (UPSTASH_URL && UPSTASH_TOKEN) {
+    try {
+      const w = await fetch(UPSTASH_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['SET', 'rummage:debug-ping', 'hello']),
+      });
+      out.writeStatus = w.status;
+      out.writeBody = await w.text();
+      const r = await fetch(`${UPSTASH_URL}/get/rummage:debug-ping`, { headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` } });
+      out.readStatus = r.status;
+      out.readBody = await r.text();
+    } catch (err) {
+      out.error = err.message;
+    }
+  }
+  res.json(out);
+});
 
 // POST /api/subscribe  { email, zip, radiusMi, saleTypes }
 app.post('/api/subscribe', async (req, res) => {
