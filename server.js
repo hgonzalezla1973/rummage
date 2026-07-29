@@ -216,7 +216,7 @@ app.post('/api/auth/apple', async (req, res) => {
 // POST /api/feedback  { category, message, userEmail }
 // Sends straight to the developer's inbox via the same Resend integration
 // used for verification codes — no separate ticketing system for a beta.
-const FEEDBACK_TO_EMAIL = process.env.FEEDBACK_EMAIL || 'hgonzalezla1973@gmail.com';
+const FEEDBACK_TO_EMAIL = process.env.FEEDBACK_EMAIL || 'rummagedealsapp@gmail.com';
 const FEEDBACK_CAT_LABELS = { general: 'General feedback', bug: 'Bug report', feature: 'Feature request', listing: 'Listing issue' };
 app.post('/api/feedback', async (req, res) => {
   const message  = (req.body.message || '').trim().slice(0, 2000);
