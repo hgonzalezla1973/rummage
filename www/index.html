@@ -1748,6 +1748,12 @@ function AuthScreen({ onAuth }) {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm]   = useState('');
   const [fullName, setFullName] = useState('');
+  // Optional -- verification still runs on email (see sendCode/verifyCode
+  // below). This collects phone + shows the SMS consent disclosure so the
+  // toll-free registration has a real, truthful point of collection to
+  // point to, without switching the app back to phone-based verification
+  // before Twilio's side is actually approved.
+  const [phone, setPhone] = useState('');
   const [selAvatar, setSelAvatar] = useState(AVATARS[0].id);
   const [showPw, setShowPw]         = useState(false);
   const [errors, setErrors]         = useState({});
@@ -2024,6 +2030,16 @@ function AuthScreen({ onAuth }) {
 
         <Field label="Email address" value={email} onChange={v=>{setEmail(v);setErrors(p=>({...p,email:''}));}}
           type="email" placeholder="you@example.com" error={errors.email} autoCapitalize="none" />
+
+        {mode==='signup' && (
+          <div>
+            <Field label="Phone number (optional)" value={phone} onChange={setPhone}
+              type="tel" placeholder="(555) 123-4567" autoCapitalize="none" />
+            <p style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)',lineHeight:1.5,margin:'6px 2px 0'}}>
+              By entering your phone number and creating an account, you agree to receive a one-time SMS verification code from Rummage. Message and data rates may apply. We don't send marketing texts.
+            </p>
+          </div>
+        )}
 
         <Field label="Password" value={password} onChange={v=>{setPassword(v);setErrors(p=>({...p,password:''}));}}
           type={showPw?'text':'password'} placeholder={mode==='signup'?'At least 6 characters':'Your password'} error={errors.password}
