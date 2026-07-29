@@ -288,6 +288,11 @@ app.get('/api/img', async (req, res) => {
 // dropping straight into the phone-frame SPA.
 app.get('/', (_req, res) => res.sendFile(path.join(__dirname, 'landing.html')));
 app.get(['/app', '/app/'], (_req, res) => res.sendFile(path.join(__dirname, 'index.html')));
+// Public, standalone versions of the in-app Privacy/Terms screens -- App
+// Store Connect requires a real reachable URL for these, not just content
+// buried inside the app itself.
+app.get(['/privacy', '/privacy/'], (_req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
+app.get(['/terms', '/terms/'], (_req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
 app.get('/auth/apple/callback', (_req, res) => res.sendFile(path.join(__dirname, 'apple-callback.html')));
 
 // Standalone static page (not the React SPA) documenting SMS opt-in consent
@@ -2985,20 +2990,50 @@ app.post('/api/clear-cache', (_req, res) => {
 });
 
 // ── Daily email digest ───────────────────────────────────────────────────────
-// Subscribers are the same account email used for verification — persisted
-// to a JSON file rather than the in-memory verifyCodes Map, since this needs
-// to survive a server restart to be worth anything.
+// Subscribers are the same account email used for verification. Stored in
+// Upstash Redis (a free REST-based store) when configured, since Render's
+// free tier has no persistent disk -- a plain JSON file gets silently wiped
+// back to empty on every deploy, losing every real subscriber. The file
+// fallback below only exists so local dev keeps working without needing
+// Upstash credentials.
 const SUBSCRIBERS_FILE = path.join(__dirname, 'subscribers.json');
+const UPSTASH_URL   = process.env.UPSTASH_REDIS_REST_URL;
+const UPSTASH_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const SUBSCRIBERS_KEY = 'rummage:subscribers';
 
-function loadSubscribers() {
+async function loadSubscribers() {
+  if (UPSTASH_URL && UPSTASH_TOKEN) {
+    try {
+      const r = await fetch(`${UPSTASH_URL}/get/${SUBSCRIBERS_KEY}`, {
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      });
+      const data = await r.json();
+      return data.result ? JSON.parse(data.result) : [];
+    } catch (err) {
+      console.error('Upstash load failed:', err.message);
+      return [];
+    }
+  }
   try { return JSON.parse(fs.readFileSync(SUBSCRIBERS_FILE, 'utf8')); } catch { return []; }
 }
-function saveSubscribers(list) {
+async function saveSubscribers(list) {
+  if (UPSTASH_URL && UPSTASH_TOKEN) {
+    try {
+      await fetch(UPSTASH_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['SET', SUBSCRIBERS_KEY, JSON.stringify(list)]),
+      });
+    } catch (err) {
+      console.error('Upstash save failed:', err.message);
+    }
+    return;
+  }
   fs.writeFileSync(SUBSCRIBERS_FILE, JSON.stringify(list, null, 2));
 }
 
 // POST /api/subscribe  { email, zip, radiusMi, saleTypes }
-app.post('/api/subscribe', (req, res) => {
+app.post('/api/subscribe', async (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
   if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
 
@@ -3007,34 +3042,34 @@ app.post('/api/subscribe', (req, res) => {
   const saleTypes = req.body.saleTypes && typeof req.body.saleTypes === 'object'
     ? req.body.saleTypes : { estate: true, yard: true, moving: true };
 
-  const subscribers = loadSubscribers();
+  const subscribers = await loadSubscribers();
   const existing = subscribers.find(s => s.email === email);
   if (existing) {
     Object.assign(existing, { zip, radiusMi, saleTypes, active: true });
   } else {
     subscribers.push({ email, zip, radiusMi, saleTypes, active: true, lastSentDate: null });
   }
-  saveSubscribers(subscribers);
+  await saveSubscribers(subscribers);
   res.json({ ok: true });
 });
 
 // POST /api/unsubscribe  { email }
-app.post('/api/unsubscribe', (req, res) => {
+app.post('/api/unsubscribe', async (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
-  const subscribers = loadSubscribers();
+  const subscribers = await loadSubscribers();
   const existing = subscribers.find(s => s.email === email);
-  if (existing) { existing.active = false; saveSubscribers(subscribers); }
+  if (existing) { existing.active = false; await saveSubscribers(subscribers); }
   res.json({ ok: true });
 });
 
 // GET /unsubscribe?email=x  — the digest email's footer link goes straight
 // here (not through the app), so this has to work with just a click, no
 // sign-in required, per CAN-SPAM's one-click unsubscribe requirement.
-app.get('/unsubscribe', (req, res) => {
+app.get('/unsubscribe', async (req, res) => {
   const email = (req.query.email || '').trim().toLowerCase();
-  const subscribers = loadSubscribers();
+  const subscribers = await loadSubscribers();
   const existing = subscribers.find(s => s.email === email);
-  if (existing) { existing.active = false; saveSubscribers(subscribers); }
+  if (existing) { existing.active = false; await saveSubscribers(subscribers); }
   res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Unsubscribed</title></head>
   <body style="margin:0;background:#F3ECDF;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box;">
     <div style="max-width:420px;text-align:center;background:#FFFFFF;border:1px solid #E5DDCE;border-radius:20px;padding:36px 28px;">
@@ -3416,7 +3451,7 @@ async function runDailyDigestIfDue() {
   if (now.getHours() !== DIGEST_SEND_HOUR) return;
 
   const todayStr = now.toISOString().slice(0, 10);
-  const subscribers = loadSubscribers();
+  const subscribers = await loadSubscribers();
   const due = subscribers.filter(s => s.active && s.lastSentDate !== todayStr);
   if (!due.length) return;
 
@@ -3425,14 +3460,14 @@ async function runDailyDigestIfDue() {
     await sendDigestToSubscriber(sub);
     sub.lastSentDate = todayStr;
   }
-  saveSubscribers(subscribers);
+  await saveSubscribers(subscribers);
 }
 setInterval(runDailyDigestIfDue, 30 * 60 * 1000); // check twice an hour
 
 // POST /api/send-digest-now  { email }  — manual trigger for testing, bypasses the hour/lastSentDate gate
 app.post('/api/send-digest-now', async (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
-  const subscribers = loadSubscribers();
+  const subscribers = await loadSubscribers();
   const sub = subscribers.find(s => s.email === email);
   if (!sub) return res.status(404).json({ error: 'Not subscribed' });
   await sendDigestToSubscriber(sub);
