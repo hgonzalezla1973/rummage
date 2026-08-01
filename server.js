@@ -2198,6 +2198,11 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
 // "w150-h100" is present for every photo); listings syndicated from
 // EstateSales.org instead use eso-cdn.tlcdn.workers.dev with a "-t" thumbnail
 // suffix — stripping "-t" off that filename serves the full-size original.
+// GSALR listings share this same detail-page host and the same tlstatic.com
+// CDN family (gsalr.tlstatic.com, also hard-capped at w150-h100 -- every
+// other size 404s) -- reused here rather than duplicated, since GSALR's own
+// search results only ever exposed a single w100-h100 thumbnail per listing,
+// visibly blurry once stretched to fill the detail screen's photo gallery.
 async function fetchGarageSaleFinderPhotos(listings, concurrency = 5) {
   const imageMap = new Map(); // listing.url → string[]
   const work = listings.filter(l => l.url);
@@ -2213,6 +2218,9 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 5) {
         const seen = new Set();
         const urls = [];
         for (const m of html.matchAll(/https:\/\/gsf\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
+          if (!seen.has(m[0])) { seen.add(m[0]); urls.push(m[0]); }
+        }
+        for (const m of html.matchAll(/https:\/\/gsalr\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
           if (!seen.has(m[0])) { seen.add(m[0]); urls.push(m[0]); }
         }
         for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.webp/g)) {
@@ -2374,7 +2382,9 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
         dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
         timeLabel:    parseTimeFromText(title + ' ' + desc),
         photoCount:   imgMatch ? 1 : 0,
-        images:       imgMatch ? [imgMatch[1]] : [],
+        // Fallback only -- overwritten below with the full gallery at the
+        // larger w150-h100 size when the detail-page fetch succeeds.
+        images:       imgMatch ? [imgMatch[1].replace(/\/w\d+-h\d+\//, '/w150-h100/')] : [],
         live:         false,
         blurb:        desc.slice(0, 300),
         price:        '',
@@ -2384,6 +2394,18 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
         y:            Math.max(10, Math.min(90, px.y)),
       });
     }
+
+    // GSALR's own search results only expose a single w100-h100 thumbnail
+    // per listing (visibly blurry once stretched to fill the detail screen's
+    // gallery) -- its listings link to the same garagesalefinder.com detail
+    // pages GSF uses, which embed the full photo set at the larger w150-h100
+    // size (the max this CDN family has cached for any image).
+    const photoMap = await fetchGarageSaleFinderPhotos(results);
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+    }
+
     console.log(`  GSALR done — ${results.length} listings`);
   } catch (err) {
     console.warn('  GSALR error:', err.message);
