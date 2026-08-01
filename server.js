@@ -28,6 +28,7 @@ const cors      = require('cors');
 // Chromium binary to launch out of the box — CHROME_PATH below still lets
 // local dev point at the system Chrome instead of downloading a second one.
 const puppeteer = require('puppeteer');
+const sharp     = require('sharp');
 const path      = require('path');
 const fs        = require('fs');
 
@@ -272,10 +273,26 @@ app.get('/api/img', async (req, res) => {
     });
     if (!r.ok) return res.status(r.status).send('Upstream error');
     const ct = r.headers.get('content-type') || 'image/jpeg';
-    res.set('Content-Type', ct);
+    let buf = Buffer.from(await r.arrayBuffer());
+
+    // WKWebView's image decoder (used by the native iOS app) can't handle
+    // WebP at all -- some sources (EstateSales.org's CDN especially) serve
+    // photos as .webp, which silently fails to decode there (though it's
+    // fine in a regular browser). Converting to JPEG here fixes it for
+    // every client uniformly, not just iOS.
+    let outCt = ct;
+    if (ct.includes('webp') || /\.webp(\?|$)/i.test(url)) {
+      try {
+        buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
+        outCt = 'image/jpeg';
+      } catch (err) {
+        console.warn('WebP->JPEG conversion failed, serving original:', err.message);
+      }
+    }
+
+    res.set('Content-Type', outCt);
     res.set('Cache-Control', 'public, max-age=3600');
-    const buf = await r.arrayBuffer();
-    res.send(Buffer.from(buf));
+    res.send(buf);
   } catch (err) {
     console.warn('Image proxy error:', err.message);
     res.status(502).send('Proxy error');
