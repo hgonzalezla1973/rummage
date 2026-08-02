@@ -2629,7 +2629,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
   const digestEmail = authUser?.email || '';
   const [saleTypes, setSaleTypes] = useState({estate:true,yard:true,moving:true});
-  const [push, setPush] = useState(true);
+  const [push, setPush] = useState(false);
   const [newSales, setNewSales] = useState(true);
   const [reminders, setReminders] = useState(true);
   const [dailyDigest, setDailyDigest] = useState(!!authUser?.digestOptIn);
@@ -2646,6 +2646,47 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     fetch(`${API_BASE}${enabled ? '/api/subscribe' : '/api/unsubscribe'}`, {
       method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body),
     }).catch(()=>{});
+  };
+
+  // newSales/reminders are intentionally still inert -- no trigger logic
+  // exists server-side yet to back them (this phase only proves the
+  // register-device -> backend-can-send pipeline works, via a manual test
+  // send). Wiring them now would claim behavior that doesn't exist.
+  const togglePush = async (checked) => {
+    if (!checked) {
+      setPush(false);
+      if (digestEmail) {
+        fetch(`${API_BASE}/api/push/register`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ email: digestEmail, pushToken: null }),
+        }).catch(()=>{});
+      }
+      return;
+    }
+    if (!digestEmail) {
+      setDigestToast('Sign in to enable push notifications');
+      setTimeout(()=>setDigestToast(null), 3000);
+      return;
+    }
+    const PN = window.Capacitor?.Plugins?.PushNotifications;
+    if (!PN) {
+      setDigestToast('Push notifications need the Rummage app, not the browser');
+      setTimeout(()=>setDigestToast(null), 3000);
+      return;
+    }
+    try {
+      const perm = await PN.requestPermissions();
+      if (perm.receive !== 'granted') {
+        setDigestToast('Push permission denied — enable it in iOS Settings to turn this on');
+        setTimeout(()=>setDigestToast(null), 3000);
+        return;
+      }
+      await PN.register(); // device token arrives via the app-level 'registration' listener
+      setPush(true);
+    } catch (err) {
+      setDigestToast("Couldn't turn on push notifications — try again");
+      setTimeout(()=>setDigestToast(null), 3000);
+    }
   };
 
   const toggleDailyDigest = (checked) => {
@@ -2751,7 +2792,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         {/* Notifications */}
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Notifications</div>
         <Card padded={false}>
-          <ListRow first icon={Icon('Bell',18)} label="Push notifications" trailing={<Switch checked={push} onChange={setPush} />} />
+          <ListRow first icon={Icon('Bell',18)} label="Push notifications" trailing={<Switch checked={push} onChange={togglePush} />} />
           <ListRow icon={Icon('Sparkles',18)} label="New sales nearby" sublabel="Within your radius" trailing={<Switch checked={newSales} onChange={setNewSales} />} />
           <ListRow icon={Icon('Clock',18)} label="Sale reminders" sublabel="1 hour before saved sales" trailing={<Switch checked={reminders} onChange={setReminders} />} />
           <ListRow icon={Icon('Mail',18)} label="Daily digest email" sublabel={digestEmail ? `Today's sales, sent to ${digestEmail}` : 'Sign in to enable'} trailing={<Switch checked={dailyDigest} onChange={toggleDailyDigest} />} />
@@ -4503,6 +4544,35 @@ function App() {
       window.history.replaceState({}, '', window.location.pathname);
     }
   }, [allSales, detailId]);
+
+  // Push notifications: registered once for the app's lifetime (not tied to
+  // whichever screen is active) so a tapped notification opens the right
+  // sale via the same openSaleDetail every other entry point uses, and a
+  // device token reaches the backend as soon as it's issued -- even if
+  // AccountScreen (where the toggle lives) isn't mounted anymore by then.
+  const authUserRef = useRef(authUser);
+  useEffect(() => { authUserRef.current = authUser; }, [authUser]);
+  useEffect(() => {
+    const PN = window.Capacitor?.Plugins?.PushNotifications;
+    if (!isMobileDevice || !PN) return;
+    const handles = [];
+    PN.addListener('registration', (token) => {
+      const email = authUserRef.current?.email;
+      if (!email) return;
+      fetch(`${API_BASE}/api/push/register`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, pushToken: token.value }),
+      }).catch(() => {});
+    }).then(h => handles.push(h));
+    PN.addListener('registrationError', (err) => {
+      console.warn('Push registration failed:', err);
+    }).then(h => handles.push(h));
+    PN.addListener('pushNotificationActionPerformed', (action) => {
+      const saleId = action.notification?.data?.saleId;
+      if (saleId) openSaleDetail(saleId);
+    }).then(h => handles.push(h));
+    return () => { handles.forEach(h => h.remove()); };
+  }, []);
   const savedCount = allSales.filter(s=>s.saved).length;
 
   const toggleSave = (id) => setSavedIds(p=>({...p,[id]:!p[id]}));

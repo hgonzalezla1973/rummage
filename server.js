@@ -3129,6 +3129,110 @@ app.get('/unsubscribe', async (req, res) => {
   </body></html>`);
 });
 
+// ── Push notifications (APNs) ────────────────────────────────────────────────
+// Hand-rolled against Apple's HTTP/2 API rather than a library (node-apn etc)
+// -- same "no SDK, raw request" convention as sendResendEmail/sendTwilioSMS
+// above. Token-based auth (a .p8 key signed into a short-lived ES256 JWT)
+// rather than a certificate, using the same `jwt` (jsonwebtoken) already
+// required above for Apple Sign-In verification -- it already supports ES256.
+const http2 = require('http2');
+const APNS_KEY_ID      = process.env.APNS_KEY_ID;
+const APNS_TEAM_ID     = process.env.APNS_TEAM_ID;
+const APNS_PRIVATE_KEY = process.env.APNS_PRIVATE_KEY;
+const APNS_BUNDLE_ID   = process.env.APNS_BUNDLE_ID || 'com.rummagedeals.app';
+// Xcode debug/Simulator/TestFlight-via-Xcode builds register against Apple's
+// *sandbox* APNs host, not production -- only a real App Store build uses
+// production. Stays sandbox until real release testing.
+const APNS_HOST = process.env.APNS_ENV === 'production'
+  ? 'api.push.apple.com'
+  : 'api.sandbox.push.apple.com';
+
+let cachedApnsJwt = null;
+let cachedApnsJwtAt = 0;
+function signApnsJwt() {
+  // Apple's guidance: don't mint a new token per request -- reuse one for up
+  // to ~55 minutes (tokens are valid up to 60).
+  if (cachedApnsJwt && Date.now() - cachedApnsJwtAt < 55 * 60 * 1000) return cachedApnsJwt;
+  cachedApnsJwt = jwt.sign({ iss: APNS_TEAM_ID, iat: Math.floor(Date.now() / 1000) }, APNS_PRIVATE_KEY, {
+    algorithm: 'ES256',
+    header: { alg: 'ES256', kid: APNS_KEY_ID },
+  });
+  cachedApnsJwtAt = Date.now();
+  return cachedApnsJwt;
+}
+
+// sendApnsPush(deviceToken, { title, body, saleId }) -- dev mode (missing
+// APNs env vars) just logs to console, same fallback pattern as every other
+// integration in this file.
+async function sendApnsPush(deviceToken, { title, body, saleId }) {
+  if (!APNS_KEY_ID || !APNS_TEAM_ID || !APNS_PRIVATE_KEY) {
+    console.log(`\n🔔 DEV MODE — push to ${deviceToken.slice(0, 12)}...: ${title} — ${body}\n`);
+    return { ok: true, devMode: true };
+  }
+  const payload = JSON.stringify({ aps: { alert: { title, body }, sound: 'default' }, saleId: saleId || null });
+  return new Promise((resolve, reject) => {
+    const client = http2.connect(`https://${APNS_HOST}`);
+    client.on('error', reject);
+    const req = client.request({
+      ':method': 'POST',
+      ':path': `/3/device/${deviceToken}`,
+      'authorization': `bearer ${signApnsJwt()}`,
+      'apns-topic': APNS_BUNDLE_ID,
+      'apns-push-type': 'alert',
+      'content-type': 'application/json',
+    });
+    let status = 0;
+    let body_ = '';
+    req.on('response', headers => { status = headers[':status']; });
+    req.on('data', chunk => { body_ += chunk; });
+    req.on('end', () => {
+      client.close();
+      if (status !== 200) return reject(new Error(`APNs ${status}: ${body_ || '(no body)'}`));
+      resolve({ ok: true });
+    });
+    req.on('error', reject);
+    req.end(payload);
+  });
+}
+
+// POST /api/push/register  { email, pushToken }  -- pushToken: null unregisters.
+// Upserts into the same subscriber record the daily digest uses (same email
+// identity, same loadSubscribers/saveSubscribers helpers) rather than a
+// separate store -- creating a record here does NOT opt the user into the
+// digest (active stays false for a brand-new record).
+app.post('/api/push/register', async (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
+  const pushToken = req.body.pushToken || null;
+
+  const subscribers = await loadSubscribers();
+  const existing = subscribers.find(s => s.email === email);
+  if (existing) {
+    existing.pushToken = pushToken;
+  } else {
+    subscribers.push({ email, zip: '90601', radiusMi: 15, saleTypes: { estate: true, yard: true, moving: true }, active: false, lastSentDate: null, pushToken });
+  }
+  await saveSubscribers(subscribers);
+  res.json({ ok: true });
+});
+
+// POST /api/push/test  { email }  -- manual send, proves the pipeline works
+// end-to-end. Mirrors /api/send-digest-now's shape: no auth beyond already
+// being a known subscriber with a registered token.
+app.post('/api/push/test', async (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  const subscribers = await loadSubscribers();
+  const sub = subscribers.find(s => s.email === email);
+  if (!sub || !sub.pushToken) return res.status(404).json({ error: 'No push token registered for that email' });
+  try {
+    await sendApnsPush(sub.pushToken, { title: 'Rummage', body: "Test push — if you're seeing this, it works!" });
+    res.json({ ok: true });
+  } catch (err) {
+    console.error('APNs send failed:', err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
 // Whether a listing's display date label ("Sat, Jul 4" or a range like
 // "Sat, Jul 4 – Sun, Jul 5") includes today. Mirrors the parsing the
 // frontend does for saleSortDate/isSaleLive, but date-only (no time).
