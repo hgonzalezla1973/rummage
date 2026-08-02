@@ -4555,7 +4555,11 @@ function App() {
   useEffect(() => {
     const PN = window.Capacitor?.Plugins?.PushNotifications;
     if (!isMobileDevice || !PN) return;
-    const handles = [];
+    // addListener's return value isn't consistently a Promise across
+    // Capacitor/plugin versions (confirmed via on-device testing: chaining
+    // .then() here threw "is not a function") -- these listeners live for
+    // the app's whole lifetime anyway (this effect never re-runs or
+    // unmounts in practice), so there's nothing worth cleaning up.
     PN.addListener('registration', (token) => {
       const email = authUserRef.current?.email;
       if (!email) return;
@@ -4563,15 +4567,14 @@ function App() {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, pushToken: token.value }),
       }).catch(() => {});
-    }).then(h => handles.push(h));
+    });
     PN.addListener('registrationError', (err) => {
       console.warn('Push registration failed:', err);
-    }).then(h => handles.push(h));
+    });
     PN.addListener('pushNotificationActionPerformed', (action) => {
       const saleId = action.notification?.data?.saleId;
       if (saleId) openSaleDetail(saleId);
-    }).then(h => handles.push(h));
-    return () => { handles.forEach(h => h.remove()); };
+    });
   }, []);
   const savedCount = allSales.filter(s=>s.saved).length;
 
