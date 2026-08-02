@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Rummage — Find the good stuff nearby</title>
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -70,7 +70,7 @@
   --shadow-pin:0 6px 16px rgba(168,31,36,.35);
   --shadow-focus:0 0 0 3px rgba(193,39,45,.28);
 
-  --safe-top:59px; --tabbar-height:84px;
+  --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
   --ease-out:cubic-bezier(.22,1,.36,1); --ease-spring:cubic-bezier(.34,1.56,.64,1);
 }
@@ -129,6 +129,16 @@ const { useState, useEffect, useRef } = React;
 const API_BASE = (window.Capacitor?.isNativePlatform?.() || !/^https?:$/.test(location.protocol))
   ? 'https://rummagedeals.com'
   : '';
+
+// True for the native app and for real phones/tablets browsing the site
+// directly (rummagedeals.com in mobile Safari) — these get a full-bleed
+// layout with real device safe-area insets. False for desktop browsers,
+// which keep the phone-mockup preview frame. Computed once: "pointer: coarse"
+// reflects the primary input hardware, which doesn't change on rotation, so a
+// real phone can never flip out of mobile mode just by turning sideways (a
+// plain width check would, since landscape reports a wide innerWidth).
+const isMobileDevice = !!(window.Capacitor?.isNativePlatform?.()
+  || (window.matchMedia?.('(pointer: coarse)').matches && navigator.maxTouchPoints > 0));
 
 // ── Icon helper ───────────────────────────────────────────────────────────────
 function Icon(name, size = 20, opts = {}) {
@@ -721,7 +731,8 @@ function TabBar({ items, active, onChange }) {
     <nav style={{
       display:'flex', alignItems:'stretch', width:'100%',
       background:'rgba(237,230,214,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
-      borderTop:'1px solid var(--line)', paddingBottom:20,
+      borderTop:'1px solid var(--line)', paddingBottom:'calc(20px + var(--safe-bottom))',
+      paddingLeft:'var(--safe-left)', paddingRight:'var(--safe-right)',
     }}>
       {items.map(it => {
         const isActive = it.key===active;
@@ -1021,6 +1032,16 @@ function useCountdown(dateLabel, timeLabel) {
     return () => clearInterval(t);
   }, [dateLabel, timeLabel]);
   return info;
+}
+
+function useViewport() {
+  const [size, setSize] = useState(() => ({ width: window.innerWidth, height: window.innerHeight }));
+  useEffect(() => {
+    const onResize = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+  return { ...size, isLandscape: size.width > size.height };
 }
 
 // ── Photo gallery ─────────────────────────────────────────────────────────────
@@ -1409,6 +1430,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
   const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
+  const { isLandscape } = useViewport();
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
   // The ±2 day / 2-week date windowing itself happens upstream in App's
   // allSales filter (withinTwoWeeks only widens that window's future edge) —
@@ -1534,7 +1556,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <IconButton icon={Icon('Layers',20)} variant="surface" aria-label="Map layers" />
           </div>
           {sel && (
-            <div style={{position:'absolute',left:14,right:14,bottom:104}}>
+            <div style={{position:'absolute',left:14,right:14,bottom:'calc(104px + var(--safe-bottom))'}}>
               <SaleCard id={sel.id} layout="row" type={sel.type} title={sel.title} address={sel.neighborhood}
                 distanceMi={sel.distanceMi} dateLabel={sel.dateLabel} timeLabel={sel.timeLabel}
                 lat={sel.lat} lng={sel.lng}
@@ -1543,7 +1565,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           )}
         </div>
       ) : (
-        <div style={{flex:1,overflowY:'auto',padding:'14px 16px 120px'}}>
+        <div style={{flex:1,overflowY:'auto',padding:'14px 16px calc(120px + var(--safe-bottom))'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:15,color:'var(--text-primary)'}}>{shown.length} {shown.length===1?'sale':'sales'} nearby</span>
             <button type="button" onClick={()=>setSortBy(s=>s==='date'?'distance':'date')} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:0,fontFamily:'inherit'}}>
@@ -1558,7 +1580,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
               <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>{coverageMessage || 'Try adjusting your filters or expanding your search radius.'}</p>
             </div>
           ) : (
-          <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+          <div style={{display:'grid',gridTemplateColumns:isLandscape ? 'repeat(auto-fill,minmax(160px,1fr))' : '1fr 1fr',gap:14}}>
             {shown.map(s=>(
               <SaleGridCard key={s.id} id={s.id} type={s.type} title={s.title} distanceMi={s.distanceMi}
                 dateLabel={s.dateLabel} timeLabel={s.timeLabel} neighborhood={s.neighborhood} images={s.images}
@@ -3403,6 +3425,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
   const countdown = useCountdown(s.dateLabel, s.timeLabel);
   const openDirections = () => openSaleDirections(s, onNavigateTo);
   const [shareOpen, setShareOpen] = useState(false);
+  const { height: vh, isLandscape } = useViewport();
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
@@ -3410,7 +3433,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         <PhotoGallery
           images={s.images}
           type={s.type}
-          height={280}
+          height={isLandscape ? Math.min(280, Math.round(vh * 0.35)) : 280}
           onBack={onBack}
           saved={s.saved}
           onSave={()=>onToggleSave(s.id)}
@@ -3772,6 +3795,7 @@ function ListScreen({ onPublish }) {
   const [published, setPublished] = useState(null);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [photoError, setPhotoError] = useState(null);
+  const { isLandscape } = useViewport();
 
   const handleFile = (e, idx) => {
     const file = e.target.files?.[0];
@@ -3984,10 +4008,10 @@ function ListScreen({ onPublish }) {
 
       {/* ── Step 1: Type + Photos ── */}
       {step===1 && (
-        <div style={{padding:'16px 20px 120px',display:'flex',flexDirection:'column',gap:24}}>
+        <div style={{padding:'16px 20px 120px',display:'flex',flexDirection:'column',gap:24,maxWidth:isLandscape?480:undefined,margin:isLandscape?'0 auto':undefined}}>
           <div>
             <div className="rmg-eyebrow" style={{marginBottom:12}}>Sale type</div>
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:isLandscape?'1fr 1fr 1fr':'1fr 1fr',gap:10}}>
               {[
                 {key:'estate',bg:'#DCE4EF',fg:'#2C4A7C',emoji:'🛋️',desc:'Full household'},
                 {key:'yard',  bg:'#E1E8D6',fg:'#3F5E3A',emoji:'⛺', desc:'Driveway or yard'},
@@ -4032,7 +4056,7 @@ function ListScreen({ onPublish }) {
                 <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--amber-600)',lineHeight:1.4}}>{photoError}</span>
               </div>
             )}
-            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:10}}>
+            <div style={{display:'grid',gridTemplateColumns:isLandscape?'repeat(auto-fill,minmax(100px,1fr))':'1fr 1fr 1fr',gap:10}}>
               {Array.from({length:12},(_,i)=>i).map(idx=>(
                 <label key={idx} htmlFor={`rmg-photo-${idx}`} style={{
                   aspectRatio:'4/3',borderRadius:'var(--radius-lg)',overflow:'hidden',
@@ -4068,7 +4092,7 @@ function ListScreen({ onPublish }) {
 
       {/* ── Step 2: Details ── */}
       {step===2 && (
-        <div style={{padding:'16px 20px 120px',display:'flex',flexDirection:'column',gap:14}}>
+        <div style={{padding:'16px 20px 120px',display:'flex',flexDirection:'column',gap:14,maxWidth:isLandscape?480:undefined,margin:isLandscape?'0 auto':undefined}}>
           <div>
             <Label required>Listing title</Label>
             <RmgInput placeholder="e.g. Weekend Yard Sale" value={title}
@@ -4507,10 +4531,14 @@ function App() {
     {key:'account',label:'Account',  icon:ic('User',24)},
   ];
 
-  return (
-    <div style={{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:'linear-gradient(145deg,#1C1917 0%,#292524 50%,#3C3330 100%)'}}>
-      <div id="phone-frame" style={{width:390,height:844,flexShrink:0,position:'relative',background:'var(--surface-app)',borderRadius:52,overflow:'hidden',boxShadow:'0 40px 90px rgba(0,0,0,.55),0 0 0 11px #0C0A09,0 0 0 13px #211E1D',transform:`scale(${scale})`}}>
-
+  // Rendered once, then dropped into whichever shell below actually mounts —
+  // real phones/tablets (isMobileDevice) get a full-bleed shell with real
+  // safe-area insets, everything else keeps the phone-mockup preview frame.
+  // Both shells share the id="phone-frame" (only one ever mounts at a time)
+  // so burstConfetti()'s `document.getElementById('phone-frame')` lookup
+  // keeps working unchanged in either mode.
+  const screens = (
+    <>
         {/* App screens */}
         {tab==='explore' && !detailSale && (
           <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={effectiveZip} apiStatus={apiStatus} coverageMessage={coverageMessage}
@@ -4624,6 +4652,35 @@ function App() {
               onOpenSale={id=>{ setNotificationsOpen(false); setItemsView(null); openSaleDetail(id); }} />
           </div>
         )}
+    </>
+  );
+
+  const walkthrough = showWalkthrough && <WalkthroughScreen onDone={finishWalkthrough} userName={authUser?.name} />;
+
+  if (isMobileDevice) {
+    // Full-bleed shell for real phones/tablets (native app or mobile Safari):
+    // no scaled mockup, no painted-on fake status bar/notch -- the real
+    // device chrome shows through, and real safe-area insets (which move to
+    // the left/right edge in landscape, not just top/bottom) replace the
+    // fixed --safe-top constant used throughout every screen.
+    return (
+      <div id="phone-frame" style={{
+        position:'fixed', inset:0, overflow:'hidden', background:'var(--surface-app)',
+        '--safe-top':'env(safe-area-inset-top, 20px)',
+        '--safe-bottom':'env(safe-area-inset-bottom, 0px)',
+        '--safe-left':'env(safe-area-inset-left, 0px)',
+        '--safe-right':'env(safe-area-inset-right, 0px)',
+      }}>
+        {screens}
+        {walkthrough}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{position:'fixed',inset:0,display:'flex',alignItems:'center',justifyContent:'center',overflow:'hidden',background:'linear-gradient(145deg,#1C1917 0%,#292524 50%,#3C3330 100%)'}}>
+      <div id="phone-frame" style={{width:390,height:844,flexShrink:0,position:'relative',background:'var(--surface-app)',borderRadius:52,overflow:'hidden',boxShadow:'0 40px 90px rgba(0,0,0,.55),0 0 0 11px #0C0A09,0 0 0 13px #211E1D',transform:`scale(${scale})`}}>
+        {screens}
 
         {/* iOS status bar */}
         <div style={{position:'absolute',top:0,left:0,right:0,height:54,zIndex:70,display:'flex',alignItems:'center',justifyContent:'space-between',padding:'16px 32px 0',pointerEvents:'none',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--ink-900)'}}>
@@ -4636,8 +4693,7 @@ function App() {
         </div>
         <div style={{position:'absolute',top:11,left:'50%',transform:'translateX(-50%)',width:120,height:34,background:'#14110F',borderRadius:20,zIndex:75}} />
 
-        {/* First-run animated walkthrough */}
-        {showWalkthrough && <WalkthroughScreen onDone={finishWalkthrough} userName={authUser?.name} />}
+        {walkthrough}
       </div>
     </div>
   );
