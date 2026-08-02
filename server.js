@@ -2193,16 +2193,18 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
 
 // The search page only exposes one itemprop="image" per listing (despite
 // `data-sale.photo_count` often being much higher) — each listing's own
-// detail page embeds its full gallery as plain <img> tags. Native
-// GarageSaleFinder listings host photos on gsf.tlstatic.com (only
-// "w150-h100" is present for every photo); listings syndicated from
-// EstateSales.org instead use eso-cdn.tlcdn.workers.dev with a "-t" thumbnail
-// suffix — stripping "-t" off that filename serves the full-size original.
-// GSALR listings share this same detail-page host and the same tlstatic.com
-// CDN family (gsalr.tlstatic.com, also hard-capped at w150-h100 -- every
-// other size 404s) -- reused here rather than duplicated, since GSALR's own
-// search results only ever exposed a single w100-h100 thumbnail per listing,
-// visibly blurry once stretched to fill the detail screen's photo gallery.
+// detail page embeds its full gallery as plain <img> tags, sized
+// "w150-h100" in the raw HTML. That tlstatic.com CDN family (gsf.tlstatic.com
+// and gsalr.tlstatic.com) also serves a much larger "w500-h500" rendition of
+// the same file (confirmed via direct probing -- w150-h100 and w500-h500 both
+// 200, most sizes in between 404), so every matched URL is upgraded to that
+// size before use. EstateSales.org-syndicated listings instead use
+// eso-cdn.tlcdn.workers.dev with a "-t" thumbnail suffix — stripping "-t" off
+// that filename serves the full-size original. GSALR shares the same
+// detail-page host as native GarageSaleFinder listings, reused here rather
+// than duplicated, since GSALR's own search results only ever exposed a
+// single w100-h100 thumbnail per listing, visibly blurry once stretched to
+// fill the detail screen's photo gallery.
 async function fetchGarageSaleFinderPhotos(listings, concurrency = 5) {
   const imageMap = new Map(); // listing.url → string[]
   const work = listings.filter(l => l.url);
@@ -2218,10 +2220,12 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 5) {
         const seen = new Set();
         const urls = [];
         for (const m of html.matchAll(/https:\/\/gsf\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
-          if (!seen.has(m[0])) { seen.add(m[0]); urls.push(m[0]); }
+          const full = m[0].replace('/w150-h100/', '/w500-h500/');
+          if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
         for (const m of html.matchAll(/https:\/\/gsalr\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
-          if (!seen.has(m[0])) { seen.add(m[0]); urls.push(m[0]); }
+          const full = m[0].replace('/w150-h100/', '/w500-h500/');
+          if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
         for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.webp/g)) {
           const full = m[0].replace(/-t\.webp$/, '.webp');
@@ -2383,8 +2387,8 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
         timeLabel:    parseTimeFromText(title + ' ' + desc),
         photoCount:   imgMatch ? 1 : 0,
         // Fallback only -- overwritten below with the full gallery at the
-        // larger w150-h100 size when the detail-page fetch succeeds.
-        images:       imgMatch ? [imgMatch[1].replace(/\/w\d+-h\d+\//, '/w150-h100/')] : [],
+        // larger w500-h500 size when the detail-page fetch succeeds.
+        images:       imgMatch ? [imgMatch[1].replace(/\/w\d+-h\d+\//, '/w500-h500/')] : [],
         live:         false,
         blurb:        desc.slice(0, 300),
         price:        '',
@@ -2398,8 +2402,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
     // GSALR's own search results only expose a single w100-h100 thumbnail
     // per listing (visibly blurry once stretched to fill the detail screen's
     // gallery) -- its listings link to the same garagesalefinder.com detail
-    // pages GSF uses, which embed the full photo set at the larger w150-h100
-    // size (the max this CDN family has cached for any image).
+    // pages GSF uses, which embed the full photo set, upgraded to w500-h500.
     const photoMap = await fetchGarageSaleFinderPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
