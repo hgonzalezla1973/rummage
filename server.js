@@ -3221,18 +3221,60 @@ async function sendApnsPush(deviceToken, { title, body, saleId }) {
 // identity, same loadSubscribers/saveSubscribers helpers) rather than a
 // separate store -- creating a record here does NOT opt the user into the
 // digest (active stays false for a brand-new record).
+// Body may carry any subset of { pushToken, notifyNewSales, notifyReminders }
+// -- e.g. the "New sales nearby" toggle only ever sends notifyNewSales, and
+// must never clobber an already-registered pushToken by treating an absent
+// field as "set it to null." Only fields actually present in the body are
+// applied.
 app.post('/api/push/register', async (req, res) => {
   const email = (req.body.email || '').trim().toLowerCase();
   if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
-  const pushToken = req.body.pushToken || null;
 
   const subscribers = await loadSubscribers();
-  const existing = subscribers.find(s => s.email === email);
-  if (existing) {
-    existing.pushToken = pushToken;
-  } else {
-    subscribers.push({ email, zip: '90601', radiusMi: 15, saleTypes: { estate: true, yard: true, moving: true }, active: false, lastSentDate: null, pushToken });
+  let sub = subscribers.find(s => s.email === email);
+  if (!sub) {
+    sub = { email, zip: '90601', radiusMi: 15, saleTypes: { estate: true, yard: true, moving: true }, active: false, lastSentDate: null,
+      pushToken: null, notifyNewSales: true, notifyReminders: true, notifiedKeys: [], watchedSales: [] };
+    subscribers.push(sub);
   }
+  if ('pushToken' in req.body) sub.pushToken = req.body.pushToken || null;
+  if ('notifyNewSales' in req.body) sub.notifyNewSales = !!req.body.notifyNewSales;
+  if ('notifyReminders' in req.body) sub.notifyReminders = !!req.body.notifyReminders;
+  if (!sub.notifiedKeys) sub.notifiedKeys = [];
+  if (!sub.watchedSales) sub.watchedSales = [];
+
+  await saveSubscribers(subscribers);
+  res.json({ ok: true });
+});
+
+// POST /api/push/watch  { email, sale:{id,title,dateLabel,timeLabel} } to add/
+// update a watched sale, or { email, unwatchId } to remove one. A full
+// snapshot (not just the id) is required because listings are ephemeral --
+// re-scraped and cached for only 8 minutes, never stored durably -- so the
+// backend has no later way to look up "when does saved sale X start" from
+// an id alone. Capped at 50 watched sales per subscriber (a user watching
+// more than that is an edge case not worth extra complexity for).
+const WATCHED_SALES_MAX = 50;
+app.post('/api/push/watch', async (req, res) => {
+  const email = (req.body.email || '').trim().toLowerCase();
+  if (!email || !/\S+@\S+\.\S+/.test(email)) return res.status(400).json({ error: 'Invalid email' });
+
+  const subscribers = await loadSubscribers();
+  const sub = subscribers.find(s => s.email === email);
+  if (!sub) return res.status(404).json({ error: 'Not registered' }); // must have hit /api/push/register first
+  if (!sub.watchedSales) sub.watchedSales = [];
+
+  if (req.body.unwatchId) {
+    sub.watchedSales = sub.watchedSales.filter(w => w.id !== req.body.unwatchId);
+  } else if (req.body.sale && req.body.sale.id) {
+    const { id, title, dateLabel, timeLabel } = req.body.sale;
+    sub.watchedSales = sub.watchedSales.filter(w => w.id !== id);
+    sub.watchedSales.push({ id, title: title || '', dateLabel: dateLabel || '', timeLabel: timeLabel || '', notified: false });
+    if (sub.watchedSales.length > WATCHED_SALES_MAX) sub.watchedSales = sub.watchedSales.slice(-WATCHED_SALES_MAX);
+  } else {
+    return res.status(400).json({ error: 'Missing sale or unwatchId' });
+  }
+
   await saveSubscribers(subscribers);
   res.json({ ok: true });
 });
@@ -3643,6 +3685,110 @@ app.post('/api/send-digest-now', async (req, res) => {
   const sub = subscribers.find(s => s.email === email);
   if (!sub) return res.status(404).json({ error: 'Not subscribed' });
   await sendDigestToSubscriber(sub);
+  res.json({ ok: true });
+});
+
+// ── Push trigger: new sale nearby ───────────────────────────────────────────
+// A stable-enough identity for "is this the same real-world sale I already
+// notified about," independent of `id` -- YardSaleSearch/GarageSaleFinder/
+// GSALR fall back to a position-dependent id (`${lat}-${lng}-${results.length}`)
+// when their source has no real numeric id, so the same sale can get a
+// different id string between scrape runs. Reuses the exact normalized-title
+// + rounded-lat/lng technique the existing cross-source dedup pass already
+// uses successfully for the same underlying problem (see the dedup block
+// around "distinctiveGroups"/"bucketGroups" above).
+function noveltyKey(listing) {
+  const normTitle = (listing.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+  const latKey = listing.lat != null ? listing.lat.toFixed(2) : '?';
+  const lngKey = listing.lng != null ? listing.lng.toFixed(2) : '?';
+  return `${normTitle.slice(0, 30)}|${latKey},${lngKey}`;
+}
+
+const NOTIFIED_KEYS_MAX = 300;
+async function runNewSaleNotifications() {
+  const subscribers = await loadSubscribers();
+  const candidates = subscribers.filter(s => s.pushToken && s.notifyNewSales !== false);
+  if (!candidates.length) return;
+
+  let touched = false;
+  for (const sub of candidates) {
+    const activeTypes = Object.keys(sub.saleTypes || {}).filter(k => sub.saleTypes[k]);
+    let listings;
+    try {
+      listings = await getListingsForZip(sub.zip, sub.radiusMi);
+    } catch (err) {
+      console.error(`New-sale check failed for ${sub.email}:`, err.message);
+      continue;
+    }
+    const relevant = listings.filter(l => saleTouchesToday(l.dateLabel) && (activeTypes.length === 0 || activeTypes.includes(l.type)));
+
+    const known = new Set(sub.notifiedKeys || []);
+    const fresh = relevant.filter(l => !known.has(noveltyKey(l)));
+    if (!fresh.length) continue;
+
+    const title = fresh.length === 1 ? fresh[0].title : `${fresh.length} new sales near you`;
+    const body = fresh.length === 1 ? `${fresh[0].neighborhood || 'Nearby'} · ${fresh[0].dateLabel || ''}` : 'Tap to see what\'s new.';
+    try {
+      await sendApnsPush(sub.pushToken, { title, body, saleId: fresh.length === 1 ? fresh[0].id : undefined });
+    } catch (err) {
+      console.error(`New-sale push failed for ${sub.email}:`, err.message);
+    }
+
+    sub.notifiedKeys = [...(sub.notifiedKeys || []), ...fresh.map(noveltyKey)].slice(-NOTIFIED_KEYS_MAX);
+    touched = true;
+  }
+  if (touched) await saveSubscribers(subscribers);
+}
+setInterval(runNewSaleNotifications, 30 * 60 * 1000);
+
+// POST /api/push/check-new-sales — manual trigger for testing, bypasses the interval wait.
+app.post('/api/push/check-new-sales', async (req, res) => {
+  await runNewSaleNotifications();
+  res.json({ ok: true });
+});
+
+// ── Push trigger: sale starting soon ────────────────────────────────────────
+// Tighter cadence than the other two jobs -- timing precision matters more
+// here (a "starts in 30 min" reminder that fires an hour late is useless).
+const REMINDER_WINDOW_MS = 35 * 60 * 1000; // wider than the poll interval so one check always catches it before start
+const WATCHED_STALE_MS = 6 * 60 * 60 * 1000; // prune watches for sales long past their start
+async function runSaleStartingSoonIfDue() {
+  const subscribers = await loadSubscribers();
+  const candidates = subscribers.filter(s => s.pushToken && s.notifyReminders !== false && (s.watchedSales || []).length);
+  if (!candidates.length) return;
+
+  const now = Date.now();
+  let touched = false;
+  for (const sub of candidates) {
+    let changed = false;
+    for (const watch of sub.watchedSales) {
+      if (watch.notified) continue;
+      const start = digestParseSaleStart(watch.dateLabel, watch.timeLabel);
+      if (!start) continue;
+      const untilStart = start.getTime() - now;
+      if (untilStart <= 0 || untilStart > REMINDER_WINDOW_MS) continue;
+      try {
+        await sendApnsPush(sub.pushToken, { title: watch.title || 'Rummage', body: 'Starts in about 30 min!', saleId: watch.id });
+        watch.notified = true;
+        changed = true;
+      } catch (err) {
+        console.error(`Reminder push failed for ${sub.email}:`, err.message);
+      }
+    }
+    const before = sub.watchedSales.length;
+    sub.watchedSales = sub.watchedSales.filter(w => {
+      const start = digestParseSaleStart(w.dateLabel, w.timeLabel);
+      return !start || (now - start.getTime()) < WATCHED_STALE_MS;
+    });
+    if (changed || sub.watchedSales.length !== before) touched = true;
+  }
+  if (touched) await saveSubscribers(subscribers);
+}
+setInterval(runSaleStartingSoonIfDue, 5 * 60 * 1000);
+
+// POST /api/push/check-reminders — manual trigger for testing, bypasses the interval wait.
+app.post('/api/push/check-reminders', async (req, res) => {
+  await runSaleStartingSoonIfDue();
   res.json({ ok: true });
 });
 

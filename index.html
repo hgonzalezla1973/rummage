@@ -2648,10 +2648,6 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     }).catch(()=>{});
   };
 
-  // newSales/reminders are intentionally still inert -- no trigger logic
-  // exists server-side yet to back them (this phase only proves the
-  // register-device -> backend-can-send pipeline works, via a manual test
-  // send). Wiring them now would claim behavior that doesn't exist.
   const togglePush = async (checked) => {
     if (!checked) {
       setPush(false);
@@ -2690,6 +2686,29 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     } catch (err) {
       setDigestToast("Couldn't turn on push notifications — try again");
       setTimeout(()=>setDigestToast(null), 3000);
+    }
+  };
+
+  // These two only set a preference flag server-side (whether an already-
+  // registered device should receive that category of push) -- they don't
+  // themselves register for push, so they're meaningful even before the
+  // master "Push notifications" toggle above has ever been turned on.
+  const toggleNewSales = (checked) => {
+    setNewSales(checked);
+    if (digestEmail) {
+      fetch(`${API_BASE}/api/push/register`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email: digestEmail, notifyNewSales: checked }),
+      }).catch(()=>{});
+    }
+  };
+  const toggleReminders = (checked) => {
+    setReminders(checked);
+    if (digestEmail) {
+      fetch(`${API_BASE}/api/push/register`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email: digestEmail, notifyReminders: checked }),
+      }).catch(()=>{});
     }
   };
 
@@ -2797,8 +2816,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Notifications</div>
         <Card padded={false}>
           <ListRow first icon={Icon('Bell',18)} label="Push notifications" trailing={<Switch checked={push} onChange={togglePush} />} />
-          <ListRow icon={Icon('Sparkles',18)} label="New sales nearby" sublabel="Within your radius" trailing={<Switch checked={newSales} onChange={setNewSales} />} />
-          <ListRow icon={Icon('Clock',18)} label="Sale reminders" sublabel="1 hour before saved sales" trailing={<Switch checked={reminders} onChange={setReminders} />} />
+          <ListRow icon={Icon('Sparkles',18)} label="New sales nearby" sublabel="Within your radius" trailing={<Switch checked={newSales} onChange={toggleNewSales} />} />
+          <ListRow icon={Icon('Clock',18)} label="Sale reminders" sublabel="About 30 min before saved sales" trailing={<Switch checked={reminders} onChange={toggleReminders} />} />
           <ListRow icon={Icon('Mail',18)} label="Daily digest email" sublabel={digestEmail ? `Today's sales, sent to ${digestEmail}` : 'Sign in to enable'} trailing={<Switch checked={dailyDigest} onChange={toggleDailyDigest} />} />
           {onOpenNotifications && (
             <ListRow icon={Icon('BellRing',18)} label="View notifications" trailing={chev} onClick={onOpenNotifications} />
@@ -4428,7 +4447,16 @@ function App() {
   const [radiusMi, setRadiusMi] = useState(15);
   const [zip, _setZip] = useState(() => localStorage.getItem('rummage_zip') || '90601');
   const setZip = (z) => { localStorage.setItem('rummage_zip', z); _setZip(z); };
-  const [savedIds, setSavedIds] = useState({});
+  const [savedIds, _setSavedIds] = useState(() => {
+    try { return JSON.parse(localStorage.getItem('rummage_saved') || '{}'); } catch { return {}; }
+  });
+  const setSavedIds = (updater) => {
+    _setSavedIds(prev => {
+      const next = typeof updater === 'function' ? updater(prev) : updater;
+      localStorage.setItem('rummage_saved', JSON.stringify(next));
+      return next;
+    });
+  };
   const [userListings, setUserListings] = useState([]);
   const [apiListings, setApiListings]   = useState([]);
   const [apiStatus, setApiStatus]       = useState('idle'); // idle | loading | ok | error
@@ -4582,7 +4610,28 @@ function App() {
   }, []);
   const savedCount = allSales.filter(s=>s.saved).length;
 
-  const toggleSave = (id) => setSavedIds(p=>({...p,[id]:!p[id]}));
+  const toggleSave = (id) => {
+    setSavedIds(p=>({...p,[id]:!p[id]}));
+    // Sync to the backend so "sale starting soon" reminders have something
+    // to check against later -- listings are ephemeral (re-scraped every 8
+    // min, never stored durably), so a snapshot has to be sent now rather
+    // than relying on the backend to look the id back up itself.
+    if (!authUser?.email) return;
+    const nowSaved = !savedIds[id];
+    if (nowSaved) {
+      const sale = allSales.find(s => s.id === id);
+      if (!sale) return;
+      fetch(`${API_BASE}/api/push/watch`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email: authUser.email, sale: { id: sale.id, title: sale.title, dateLabel: sale.dateLabel, timeLabel: sale.timeLabel } }),
+      }).catch(()=>{});
+    } else {
+      fetch(`${API_BASE}/api/push/watch`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email: authUser.email, unwatchId: id }),
+      }).catch(()=>{});
+    }
+  };
   const ic = (name, size) => libsReady ? Icon(name, size) : null;
 
   const closeDetail = () => { setDetailId(null); setItemsView(null); };
