@@ -3138,7 +3138,11 @@ app.get('/unsubscribe', async (req, res) => {
 const http2 = require('http2');
 const APNS_KEY_ID      = process.env.APNS_KEY_ID;
 const APNS_TEAM_ID     = process.env.APNS_TEAM_ID;
-const APNS_PRIVATE_KEY = process.env.APNS_PRIVATE_KEY;
+// PEM keys need real newlines between BEGIN/END and within the base64 body --
+// pasting into a web form's env var field commonly flattens those into
+// literal "\n" text (or strips them), so normalize both cases rather than
+// assume the platform preserved them.
+const APNS_PRIVATE_KEY = (process.env.APNS_PRIVATE_KEY || '').replace(/\\n/g, '\n').trim();
 const APNS_BUNDLE_ID   = process.env.APNS_BUNDLE_ID || 'com.rummagedeals.app';
 // Xcode debug/Simulator/TestFlight-via-Xcode builds register against Apple's
 // *sandbox* APNs host, not production -- only a real App Store build uses
