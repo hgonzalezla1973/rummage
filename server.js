@@ -3146,6 +3146,13 @@ const APNS_TEAM_ID     = process.env.APNS_TEAM_ID;
 // just the base64 body between the BEGIN/END markers.
 function normalizePemKey(raw) {
   let key = (raw || '').replace(/\\n/g, '\n').trim();
+  if (!key.includes('-----BEGIN')) {
+    // Just the base64 body was saved -- no header/footer at all (confirmed
+    // via /__debug-apns: real newlines survived, but no "-----BEGIN" text).
+    // Apple's .p8 downloads are PKCS8 "PRIVATE KEY" blocks, so wrap as that.
+    const body = key.replace(/\s+/g, '').match(/.{1,64}/g) || [];
+    return `-----BEGIN PRIVATE KEY-----\n${body.join('\n')}\n-----END PRIVATE KEY-----\n`;
+  }
   if (key.includes('\n')) return key;
   const m = key.match(/-----BEGIN ([\w\s]+?)-----(.*)-----END ([\w\s]+?)-----/);
   if (!m) return key;
