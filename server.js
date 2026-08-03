@@ -3161,30 +3161,6 @@ function normalizePemKey(raw) {
 }
 const APNS_PRIVATE_KEY = normalizePemKey(process.env.APNS_PRIVATE_KEY);
 const APNS_BUNDLE_ID   = process.env.APNS_BUNDLE_ID || 'com.rummagedeals.app';
-
-// TEMPORARY — reports the raw+normalized key's shape (never its content) so
-// a real mangling can be diagnosed without pasting the secret anywhere.
-// Remove once APNs sending is confirmed working.
-app.get('/__debug-apns', (req, res) => {
-  const raw = process.env.APNS_PRIVATE_KEY || '';
-  res.json({
-    hasKeyId: !!APNS_KEY_ID,
-    hasTeamId: !!APNS_TEAM_ID,
-    rawLength: raw.length,
-    rawHasRealNewline: raw.includes('\n'),
-    rawHasEscapedNewline: raw.includes('\\n'),
-    rawFirst30: raw.slice(0, 30),
-    rawLast30: raw.slice(-30),
-    normalizedLength: APNS_PRIVATE_KEY.length,
-    normalizedLineCount: APNS_PRIVATE_KEY.split('\n').length,
-    normalizedFirstLine: APNS_PRIVATE_KEY.split('\n')[0] || '',
-    normalizedLastLine: APNS_PRIVATE_KEY.split('\n').filter(Boolean).pop() || '',
-    canParseAsKey: (() => {
-      try { require('crypto').createPrivateKey(APNS_PRIVATE_KEY); return true; }
-      catch (err) { return err.message; }
-    })(),
-  });
-});
 // Xcode debug/Simulator/TestFlight-via-Xcode builds register against Apple's
 // *sandbox* APNs host, not production -- only a real App Store build uses
 // production. Stays sandbox until real release testing.
