@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node server.js",
     "dev": "node --watch server.js",
-    "cap:sync": "node scripts/sync-www.js && npx cap sync"
+    "cap:sync": "node scripts/sync-www.js && npx cap sync && node scripts/fix-package-swift-paths.js"
   },
   "dependencies": {
     "@capacitor/cli": "^8.4.2",

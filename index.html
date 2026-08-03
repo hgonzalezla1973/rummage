@@ -2661,6 +2661,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           body: JSON.stringify({ email: digestEmail, pushToken: null }),
         }).catch(()=>{});
       }
+      setDigestToast('Push notifications turned off');
+      setTimeout(()=>setDigestToast(null), 3000);
       return;
     }
     if (!digestEmail) {
@@ -2683,6 +2685,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       }
       await PN.register(); // device token arrives via the app-level 'registration' listener
       setPush(true);
+      setDigestToast('Push notifications turned on');
+      setTimeout(()=>setDigestToast(null), 3000);
     } catch (err) {
       setDigestToast("Couldn't turn on push notifications — try again");
       setTimeout(()=>setDigestToast(null), 3000);
