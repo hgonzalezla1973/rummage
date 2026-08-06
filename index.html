@@ -13,7 +13,7 @@
 <style>
 :root {
   /* Kraft paper & index card surfaces */
-  --paper:#FFFFFF; --paper-2:#FFFFFF; --surface:#FFFFFF; --surface-tint:#FFFFFF;
+  --paper:#F6F6F6; --paper-2:#F6F6F6; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
   /* Sharpie-black ink */
   --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
@@ -580,7 +580,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
 function SegmentedControl({ options, value, onChange, style, activeBg='#fff', activeFg='var(--ink-900)', activeBorder='none' }) {
   return (
     <div style={{
-      display:'inline-flex', background:'var(--ink-100)',
+      display:'inline-flex', background:'#000000',
       borderRadius:'var(--radius-pill)', padding:4, gap:2, ...style,
     }}>
       {options.map(o => {
@@ -591,7 +591,7 @@ function SegmentedControl({ options, value, onChange, style, activeBg='#fff', ac
             padding:'8px 18px', borderRadius:'var(--radius-pill)',
             border: active ? activeBorder : 'none',
             background: active ? activeBg : 'transparent',
-            color: active ? activeFg : 'var(--text-muted)',
+            color: active ? activeFg : 'rgba(255,255,255,.65)',
             fontFamily:'var(--font-sans)', fontWeight: active ? 700 : 500, fontSize:14,
             boxShadow: active ? 'var(--shadow-sm)' : 'none',
             cursor:'pointer', transition:'all var(--dur-base) var(--ease-spring)',
@@ -695,7 +695,7 @@ function Switch({ checked, onChange }) {
   return (
     <button type="button" role="switch" aria-checked={checked} onClick={()=>onChange(!checked)} style={{
       width:48, height:28, borderRadius:14, padding:3, border:'none', cursor:'pointer',
-      background: checked ? 'var(--accent)' : 'var(--ink-200)',
+      background: checked ? 'var(--accent)' : '#000000',
       transition:'background var(--dur-base)',display:'flex',
       alignItems:'center', justifyContent: checked ? 'flex-end' : 'flex-start',
       flexShrink:0,
@@ -732,7 +732,7 @@ function TabBar({ items, active, onChange }) {
   return (
     <nav style={{
       display:'flex', alignItems:'stretch', width:'100%',
-      background:'rgba(255,255,255,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
+      background:'rgba(246,246,246,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
       borderTop:'1px solid var(--line)', paddingBottom:'calc(20px + var(--safe-bottom))',
       paddingLeft:'var(--safe-left)', paddingRight:'var(--safe-right)',
     }}>
@@ -1459,7 +1459,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
   const liveCount = typeFiltered.filter(s => isSaleLive(s.dateLabel, s.timeLabel)).length;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--accent)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
@@ -1526,8 +1526,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
       {liveCount > 0 && !openNow && !withinTwoWeeks && (
         <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
           flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'var(--success)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(22,163,74,.28)',
+          background:'#000000',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
+          borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(0,0,0,.28)',
           border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
         }}>
           <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
@@ -2122,7 +2122,7 @@ function HelpScreen({ onBack }) {
   const [open, setOpen] = useState(null);
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Help & FAQ</h1>
@@ -2213,7 +2213,7 @@ function FeedbackScreen({ onBack, userEmail }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Send Feedback</h1>
@@ -2290,7 +2290,7 @@ function PrivacyScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Privacy Policy</h1>
@@ -2340,7 +2340,7 @@ function TermsScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Terms of Service</h1>
@@ -2444,7 +2444,7 @@ function PriceCheckScreen({ onBack }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Price Check</h1>
@@ -2592,7 +2592,7 @@ function VintageStoresScreen({ onBack, zip, tripIds=[], onToggleTrip, onStoresLo
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(255,255,255,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Vintage Stores</h1>
@@ -3616,7 +3616,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         )}
         <div style={{height:80}} />
       </div>
-      <div style={{padding:'12px 16px 28px',background:'rgba(255,255,255,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
         {s.contact ? (
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('MessageCircle',18)}
             onClick={()=>{
@@ -3668,7 +3668,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(255,255,255,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 10px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <div style={{flex:1,minWidth:0}}>
@@ -3718,7 +3718,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
         </div>
         <p style={{textAlign:'center',fontSize:12,color:'var(--text-muted)',margin:'16px auto 0',maxWidth:250}}>Photos are a preview. Everything's cash &amp; carry, first come first served.</p>
       </div>
-      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(255,255,255,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
+      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(246,246,246,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)'}}>{sale.dateLabel}</div>
           <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)'}}>{sale.distanceMi} mi{sale.neighborhood?` · ${sale.neighborhood}`:''}</div>
@@ -3805,7 +3805,7 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem }) {
           </div>
         )}
       </div>
-      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(255,255,255,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
+      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
         <div style={{flex:1}}>
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation',18)}
             onClick={()=>openSaleDirections(sale)}>Get directions</Btn>
@@ -3821,7 +3821,7 @@ function NotificationsScreen({ notifications, onBack, onOpenSale }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(255,255,255,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 12px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <span style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:'var(--text-primary)'}}>Notifications</span>
