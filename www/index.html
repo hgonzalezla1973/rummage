@@ -19,15 +19,15 @@
   --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
   --ink-500:#8A8069; --ink-400:#9C9280; --ink-300:#C4B593; --ink-200:#D8CBB0; --ink-100:#E8E0CC; --line:#D8CBB0;
 
-  /* Primary — lime accent */
-  --brand-50:#F7FCEE; --brand-100:#ECF7D2; --brand-200:#DEF0AC; --brand-300:#D2EC8E;
-  --brand-400:#CAEC73; --brand-500:#A8C94E; --brand-600:#87A83A; --brand-700:#66812C; --brand-800:#465C1E;
+  /* Primary — coral-orange accent */
+  --brand-50:#FDF2EC; --brand-100:#FBE1D2; --brand-200:#F7C7AC; --brand-300:#F2A97F;
+  --brand-400:#EE8D5C; --brand-500:#D97540; --brand-600:#B85E2F; --brand-700:#954A25; --brand-800:#6E361B;
 
   /* Masking-tape yellow (secondary accent, used sparingly) */
   --tape-50:#FDF6E0; --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-600:#C99C15; --tape-700:#8A6A0D;
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
   --green-600:#3F5E3A; --green-bg:#E1E8D6; --amber-600:#8A5A12; --amber-bg:#F1E0B8; --red-600:#DC2626; --red-bg:#FEE2E2;
-  --coral:#CAEC73; --coral-bg:#F7FCEE;
+  --coral:#EE8D5C; --coral-bg:#FDF2EC;
 
   /* Sale type colors — office-supplies palette so they don't compete with the red accent */
   --type-estate-fg:#2C4A7C; --type-estate-bg:#DCE4EF;
@@ -67,8 +67,8 @@
   --shadow-md:0 8px 24px rgba(33,29,23,.12),0 2px 6px rgba(33,29,23,.07);
   --shadow-lg:0 20px 48px rgba(33,29,23,.16),0 6px 14px rgba(33,29,23,.09);
   --shadow-sheet:0 -8px 40px rgba(33,29,23,.14);
-  --shadow-pin:0 6px 16px rgba(168,201,78,.35);
-  --shadow-focus:0 0 0 3px rgba(202,236,115,.28);
+  --shadow-pin:0 6px 16px rgba(217,117,64,.35);
+  --shadow-focus:0 0 0 3px rgba(238,141,92,.28);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -283,7 +283,7 @@ function burstConfetti() {
   fire({
     particleCount: 100, spread: 75, startVelocity: 42, gravity: 1.1, ticks: 220,
     origin: { x: 0.5, y: 0.35 },
-    colors: ['#CAEC73', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
+    colors: ['#EE8D5C', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
   });
   setTimeout(() => canvas.remove(), 3200);
 }
@@ -408,8 +408,8 @@ const FILTER_TYPES = [
   {key:'estate',label:'Estate'},{key:'yard',label:'Yard'},
   {key:'moving',label:'Moving'},
 ];
-const SALE_TYPE_BORDER = { estate:'#9af6a9', yard:'#ea9afe', moving:'#000000' };
-const THRIFT_STORE_BORDER = '#befaf8';
+const SALE_TYPE_BORDER = { estate:'#000000', yard:'#000000', moving:'#000000' };
+const THRIFT_STORE_BORDER = '#000000';
 
 // Sale `items` may be plain strings (legacy/scraped) or richer objects — normalize to one shape.
 function normalizeItem(it, i, saleId) {
@@ -999,7 +999,7 @@ function HeartBtn({ saved, onSave }) {
         display:'inline-flex',
         animation: tick > 0 ? 'heart-pop .55s cubic-bezier(.34,1.56,.64,1) both' : 'none',
       }}>
-        {Icon('Heart',18,saved?{fill:'#CAEC73',stroke:'#87A83A'}:{stroke:'var(--ink-500)'})}
+        {Icon('Heart',18,saved?{fill:'#EE8D5C',stroke:'#B85E2F'}:{stroke:'var(--ink-500)'})}
       </span>
     </button>
   );
@@ -1259,7 +1259,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
   if (layout==='row') {
     return (
       <Card interactive onClick={onClick} padded={false} elevation="sm"
-        style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
+        style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
             <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
@@ -1282,7 +1282,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
   }
   return (
     <Card interactive onClick={onClick} padded={false} elevation="md"
-      style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
+      style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
@@ -1341,7 +1341,7 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
     <Card interactive onClick={onClick} padded={false} elevation="xs"
       style={{
         border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,
-        boxShadow: live ? '0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)' : undefined,
+        boxShadow: live ? '0 2px 6px rgba(0,0,0,.15), 0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)' : '0 2px 6px rgba(0,0,0,.15)',
       }}>
       <div style={{position:'relative',aspectRatio:'1'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
@@ -1389,8 +1389,8 @@ const LANDING_ILLUSTRATION = (
     <circle cx="155" cy="65" r="22" fill="none" stroke="#8A6A0D" strokeWidth="2.5"/>
     <circle cx="155" cy="65" r="16" fill="#F8E8B0" opacity="0.5"/>
     <path d="M155 53L160 65L155 77L150 65Z" fill="#8A6A0D"/>
-    <circle cx="180" cy="55" r="16" fill="none" stroke="#87A83A" strokeWidth="2.5"/>
-    <line x1="193" y1="68" x2="205" y2="80" stroke="#87A83A" strokeWidth="2.5" strokeLinecap="round"/>
+    <circle cx="180" cy="55" r="16" fill="none" stroke="#B85E2F" strokeWidth="2.5"/>
+    <line x1="193" y1="68" x2="205" y2="80" stroke="#B85E2F" strokeWidth="2.5" strokeLinecap="round"/>
     <path d="M55 140 Q55 126 68 126 L88 126 Q101 126 101 140 L101 155 Q101 163 88 163 L68 163 Q55 163 55 155Z" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <ellipse cx="46" cy="145" rx="9" ry="7" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <rect x="101" y="138" width="5" height="18" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" rx="2"/>
@@ -2539,7 +2539,7 @@ function PriceCheckScreen({ onBack }) {
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
   return (
-    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`3px solid ${THRIFT_STORE_BORDER}`}}>
+    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`3px solid ${THRIFT_STORE_BORDER}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
       <div style={{padding:'14px 16px'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
           <div style={{flex:1,minWidth:0}}>
@@ -4009,7 +4009,7 @@ function ListScreen({ onPublish }) {
           <div className="rmg-eyebrow" style={{marginBottom:14}}>How it works</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {[
-              {icon:'Tag',        color:'#87A83A', bg:'#F7FCEE', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
+              {icon:'Tag',        color:'#B85E2F', bg:'#FDF2EC', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
               {icon:'FileText',   color:'#3F5E3A', bg:'#E1E8D6', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
               {icon:'MapPin',     color:'#2C4A7C', bg:'#DCE4EF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
