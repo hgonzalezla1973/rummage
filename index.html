@@ -1023,7 +1023,9 @@ function useCountdown(dateLabel, timeLabel) {
       } else if (end && now < end.getTime()) {
         const rem = end.getTime()-now;
         const h = Math.floor(rem/3600000), m = Math.floor((rem%3600000)/60000);
-        const label = h>0 ? 'Ends in '+h+'h '+m+'m' : m>0 ? 'Ends in '+m+'m' : 'Ending soon';
+        const label = h>=48 ? 'Ends in '+(Math.floor(h/24))+'d'
+                    : h>0   ? 'Ends in '+h+'h '+m+'m'
+                             : m>0 ? 'Ends in '+m+'m' : 'Ending soon';
         setInfo({label, status:'live'});
       } else {
         setInfo({label:'Ended', status:'ended'});
