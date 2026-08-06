@@ -660,7 +660,7 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between'}}>
         <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:'var(--text-base)',color:'var(--text-primary)'}}>Search radius</span>
-        <span style={{fontFamily:'var(--font-mono)',fontWeight:500,fontSize:'var(--text-lg)',color:'var(--accent)',fontVariantNumeric:'tabular-nums'}}>
+        <span style={{fontFamily:'var(--font-mono)',fontWeight:500,fontSize:'var(--text-lg)',color:'var(--secondary)',fontVariantNumeric:'tabular-nums'}}>
           {value}<span style={{fontSize:'var(--text-sm)',color:'var(--text-muted)',marginLeft:2}}>mi</span>
         </span>
       </div>
@@ -1259,7 +1259,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
   if (layout==='row') {
     return (
       <Card interactive onClick={onClick} padded={false} elevation="sm"
-        style={{border:`6px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
+        style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
             <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
@@ -1282,7 +1282,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
   }
   return (
     <Card interactive onClick={onClick} padded={false} elevation="md"
-      style={{border:`6px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
+      style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
@@ -1304,7 +1304,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
         )}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flex:1,minWidth:0}}>
-            <span style={{fontSize:13,fontWeight:700,color:'var(--brand-600)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
+            <span style={{fontSize:13,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
             {countdown.status==='live' && countdown.label && (
               <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
                 background:'var(--success-bg)',color:'var(--success)',
@@ -1340,7 +1340,7 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
   return (
     <Card interactive onClick={onClick} padded={false} elevation="xs"
       style={{
-        border:`6px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,
+        border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,
         boxShadow: live ? '0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)' : undefined,
       }}>
       <div style={{position:'relative',aspectRatio:'1'}}>
@@ -1462,13 +1462,13 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
       <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--accent)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
+            <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--secondary)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
               {Icon('MapPin',12,{stroke:'currentColor'})} Near {zip}
             </div>
             <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'var(--secondary)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
@@ -1505,14 +1505,14 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
       </div>
       {awayFromHome && (
-        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:8,background:'var(--accent-soft)',color:'var(--accent)',padding:'10px 14px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)'}}>
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:8,background:'var(--accent-soft)',color:'var(--secondary)',padding:'10px 14px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)'}}>
           {Icon('Navigation',15,{stroke:'currentColor'})}
           <span style={{flex:1,minWidth:0,fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
             {useHomeZip
               ? `Showing your home ZIP, not ${detectedCity || 'here'}`
               : `You're near ${detectedCity || zip}, not home`}
           </span>
-          <button type="button" onClick={()=>setUseHomeZip(p=>!p)} style={{flexShrink:0,fontFamily:'var(--font-sans)',fontWeight:700,fontSize:12.5,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>
+          <button type="button" onClick={()=>setUseHomeZip(p=>!p)} style={{flexShrink:0,fontFamily:'var(--font-sans)',fontWeight:700,fontSize:12.5,color:'var(--secondary)',background:'none',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>
             {useHomeZip ? 'Use current location' : 'Use home ZIP'}
           </button>
         </div>
@@ -1957,7 +1957,7 @@ function AuthScreen({ onAuth }) {
           Didn't get it?{' '}
           {resendTimer > 0
             ? <span style={{color:'var(--text-faint)'}}>Resend in {resendTimer}s</span>
-            : <span style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}} onClick={()=>sendCode()}>Resend code</span>
+            : <span style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}} onClick={()=>sendCode()}>Resend code</span>
           }
         </div>
         <button type="button" onClick={()=>setAuthStep('form')} style={{marginTop:16,fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-faint)',background:'none',border:'none',cursor:'pointer'}}>
@@ -2080,7 +2080,7 @@ function AuthScreen({ onAuth }) {
 
         {mode==='signin' && (
           <div style={{textAlign:'right',marginTop:-6}}>
-            <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Forgot password?</span>
+            <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--secondary)',fontWeight:600,cursor:'pointer'}}>Forgot password?</span>
           </div>
         )}
 
@@ -2098,8 +2098,8 @@ function AuthScreen({ onAuth }) {
 
         <div style={{textAlign:'center',fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)',lineHeight:1.5,marginTop:4}}>
           By continuing you agree to our{' '}
-          <span onClick={()=>setLegalPage('terms')} style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Terms</span>{' '}and{' '}
-          <span onClick={()=>setLegalPage('privacy')} style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Privacy Policy</span>
+          <span onClick={()=>setLegalPage('terms')} style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}}>Terms</span>{' '}and{' '}
+          <span onClick={()=>setLegalPage('privacy')} style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}}>Privacy Policy</span>
         </div>
       </div>
     </div>
@@ -2157,7 +2157,7 @@ function HelpScreen({ onBack }) {
         })}
         <div style={{marginTop:8,textAlign:'center',fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.6}}>
           Still need help?{' '}
-          <span style={{color:'var(--accent)',fontWeight:600}}>Send us a message</span>
+          <span style={{color:'var(--secondary)',fontWeight:600}}>Send us a message</span>
         </div>
       </div>
     </div>
@@ -2497,7 +2497,7 @@ function PriceCheckScreen({ onBack }) {
             <div style={{textAlign:'center',padding:'8px 0'}}>
               <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',marginBottom:6}}>{result.itemName}</div>
               {result.low != null ? (
-                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--brand-500)',letterSpacing:'-0.02em'}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--secondary)',letterSpacing:'-0.02em'}}>
                   ${result.low}{result.high !== result.low ? ` – $${result.high}` : ''}
                 </div>
               ) : (
@@ -2520,7 +2520,7 @@ function PriceCheckScreen({ onBack }) {
                         <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.title}</div>
                         <div style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{new URL(s.url).hostname.replace(/^www\./,'')}</div>
                       </div>
-                      <div style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:14,color:'var(--brand-500)',flexShrink:0}}>${s.price}</div>
+                      <div style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:14,color:'var(--secondary)',flexShrink:0}}>${s.price}</div>
                     </a>
                   ))}
                 </Card>
@@ -2539,14 +2539,14 @@ function PriceCheckScreen({ onBack }) {
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
   return (
-    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`6px solid ${THRIFT_STORE_BORDER}`}}>
+    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`3px solid ${THRIFT_STORE_BORDER}`}}>
       <div style={{padding:'14px 16px'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontWeight:800,fontSize:15,color:'var(--ink-900)',marginBottom:2}}>{store.title}</div>
             <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{store.address}</div>
           </div>
-          <span style={{fontSize:12,fontWeight:700,color:'var(--brand-600)',background:'var(--brand-50)',padding:'3px 9px',borderRadius:'var(--radius-pill)',flexShrink:0}}>{store.distanceMi} mi</span>
+          <span style={{fontSize:12,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 9px',borderRadius:'var(--radius-pill)',flexShrink:0}}>{store.distanceMi} mi</span>
         </div>
         {(store.rating || store.openNow != null) && (
           <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8}}>
@@ -2876,7 +2876,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
                   {/* Actions */}
                   <div style={{display:'flex',gap:6,flexShrink:0}}>
                     <button type="button" onClick={()=>onOpenSale?.(listing.id)}
-                      style={{height:32,padding:'0 12px',borderRadius:'var(--radius-pill)',background:'var(--brand-50,#ede9ff)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--brand-600)',whiteSpace:'nowrap'}}>
+                      style={{height:32,padding:'0 12px',borderRadius:'var(--radius-pill)',background:'var(--brand-50,#ede9ff)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--secondary)',whiteSpace:'nowrap'}}>
                       View
                     </button>
                     <button type="button" onClick={()=>setDeleteConfirm(listing.id)}
@@ -3583,7 +3583,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:8}}>
                   <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)'}}>What you'll find</h2>
                   {onOpenItems && (
-                    <button type="button" onClick={onOpenItems} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--accent)',display:'flex',alignItems:'center',gap:2,flexShrink:0}}>
+                    <button type="button" onClick={onOpenItems} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--secondary)',display:'flex',alignItems:'center',gap:2,flexShrink:0}}>
                       See all {s.items.length} {Icon('ChevronRight',14,{stroke:'currentColor'})}
                     </button>
                   )}
@@ -3641,7 +3641,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
               <Btn variant={inTrip?'secondary':'primary'} fullWidth
                 leadingIcon={Icon(inTrip?'RouteOff':'Route',16)}
                 onClick={onToggleTrip}
-                style={inTrip?{borderColor:'var(--brand-500)',color:'var(--brand-500)'}:{}}>
+                style={inTrip?{borderColor:'var(--secondary)',color:'var(--secondary)'}:{}}>
                 {inTrip ? 'In trip' : 'Add to trip'}
               </Btn>
             </div>
@@ -3826,7 +3826,7 @@ function NotificationsScreen({ notifications, onBack, onOpenSale }) {
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <span style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:'var(--text-primary)'}}>Notifications</span>
           {notifications.length>0 && (
-            <button type="button" onClick={()=>setReadAll(true)} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--accent)'}}>
+            <button type="button" onClick={()=>setReadAll(true)} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--secondary)'}}>
               Mark all read
             </button>
           )}
@@ -4021,7 +4021,7 @@ function ListScreen({ onPublish }) {
                   <div style={{fontWeight:700,fontSize:14,color:'var(--ink-900)',marginBottom:2}}>{row.title}</div>
                   <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.4}}>{row.body}</div>
                 </div>
-                <div style={{width:22,height:22,borderRadius:'50%',background:'var(--brand-100)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontFamily:'var(--font-mono)',fontWeight:800,fontSize:11,color:'var(--accent)'}}>
+                <div style={{width:22,height:22,borderRadius:'50%',background:'var(--brand-100)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontFamily:'var(--font-mono)',fontWeight:800,fontSize:11,color:'var(--secondary)'}}>
                   {row.step}
                 </div>
               </div>
@@ -4283,8 +4283,8 @@ function ListScreen({ onPublish }) {
               </div>
               {contact && (
                 <div style={{display:'inline-flex',alignItems:'center',gap:6,marginTop:4,padding:'5px 12px',borderRadius:'var(--radius-pill)',background:'var(--brand-50)',boxShadow:'0 0 0 1.5px var(--brand-200)'}}>
-                  {Icon('Phone',13,{stroke:'var(--accent)'})}
-                  <span style={{fontFamily:'var(--font-sans)',fontSize:12,fontWeight:600,color:'var(--accent)'}}>Contact Seller</span>
+                  {Icon('Phone',13,{stroke:'var(--secondary)'})}
+                  <span style={{fontFamily:'var(--font-sans)',fontSize:12,fontWeight:600,color:'var(--secondary)'}}>Contact Seller</span>
                 </div>
               )}
               {desc && <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-secondary)',marginTop:8,lineHeight:1.5}}>{desc}</div>}
@@ -4295,7 +4295,7 @@ function ListScreen({ onPublish }) {
             <div style={{background:'var(--surface-sunken)',borderRadius:'var(--radius-lg)',padding:'12px 14px',display:'flex',gap:10,alignItems:'flex-start'}}>
               {Icon('Info',16,{stroke:'var(--ink-500)'})}
               <p style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',margin:0,lineHeight:1.5}}>
-                No contact info added. Shoppers won't be able to reach you directly. <span style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}} onClick={()=>setStep(2)}>Add it now →</span>
+                No contact info added. Shoppers won't be able to reach you directly. <span style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}} onClick={()=>setStep(2)}>Add it now →</span>
               </p>
             </div>
           )}
@@ -4391,7 +4391,7 @@ function WalkthroughScreen({ onDone, userName }) {
         <h1 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:24,color:'var(--text-primary)',marginBottom:12,lineHeight:1.2}}>{TUTORIAL_SLIDES[idx].title}</h1>
         <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.55,color:'var(--text-secondary)',maxWidth:300,margin:0}}>{TUTORIAL_SLIDES[idx].body}</p>
         {idx===0 && userName && (
-          <p style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--accent)',maxWidth:300,margin:'10px 0 0'}}>
+          <p style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--secondary)',maxWidth:300,margin:'10px 0 0'}}>
             Nice to see you again, {userName}!
           </p>
         )}
