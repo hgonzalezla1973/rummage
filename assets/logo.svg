@@ -1,12 +1,12 @@
 <svg width="260" height="64" viewBox="0 0 260 64" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Rummage">
   <defs>
     <linearGradient id="rmgLogoGrad" x1="0" y1="0" x2="64" y2="64" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#8B1A1E" />
-      <stop offset="1" stop-color="#C1272D" />
+      <stop offset="0" stop-color="#87A83A" />
+      <stop offset="1" stop-color="#CAEC73" />
     </linearGradient>
   </defs>
   <path d="M32 4C18.7 4 8 14.6 8 27.7c0 6.2 3 12 7.4 17.6 3.9 4.9 8.8 9.2 12.3 12.1a6 6 0 0 0 8.6 0c3.5-2.9 8.4-7.2 12.3-12.1C53 39.7 56 33.9 56 27.7 56 14.6 45.3 4 32 4Z" fill="url(#rmgLogoGrad)" />
-  <circle cx="32" cy="26.5" r="10.5" fill="#EDE6D6" />
+  <circle cx="32" cy="26.5" r="10.5" fill="#FFFFFF" />
   <circle cx="32" cy="26.5" r="4" fill="#E8B923" />
-  <text x="70" y="41" font-family="'Archivo Black', 'Arial Narrow', system-ui, sans-serif" font-size="30" font-weight="900" letter-spacing="-0.5" fill="#211D17">RUMMAGE</text>
+  <text x="70" y="41" font-family="'Mohave', 'Arial Narrow', system-ui, sans-serif" font-size="30" font-weight="900" letter-spacing="-0.5" fill="#211D17">RUMMAGE</text>
 </svg>
