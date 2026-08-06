@@ -408,6 +408,8 @@ const FILTER_TYPES = [
   {key:'estate',label:'Estate'},{key:'yard',label:'Yard'},
   {key:'moving',label:'Moving'},
 ];
+const SALE_TYPE_BORDER = { estate:'#9af6a9', yard:'#ea9afe', moving:'#000000' };
+const THRIFT_STORE_BORDER = '#befaf8';
 
 // Sale `items` may be plain strings (legacy/scraped) or richer objects — normalize to one shape.
 function normalizeItem(it, i, saleId) {
@@ -1254,7 +1256,8 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
   const thumb = images && images.length ? images[0] : null;
   if (layout==='row') {
     return (
-      <Card interactive onClick={onClick} padded={false} elevation="sm">
+      <Card interactive onClick={onClick} padded={false} elevation="sm"
+        style={{border:`6px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
             <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
@@ -1276,7 +1279,8 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
     );
   }
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="md">
+    <Card interactive onClick={onClick} padded={false} elevation="md"
+      style={{border:`6px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`}}>
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
@@ -1333,10 +1337,10 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
   const live = useCountdown(dateLabel, timeLabel).status==='live';
   return (
     <Card interactive onClick={onClick} padded={false} elevation="xs"
-      style={live ? {
-        border:'1.5px solid var(--success)',
-        boxShadow:'0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)',
-      } : {}}>
+      style={{
+        border:`6px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,
+        boxShadow: live ? '0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)' : undefined,
+      }}>
       <div style={{position:'relative',aspectRatio:'1'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
@@ -2533,7 +2537,7 @@ function PriceCheckScreen({ onBack }) {
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
   return (
-    <Card padded={false} elevation="xs" style={{marginBottom:12}}>
+    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`6px solid ${THRIFT_STORE_BORDER}`}}>
       <div style={{padding:'14px 16px'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
           <div style={{flex:1,minWidth:0}}>
