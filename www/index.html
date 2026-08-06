@@ -7,27 +7,27 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Sans:wght@400;500;600;700&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Mohave:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
   /* Kraft paper & index card surfaces */
-  --paper:#EDE6D6; --paper-2:#F1EAD6; --surface:#F8F4EA; --surface-tint:#FBF8F0;
+  --paper:#F6F6F6; --paper-2:#F6F6F6; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
   /* Sharpie-black ink */
   --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
   --ink-500:#8A8069; --ink-400:#9C9280; --ink-300:#C4B593; --ink-200:#D8CBB0; --ink-100:#E8E0CC; --line:#D8CBB0;
 
-  /* Primary — sale-sign red */
-  --brand-50:#FBEAEA; --brand-100:#F3CBCB; --brand-200:#E29A9B; --brand-300:#D26C6D;
-  --brand-400:#C1272D; --brand-500:#A81F24; --brand-600:#8B1A1E; --brand-700:#6E1417; --brand-800:#4F0F11;
+  /* Primary — coral-orange accent */
+  --brand-50:#FDF2EC; --brand-100:#FBE1D2; --brand-200:#F7C7AC; --brand-300:#F2A97F;
+  --brand-400:#EE8D5C; --brand-500:#D97540; --brand-600:#B85E2F; --brand-700:#954A25; --brand-800:#6E361B;
 
   /* Masking-tape yellow (secondary accent, used sparingly) */
   --tape-50:#FDF6E0; --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-600:#C99C15; --tape-700:#8A6A0D;
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
-  --green-600:#3F5E3A; --green-bg:#E1E8D6; --amber-600:#8A5A12; --amber-bg:#F1E0B8; --red-600:#A81F24; --red-bg:#FBEAEA;
-  --coral:#A81F24; --coral-bg:#FBEAEA;
+  --green-600:#3F5E3A; --green-bg:#E1E8D6; --amber-600:#8A5A12; --amber-bg:#F1E0B8; --red-600:#DC2626; --red-bg:#FEE2E2;
+  --coral:#EE8D5C; --coral-bg:#FDF2EC;
 
   /* Sale type colors — office-supplies palette so they don't compete with the red accent */
   --type-estate-fg:#2C4A7C; --type-estate-bg:#DCE4EF;
@@ -46,9 +46,9 @@
   --danger:var(--red-600); --danger-bg:var(--red-bg);
   --pin:var(--brand-400); --pin-saved:var(--coral); --live:#3F5E3A;
 
-  --font-display:'Archivo Black','Arial Narrow',system-ui,sans-serif;
-  --font-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --font-mono:'Spline Sans Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --font-display:'Mohave','Arial Narrow',system-ui,sans-serif;
+  --font-sans:'Mohave',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'Mohave',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
   --text-lg:20px; --text-xl:24px; --text-2xl:30px; --text-3xl:38px; --text-4xl:48px;
@@ -67,8 +67,8 @@
   --shadow-md:0 8px 24px rgba(33,29,23,.12),0 2px 6px rgba(33,29,23,.07);
   --shadow-lg:0 20px 48px rgba(33,29,23,.16),0 6px 14px rgba(33,29,23,.09);
   --shadow-sheet:0 -8px 40px rgba(33,29,23,.14);
-  --shadow-pin:0 6px 16px rgba(168,31,36,.35);
-  --shadow-focus:0 0 0 3px rgba(193,39,45,.28);
+  --shadow-pin:0 6px 16px rgba(217,117,64,.35);
+  --shadow-focus:0 0 0 3px rgba(238,141,92,.28);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -283,7 +283,7 @@ function burstConfetti() {
   fire({
     particleCount: 100, spread: 75, startVelocity: 42, gravity: 1.1, ticks: 220,
     origin: { x: 0.5, y: 0.35 },
-    colors: ['#C1272D', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
+    colors: ['#EE8D5C', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
   });
   setTimeout(() => canvas.remove(), 3200);
 }
@@ -408,6 +408,8 @@ const FILTER_TYPES = [
   {key:'estate',label:'Estate'},{key:'yard',label:'Yard'},
   {key:'moving',label:'Moving'},
 ];
+const SALE_TYPE_BORDER = { estate:'#000000', yard:'#000000', moving:'#000000' };
+const THRIFT_STORE_BORDER = '#000000';
 
 // Sale `items` may be plain strings (legacy/scraped) or richer objects — normalize to one shape.
 function normalizeItem(it, i, saleId) {
@@ -452,7 +454,7 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
     gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
     fontWeight:700, letterSpacing:'-0.01em', whiteSpace:'nowrap',
     transition:`all var(--dur-fast) var(--ease-out)`,
-    borderRadius:'var(--radius-lg)', width: fullWidth?'100%':'auto',
+    borderRadius:'45px', width: fullWidth?'100%':'auto',
   };
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
            : size==='sm' ? {height:36,padding:'0 16px',fontSize:13}
@@ -560,13 +562,13 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
       padding:'9px 18px', borderRadius:'var(--radius-pill)',
-      border: selected ? '1px solid var(--ink-200)' : 'none',
-      background: selected ? 'var(--ink-900)' : 'var(--surface-card)',
-      color: selected ? '#fff' : 'var(--text-secondary)',
+      border: selected ? '1px solid var(--ink-900)' : '1px solid #000000',
+      background: selected ? 'var(--ink-900)' : '#FFFFFF',
+      color: selected ? '#fff' : '#000000',
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(33,29,23,.28)' : 'var(--shadow-sm)',
+      boxShadow: selected ? '0 4px 14px rgba(33,29,23,.28)' : 'none',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -578,7 +580,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
 function SegmentedControl({ options, value, onChange, style, activeBg='#fff', activeFg='var(--ink-900)', activeBorder='none' }) {
   return (
     <div style={{
-      display:'inline-flex', background:'var(--ink-100)',
+      display:'inline-flex', background:'#000000',
       borderRadius:'var(--radius-pill)', padding:4, gap:2, ...style,
     }}>
       {options.map(o => {
@@ -589,7 +591,7 @@ function SegmentedControl({ options, value, onChange, style, activeBg='#fff', ac
             padding:'8px 18px', borderRadius:'var(--radius-pill)',
             border: active ? activeBorder : 'none',
             background: active ? activeBg : 'transparent',
-            color: active ? activeFg : 'var(--text-muted)',
+            color: active ? activeFg : 'rgba(255,255,255,.65)',
             fontFamily:'var(--font-sans)', fontWeight: active ? 700 : 500, fontSize:14,
             boxShadow: active ? 'var(--shadow-sm)' : 'none',
             cursor:'pointer', transition:'all var(--dur-base) var(--ease-spring)',
@@ -658,7 +660,7 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
     <div style={{display:'flex',flexDirection:'column',gap:14}}>
       <div style={{display:'flex',alignItems:'baseline',justifyContent:'space-between'}}>
         <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:'var(--text-base)',color:'var(--text-primary)'}}>Search radius</span>
-        <span style={{fontFamily:'var(--font-mono)',fontWeight:500,fontSize:'var(--text-lg)',color:'var(--accent)',fontVariantNumeric:'tabular-nums'}}>
+        <span style={{fontFamily:'var(--font-mono)',fontWeight:500,fontSize:'var(--text-lg)',color:'var(--secondary)',fontVariantNumeric:'tabular-nums'}}>
           {value}<span style={{fontSize:'var(--text-sm)',color:'var(--text-muted)',marginLeft:2}}>mi</span>
         </span>
       </div>
@@ -693,7 +695,7 @@ function Switch({ checked, onChange }) {
   return (
     <button type="button" role="switch" aria-checked={checked} onClick={()=>onChange(!checked)} style={{
       width:48, height:28, borderRadius:14, padding:3, border:'none', cursor:'pointer',
-      background: checked ? 'var(--accent)' : 'var(--ink-200)',
+      background: checked ? 'var(--accent)' : '#000000',
       transition:'background var(--dur-base)',display:'flex',
       alignItems:'center', justifyContent: checked ? 'flex-end' : 'flex-start',
       flexShrink:0,
@@ -730,7 +732,7 @@ function TabBar({ items, active, onChange }) {
   return (
     <nav style={{
       display:'flex', alignItems:'stretch', width:'100%',
-      background:'rgba(237,230,214,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
+      background:'rgba(246,246,246,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
       borderTop:'1px solid var(--line)', paddingBottom:'calc(20px + var(--safe-bottom))',
       paddingLeft:'var(--safe-left)', paddingRight:'var(--safe-right)',
     }}>
@@ -997,7 +999,7 @@ function HeartBtn({ saved, onSave }) {
         display:'inline-flex',
         animation: tick > 0 ? 'heart-pop .55s cubic-bezier(.34,1.56,.64,1) both' : 'none',
       }}>
-        {Icon('Heart',18,saved?{fill:'#EF4444',stroke:'#EF4444'}:{stroke:'var(--ink-500)'})}
+        {Icon('Heart',18,saved?{fill:'#EE8D5C',stroke:'#B85E2F'}:{stroke:'var(--ink-500)'})}
       </span>
     </button>
   );
@@ -1021,7 +1023,9 @@ function useCountdown(dateLabel, timeLabel) {
       } else if (end && now < end.getTime()) {
         const rem = end.getTime()-now;
         const h = Math.floor(rem/3600000), m = Math.floor((rem%3600000)/60000);
-        const label = h>0 ? 'Ends in '+h+'h '+m+'m' : m>0 ? 'Ends in '+m+'m' : 'Ending soon';
+        const label = h>=48 ? 'Ends in '+(Math.floor(h/24))+'d'
+                    : h>0   ? 'Ends in '+h+'h '+m+'m'
+                             : m>0 ? 'Ends in '+m+'m' : 'Ending soon';
         setInfo({label, status:'live'});
       } else {
         setInfo({label:'Ended', status:'ended'});
@@ -1254,7 +1258,8 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
   const thumb = images && images.length ? images[0] : null;
   if (layout==='row') {
     return (
-      <Card interactive onClick={onClick} padded={false} elevation="sm">
+      <Card interactive onClick={onClick} padded={false} elevation="sm"
+        style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
             <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
@@ -1276,7 +1281,8 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
     );
   }
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="md">
+    <Card interactive onClick={onClick} padded={false} elevation="md"
+      style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
@@ -1298,7 +1304,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
         )}
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
           <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flex:1,minWidth:0}}>
-            <span style={{fontSize:13,fontWeight:700,color:'var(--brand-600)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
+            <span style={{fontSize:13,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
             {countdown.status==='live' && countdown.label && (
               <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
                 background:'var(--success-bg)',color:'var(--success)',
@@ -1333,10 +1339,10 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
   const live = useCountdown(dateLabel, timeLabel).status==='live';
   return (
     <Card interactive onClick={onClick} padded={false} elevation="xs"
-      style={live ? {
-        border:'1.5px solid var(--success)',
-        boxShadow:'0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)',
-      } : {}}>
+      style={{
+        border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,
+        boxShadow: live ? '0 2px 6px rgba(0,0,0,.15), 0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)' : '0 2px 6px rgba(0,0,0,.15)',
+      }}>
       <div style={{position:'relative',aspectRatio:'1'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
@@ -1383,8 +1389,8 @@ const LANDING_ILLUSTRATION = (
     <circle cx="155" cy="65" r="22" fill="none" stroke="#8A6A0D" strokeWidth="2.5"/>
     <circle cx="155" cy="65" r="16" fill="#F8E8B0" opacity="0.5"/>
     <path d="M155 53L160 65L155 77L150 65Z" fill="#8A6A0D"/>
-    <circle cx="180" cy="55" r="16" fill="none" stroke="#C1272D" strokeWidth="2.5"/>
-    <line x1="193" y1="68" x2="205" y2="80" stroke="#C1272D" strokeWidth="2.5" strokeLinecap="round"/>
+    <circle cx="180" cy="55" r="16" fill="none" stroke="#B85E2F" strokeWidth="2.5"/>
+    <line x1="193" y1="68" x2="205" y2="80" stroke="#B85E2F" strokeWidth="2.5" strokeLinecap="round"/>
     <path d="M55 140 Q55 126 68 126 L88 126 Q101 126 101 140 L101 155 Q101 163 88 163 L68 163 Q55 163 55 155Z" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <ellipse cx="46" cy="145" rx="9" ry="7" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <rect x="101" y="138" width="5" height="18" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" rx="2"/>
@@ -1406,7 +1412,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{position:'relative',flex:1,overflow:'hidden'}}>
         <FauxMap sales={sales.slice(0,5)} selectedId="s1" onSelect={()=>{}} />
-        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(237,230,214,.05) 0%,rgba(237,230,214,.6) 58%,var(--surface-app) 100%)'}} />
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.6) 58%,var(--surface-app) 100%)'}} />
         <div style={{position:'absolute',top:'calc(var(--safe-top) + 24px)',left:0,right:0,display:'flex',justifyContent:'center'}}>
           <RummageLogo markSize={40} textSize={19} />
         </div>
@@ -1453,16 +1459,16 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
   const liveCount = typeFiltered.filter(s => isSaleLive(s.dateLabel, s.timeLabel)).length;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--accent)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
+            <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--secondary)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
               {Icon('MapPin',12,{stroke:'currentColor'})} Near {zip}
             </div>
             <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'var(--brand-600)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'var(--secondary)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
@@ -1499,14 +1505,14 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
       </div>
       {awayFromHome && (
-        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:8,background:'var(--accent-soft)',color:'var(--accent)',padding:'10px 14px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)'}}>
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',gap:8,background:'var(--accent-soft)',color:'var(--secondary)',padding:'10px 14px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)'}}>
           {Icon('Navigation',15,{stroke:'currentColor'})}
           <span style={{flex:1,minWidth:0,fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12.5,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
             {useHomeZip
               ? `Showing your home ZIP, not ${detectedCity || 'here'}`
               : `You're near ${detectedCity || zip}, not home`}
           </span>
-          <button type="button" onClick={()=>setUseHomeZip(p=>!p)} style={{flexShrink:0,fontFamily:'var(--font-sans)',fontWeight:700,fontSize:12.5,color:'var(--accent)',background:'none',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>
+          <button type="button" onClick={()=>setUseHomeZip(p=>!p)} style={{flexShrink:0,fontFamily:'var(--font-sans)',fontWeight:700,fontSize:12.5,color:'var(--secondary)',background:'none',border:'none',cursor:'pointer',padding:0,textDecoration:'underline'}}>
             {useHomeZip ? 'Use current location' : 'Use home ZIP'}
           </button>
         </div>
@@ -1520,8 +1526,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
       {liveCount > 0 && !openNow && !withinTwoWeeks && (
         <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
           flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'var(--success)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(22,163,74,.28)',
+          background:'#000000',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
+          borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(0,0,0,.28)',
           border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
         }}>
           <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
@@ -1951,7 +1957,7 @@ function AuthScreen({ onAuth }) {
           Didn't get it?{' '}
           {resendTimer > 0
             ? <span style={{color:'var(--text-faint)'}}>Resend in {resendTimer}s</span>
-            : <span style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}} onClick={()=>sendCode()}>Resend code</span>
+            : <span style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}} onClick={()=>sendCode()}>Resend code</span>
           }
         </div>
         <button type="button" onClick={()=>setAuthStep('form')} style={{marginTop:16,fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-faint)',background:'none',border:'none',cursor:'pointer'}}>
@@ -2074,7 +2080,7 @@ function AuthScreen({ onAuth }) {
 
         {mode==='signin' && (
           <div style={{textAlign:'right',marginTop:-6}}>
-            <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Forgot password?</span>
+            <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--secondary)',fontWeight:600,cursor:'pointer'}}>Forgot password?</span>
           </div>
         )}
 
@@ -2092,8 +2098,8 @@ function AuthScreen({ onAuth }) {
 
         <div style={{textAlign:'center',fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)',lineHeight:1.5,marginTop:4}}>
           By continuing you agree to our{' '}
-          <span onClick={()=>setLegalPage('terms')} style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Terms</span>{' '}and{' '}
-          <span onClick={()=>setLegalPage('privacy')} style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}}>Privacy Policy</span>
+          <span onClick={()=>setLegalPage('terms')} style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}}>Terms</span>{' '}and{' '}
+          <span onClick={()=>setLegalPage('privacy')} style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}}>Privacy Policy</span>
         </div>
       </div>
     </div>
@@ -2116,7 +2122,7 @@ function HelpScreen({ onBack }) {
   const [open, setOpen] = useState(null);
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Help & FAQ</h1>
@@ -2151,7 +2157,7 @@ function HelpScreen({ onBack }) {
         })}
         <div style={{marginTop:8,textAlign:'center',fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.6}}>
           Still need help?{' '}
-          <span style={{color:'var(--accent)',fontWeight:600}}>Send us a message</span>
+          <span style={{color:'var(--secondary)',fontWeight:600}}>Send us a message</span>
         </div>
       </div>
     </div>
@@ -2207,7 +2213,7 @@ function FeedbackScreen({ onBack, userEmail }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Send Feedback</h1>
@@ -2284,7 +2290,7 @@ function PrivacyScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Privacy Policy</h1>
@@ -2334,7 +2340,7 @@ function TermsScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Terms of Service</h1>
@@ -2438,7 +2444,7 @@ function PriceCheckScreen({ onBack }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Price Check</h1>
@@ -2491,7 +2497,7 @@ function PriceCheckScreen({ onBack }) {
             <div style={{textAlign:'center',padding:'8px 0'}}>
               <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',marginBottom:6}}>{result.itemName}</div>
               {result.low != null ? (
-                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--brand-500)',letterSpacing:'-0.02em'}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--secondary)',letterSpacing:'-0.02em'}}>
                   ${result.low}{result.high !== result.low ? ` – $${result.high}` : ''}
                 </div>
               ) : (
@@ -2514,7 +2520,7 @@ function PriceCheckScreen({ onBack }) {
                         <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.title}</div>
                         <div style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{new URL(s.url).hostname.replace(/^www\./,'')}</div>
                       </div>
-                      <div style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:14,color:'var(--brand-500)',flexShrink:0}}>${s.price}</div>
+                      <div style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:14,color:'var(--secondary)',flexShrink:0}}>${s.price}</div>
                     </a>
                   ))}
                 </Card>
@@ -2533,14 +2539,14 @@ function PriceCheckScreen({ onBack }) {
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
   return (
-    <Card padded={false} elevation="xs" style={{marginBottom:12}}>
+    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`3px solid ${THRIFT_STORE_BORDER}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
       <div style={{padding:'14px 16px'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontWeight:800,fontSize:15,color:'var(--ink-900)',marginBottom:2}}>{store.title}</div>
             <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{store.address}</div>
           </div>
-          <span style={{fontSize:12,fontWeight:700,color:'var(--brand-600)',background:'var(--brand-50)',padding:'3px 9px',borderRadius:'var(--radius-pill)',flexShrink:0}}>{store.distanceMi} mi</span>
+          <span style={{fontSize:12,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 9px',borderRadius:'var(--radius-pill)',flexShrink:0}}>{store.distanceMi} mi</span>
         </div>
         {(store.rating || store.openNow != null) && (
           <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8}}>
@@ -2586,7 +2592,7 @@ function VintageStoresScreen({ onBack, zip, tripIds=[], onToggleTrip, onStoresLo
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(237,230,214,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Vintage Stores</h1>
@@ -2870,7 +2876,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
                   {/* Actions */}
                   <div style={{display:'flex',gap:6,flexShrink:0}}>
                     <button type="button" onClick={()=>onOpenSale?.(listing.id)}
-                      style={{height:32,padding:'0 12px',borderRadius:'var(--radius-pill)',background:'var(--brand-50,#ede9ff)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--brand-600)',whiteSpace:'nowrap'}}>
+                      style={{height:32,padding:'0 12px',borderRadius:'var(--radius-pill)',background:'var(--brand-50,#ede9ff)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--secondary)',whiteSpace:'nowrap'}}>
                       View
                     </button>
                     <button type="button" onClick={()=>setDeleteConfirm(listing.id)}
@@ -3540,6 +3546,20 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
                 </div>
               </div>
             ))}
+            {/* Most sources only ever expose city/neighborhood, and even ones
+                that can show a full street address often don't publish it
+                until shortly before the sale (common industry practice, to
+                avoid early crowding). A real street address starts with a
+                house number -- city-only text never does -- so that's used
+                to detect which case this listing is in. Directions already
+                navigates by lat/lng regardless, so this is reassurance, not
+                a limitation notice. */}
+            {!/^\d/.test((s.address || '').trim()) && (
+              <div style={{display:'flex',alignItems:'flex-start',gap:8,marginLeft:52,fontFamily:'var(--font-sans)',fontSize:12.5,color:'var(--text-muted)',lineHeight:1.4}}>
+                {Icon('Info',14,{stroke:'currentColor'})}
+                <span>Exact address not yet shared by the seller — tap Directions below for the precise location.</span>
+              </div>
+            )}
           </div>
         </div>
         <div style={{margin:'0 18px',height:130,borderRadius:'var(--radius-xl)',overflow:'hidden',position:'relative',zIndex:0,isolation:'isolate',boxShadow:'var(--shadow-sm)'}}>
@@ -3563,7 +3583,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
                 <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10,gap:8}}>
                   <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)'}}>What you'll find</h2>
                   {onOpenItems && (
-                    <button type="button" onClick={onOpenItems} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--accent)',display:'flex',alignItems:'center',gap:2,flexShrink:0}}>
+                    <button type="button" onClick={onOpenItems} style={{background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--secondary)',display:'flex',alignItems:'center',gap:2,flexShrink:0}}>
                       See all {s.items.length} {Icon('ChevronRight',14,{stroke:'currentColor'})}
                     </button>
                   )}
@@ -3596,7 +3616,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         )}
         <div style={{height:80}} />
       </div>
-      <div style={{padding:'12px 16px 28px',background:'rgba(237,230,214,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
         {s.contact ? (
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('MessageCircle',18)}
             onClick={()=>{
@@ -3621,7 +3641,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
               <Btn variant={inTrip?'secondary':'primary'} fullWidth
                 leadingIcon={Icon(inTrip?'RouteOff':'Route',16)}
                 onClick={onToggleTrip}
-                style={inTrip?{borderColor:'var(--brand-500)',color:'var(--brand-500)'}:{}}>
+                style={inTrip?{borderColor:'var(--secondary)',color:'var(--secondary)'}:{}}>
                 {inTrip ? 'In trip' : 'Add to trip'}
               </Btn>
             </div>
@@ -3648,7 +3668,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(237,230,214,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 10px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <div style={{flex:1,minWidth:0}}>
@@ -3698,7 +3718,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
         </div>
         <p style={{textAlign:'center',fontSize:12,color:'var(--text-muted)',margin:'16px auto 0',maxWidth:250}}>Photos are a preview. Everything's cash &amp; carry, first come first served.</p>
       </div>
-      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(237,230,214,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
+      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(246,246,246,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)'}}>{sale.dateLabel}</div>
           <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)'}}>{sale.distanceMi} mi{sale.neighborhood?` · ${sale.neighborhood}`:''}</div>
@@ -3785,7 +3805,7 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem }) {
           </div>
         )}
       </div>
-      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(237,230,214,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
+      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
         <div style={{flex:1}}>
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation',18)}
             onClick={()=>openSaleDirections(sale)}>Get directions</Btn>
@@ -3801,12 +3821,12 @@ function NotificationsScreen({ notifications, onBack, onOpenSale }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(237,230,214,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 12px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <span style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:'var(--text-primary)'}}>Notifications</span>
           {notifications.length>0 && (
-            <button type="button" onClick={()=>setReadAll(true)} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--accent)'}}>
+            <button type="button" onClick={()=>setReadAll(true)} style={{marginLeft:'auto',background:'none',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,color:'var(--secondary)'}}>
               Mark all read
             </button>
           )}
@@ -3959,10 +3979,10 @@ function ListScreen({ onPublish }) {
         {/* Hero CTA block */}
         <div style={{margin:'0 20px 20px'}}>
           <button type="button" onClick={()=>setStep(1)} style={{
-            width:'100%',borderRadius:'var(--radius-2xl)',border:'none',cursor:'pointer',
-            background:'linear-gradient(135deg,var(--brand-600) 0%,var(--brand-500) 100%)',
+            width:'100%',borderRadius:'45px',border:'none',cursor:'pointer',
+            background:'#000000',
             padding:'28px 24px',textAlign:'left',
-            boxShadow:'0 12px 40px rgba(78,79,42,.38)',
+            boxShadow:'0 12px 40px rgba(0,0,0,.38)',
             transition:'transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base)',
           }}
             onMouseDown={e=>e.currentTarget.style.transform='scale(.98)'}
@@ -3989,7 +4009,7 @@ function ListScreen({ onPublish }) {
           <div className="rmg-eyebrow" style={{marginBottom:14}}>How it works</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {[
-              {icon:'Tag',        color:'#A81F24', bg:'#FBEAEA', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
+              {icon:'Tag',        color:'#B85E2F', bg:'#FDF2EC', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
               {icon:'FileText',   color:'#3F5E3A', bg:'#E1E8D6', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
               {icon:'MapPin',     color:'#2C4A7C', bg:'#DCE4EF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
@@ -4001,7 +4021,7 @@ function ListScreen({ onPublish }) {
                   <div style={{fontWeight:700,fontSize:14,color:'var(--ink-900)',marginBottom:2}}>{row.title}</div>
                   <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.4}}>{row.body}</div>
                 </div>
-                <div style={{width:22,height:22,borderRadius:'50%',background:'var(--brand-100)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontFamily:'var(--font-mono)',fontWeight:800,fontSize:11,color:'var(--accent)'}}>
+                <div style={{width:22,height:22,borderRadius:'50%',background:'var(--brand-100)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontFamily:'var(--font-mono)',fontWeight:800,fontSize:11,color:'var(--secondary)'}}>
                   {row.step}
                 </div>
               </div>
@@ -4263,8 +4283,8 @@ function ListScreen({ onPublish }) {
               </div>
               {contact && (
                 <div style={{display:'inline-flex',alignItems:'center',gap:6,marginTop:4,padding:'5px 12px',borderRadius:'var(--radius-pill)',background:'var(--brand-50)',boxShadow:'0 0 0 1.5px var(--brand-200)'}}>
-                  {Icon('Phone',13,{stroke:'var(--accent)'})}
-                  <span style={{fontFamily:'var(--font-sans)',fontSize:12,fontWeight:600,color:'var(--accent)'}}>Contact Seller</span>
+                  {Icon('Phone',13,{stroke:'var(--secondary)'})}
+                  <span style={{fontFamily:'var(--font-sans)',fontSize:12,fontWeight:600,color:'var(--secondary)'}}>Contact Seller</span>
                 </div>
               )}
               {desc && <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-secondary)',marginTop:8,lineHeight:1.5}}>{desc}</div>}
@@ -4275,7 +4295,7 @@ function ListScreen({ onPublish }) {
             <div style={{background:'var(--surface-sunken)',borderRadius:'var(--radius-lg)',padding:'12px 14px',display:'flex',gap:10,alignItems:'flex-start'}}>
               {Icon('Info',16,{stroke:'var(--ink-500)'})}
               <p style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',margin:0,lineHeight:1.5}}>
-                No contact info added. Shoppers won't be able to reach you directly. <span style={{color:'var(--accent)',fontWeight:600,cursor:'pointer'}} onClick={()=>setStep(2)}>Add it now →</span>
+                No contact info added. Shoppers won't be able to reach you directly. <span style={{color:'var(--secondary)',fontWeight:600,cursor:'pointer'}} onClick={()=>setStep(2)}>Add it now →</span>
               </p>
             </div>
           )}
@@ -4371,7 +4391,7 @@ function WalkthroughScreen({ onDone, userName }) {
         <h1 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:24,color:'var(--text-primary)',marginBottom:12,lineHeight:1.2}}>{TUTORIAL_SLIDES[idx].title}</h1>
         <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.55,color:'var(--text-secondary)',maxWidth:300,margin:0}}>{TUTORIAL_SLIDES[idx].body}</p>
         {idx===0 && userName && (
-          <p style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--accent)',maxWidth:300,margin:'10px 0 0'}}>
+          <p style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--secondary)',maxWidth:300,margin:'10px 0 0'}}>
             Nice to see you again, {userName}!
           </p>
         )}
