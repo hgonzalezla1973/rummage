@@ -3540,6 +3540,20 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
                 </div>
               </div>
             ))}
+            {/* Most sources only ever expose city/neighborhood, and even ones
+                that can show a full street address often don't publish it
+                until shortly before the sale (common industry practice, to
+                avoid early crowding). A real street address starts with a
+                house number -- city-only text never does -- so that's used
+                to detect which case this listing is in. Directions already
+                navigates by lat/lng regardless, so this is reassurance, not
+                a limitation notice. */}
+            {!/^\d/.test((s.address || '').trim()) && (
+              <div style={{display:'flex',alignItems:'flex-start',gap:8,marginLeft:52,fontFamily:'var(--font-sans)',fontSize:12.5,color:'var(--text-muted)',lineHeight:1.4}}>
+                {Icon('Info',14,{stroke:'currentColor'})}
+                <span>Exact address not yet shared by the seller — tap Directions below for the precise location.</span>
+              </div>
+            )}
           </div>
         </div>
         <div style={{margin:'0 18px',height:130,borderRadius:'var(--radius-xl)',overflow:'hidden',position:'relative',zIndex:0,isolation:'isolate',boxShadow:'var(--shadow-sm)'}}>
