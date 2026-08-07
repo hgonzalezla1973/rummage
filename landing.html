@@ -8,20 +8,20 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Sans:wght@400;500;600;700;800&family=Spline+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Mohave:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <style>
   :root {
-    --paper:#EDE6D6; --paper-2:#F1EAD6; --surface:#F8F4EA; --surface-tint:#FBF8F0;
+    --paper:#F6F6F6; --paper-2:#F6F6F6; --surface:#FFFFFF; --surface-tint:#FFFFFF;
     --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
     --ink-500:#8A8069; --ink-400:#9C9280; --ink-300:#C4B593; --ink-200:#D8CBB0; --line:#D8CBB0;
-    --brand-50:#FBEAEA; --brand-100:#F3CBCB; --brand-400:#C1272D; --brand-500:#A81F24; --brand-600:#8B1A1E; --brand-700:#6E1417;
+    --brand-50:#FDF2EC; --brand-100:#FBE1D2; --brand-400:#EE8D5C; --brand-500:#D97540; --brand-600:#B85E2F; --brand-700:#954A25;
     --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-700:#8A6A0D;
     --type-estate-fg:#2C4A7C; --type-estate-bg:#DCE4EF;
     --type-yard-fg:#3F5E3A;   --type-yard-bg:#E1E8D6;
     --type-moving-fg:#8A5A12; --type-moving-bg:#F1E0B8;
-    --font-display:'Archivo Black','Arial Narrow',system-ui,sans-serif;
-    --font-sans:'IBM Plex Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
-    --font-mono:'Spline Sans Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --font-display:'Mohave','Arial Narrow',system-ui,sans-serif;
+    --font-sans:'Mohave',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-mono:'Mohave',ui-monospace,'SF Mono',Menlo,monospace;
     --radius-lg:14px; --radius-xl:20px; --radius-2xl:28px; --radius-pill:999px;
     --shadow-card:0 1px 3px rgba(33,29,23,.08), 0 12px 32px rgba(33,29,23,.10);
     --shadow-lg:0 24px 60px rgba(33,29,23,.22);
@@ -41,16 +41,16 @@
   h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
 
   /* ── Nav ─────────────────────────────────────────────── */
-  nav { position: sticky; top: 0; z-index: 20; background: rgba(237,230,214,.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
+  nav { position: sticky; top: 0; z-index: 20; background: rgba(246,246,246,.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
   nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 72px; }
   .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 20px; letter-spacing: -0.02em; text-decoration: none; color: var(--ink-900); }
   .brand img { width: 34px; height: 34px; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font-sans); font-weight: 700; font-size: 15px; text-decoration: none; cursor: pointer; border: none; border-radius: var(--radius-pill); padding: 13px 26px; transition: transform .15s ease, box-shadow .15s ease; }
   .btn:hover { transform: translateY(-1px); }
-  .btn-primary { background: var(--brand-400); color: #fff; box-shadow: 0 10px 28px rgba(193,39,45,.35); }
-  .btn-primary:hover { box-shadow: 0 14px 34px rgba(193,39,45,.42); }
+  .btn-primary { background: var(--ink-900); color: #fff; box-shadow: 0 10px 28px rgba(33,29,23,.28); }
+  .btn-primary:hover { box-shadow: 0 14px 34px rgba(33,29,23,.35); }
   .btn-dark { background: var(--ink-900); color: #fff; }
-  .btn-ghost { background: transparent; color: var(--ink-900); border: 1.5px solid var(--ink-200); }
+  .btn-ghost { background: #fff; color: var(--ink-900); border: 1.5px solid var(--ink-900); }
 
   /* ── Hero ────────────────────────────────────────────── */
   .hero { padding: 72px 0 40px; position: relative; }
@@ -98,10 +98,11 @@
 
   /* ── CTA band ────────────────────────────────────────── */
   .cta-band { background: var(--ink-900); border-radius: var(--radius-2xl); padding: 64px 48px; text-align: center; position: relative; overflow: hidden; }
-  .cta-band::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 20% 20%, rgba(193,39,45,.35), transparent 55%), radial-gradient(circle at 85% 80%, rgba(232,185,35,.18), transparent 50%); }
+  .cta-band::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 20% 20%, rgba(238,141,92,.35), transparent 55%), radial-gradient(circle at 85% 80%, rgba(232,185,35,.18), transparent 50%); }
   .cta-band > * { position: relative; }
   .cta-band h2 { color: #fff; font-size: 34px; margin-bottom: 14px; }
   .cta-band p { color: var(--ink-300); font-size: 16px; margin-bottom: 30px; }
+  .cta-band .btn-primary { background: #fff; color: var(--ink-900); box-shadow: 0 10px 28px rgba(0,0,0,.3); }
 
   /* ── Footer ──────────────────────────────────────────── */
   footer { border-top: 1px solid var(--line); padding: 40px 0; }
