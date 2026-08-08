@@ -19,15 +19,17 @@
   --ink-900:#18181B; --ink-800:#27272A; --ink-700:#3F3F46; --ink-600:#52525B;
   --ink-500:#71717A; --ink-400:#A1A1AA; --ink-300:#D4D4D8; --ink-200:#E4E4E7; --ink-100:#F4F4F5; --line:#ECECEE;
 
-  /* Primary — coral-orange accent, used sparingly on CTAs & selected states */
-  --brand-50:#FDF2EC; --brand-100:#FBE1D2; --brand-200:#F7C7AC; --brand-300:#F2A97F;
-  --brand-400:#EE8D5C; --brand-500:#D97540; --brand-600:#B85E2F; --brand-700:#954A25; --brand-800:#6E361B;
-  --brand-grad:linear-gradient(135deg,#F2A97F 0%,#EE8D5C 45%,#D9683A 100%);
+  /* Primary — teal accent, used sparingly on CTAs & selected states.
+     (Named --brand-* for historical reasons; every call site reads the
+     computed color, not the name, so this is the one place to retune it.) */
+  --brand-50:#F0FDFA; --brand-100:#CCFBF1; --brand-200:#99F6E4; --brand-300:#5ECEBD;
+  --brand-400:#2DD4BF; --brand-500:#14B8A6; --brand-600:#0D9488; --brand-700:#0F766E; --brand-800:#115E59;
+  --brand-grad:linear-gradient(135deg,#5ECEBD 0%,#14B8A6 45%,#0F766E 100%);
 
   --tape-50:#FDF6E0; --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-600:#C99C15; --tape-700:#8A6A0D;
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
   --green-600:#15803D; --green-bg:#DCFCE7; --amber-600:#B45309; --amber-bg:#FEF3C7; --red-600:#DC2626; --red-bg:#FEE2E2;
-  --coral:#EE8D5C; --coral-bg:#FDF2EC;
+  --coral:#0D9488; --coral-bg:#F0FDFA;
 
   /* Sale type colors — quiet, muted tints so they don't compete with the accent */
   --type-estate-fg:#2C4A7C; --type-estate-bg:#E8EEF7;
@@ -67,8 +69,8 @@
   --shadow-md:0 8px 20px rgba(24,24,27,.08),0 2px 6px rgba(24,24,27,.04);
   --shadow-lg:0 20px 40px rgba(24,24,27,.12),0 6px 14px rgba(24,24,27,.06);
   --shadow-sheet:0 -8px 32px rgba(24,24,27,.10);
-  --shadow-pin:0 6px 16px rgba(217,117,64,.30);
-  --shadow-focus:0 0 0 3px rgba(238,141,92,.25);
+  --shadow-pin:0 6px 16px rgba(13,148,136,.30);
+  --shadow-focus:0 0 0 3px rgba(20,184,166,.25);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -283,7 +285,7 @@ function burstConfetti() {
   fire({
     particleCount: 100, spread: 75, startVelocity: 42, gravity: 1.1, ticks: 220,
     origin: { x: 0.5, y: 0.35 },
-    colors: ['#EE8D5C', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
+    colors: ['#0D9488', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
   });
   setTimeout(() => canvas.remove(), 3200);
 }
@@ -442,11 +444,11 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
            : size==='sm' ? {height:36,padding:'0 16px',fontSize:13}
            : {height:48,padding:'0 24px',fontSize:15};
-  const v = variant==='primary'  ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(217,117,64,.30)'}
+  const v = variant==='primary'  ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(13,148,136,.30)'}
           : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',boxShadow:'0 6px 16px rgba(24,24,27,.20)'}
           : variant==='ghost'    ? {background:'var(--ink-100)',color:'var(--ink-900)'}
           : variant==='surface'  ? {background:'#FFFFFF',color:'var(--ink-900)',boxShadow:'var(--shadow-sm)'}
-          : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(217,117,64,.30)'};
+          : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(13,148,136,.30)'};
   return (
     <button onClick={onClick} style={{...base,...sz,...v,...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
@@ -493,27 +495,19 @@ function Badge({ tone, children }) {
   );
 }
 
-const SALE_TYPE_TAG_COLORS = {
-  estate: { fg:'var(--type-estate-fg)' }, yard: { fg:'var(--type-yard-fg)' }, moving: { fg:'var(--type-moving-fg)' },
-};
-// A quiet glass chip floating on the photo — colored text per sale type,
-// no fill, no rotation, so it reads as information rather than decoration.
+// A small solid circle floating on the photo — just the type glyph in
+// white, no label, no per-type color coding (one accent, one meaning:
+// "this is a sale"). Same top-left position every card used before.
 function SaleTypeTag({ type, size }) {
-  const fg = SALE_TYPE_TAG_COLORS[type]?.fg || 'var(--ink-700)';
+  const dim = size==='xs' ? 24 : size==='sm' ? 28 : 34;
   return (
-    <span style={{
-      display:'inline-flex', alignItems:'center', gap:4,
-      padding: size==='sm' || size==='xs' ? '3px 9px' : '4px 11px',
-      borderRadius:'var(--radius-pill)',
-      background:'rgba(255,255,255,.94)', color: fg,
-      backdropFilter:'blur(8px)',
-      fontFamily:'var(--font-sans)', fontWeight:700,
-      fontSize: size==='xs' ? 10 : size==='sm' ? 11 : 12,
-      letterSpacing:'0.02em', textTransform:'uppercase',
-      boxShadow:'0 2px 8px rgba(24,24,27,.12)',
+    <span aria-label={CAT[type]?.label || type} style={{
+      display:'inline-flex', alignItems:'center', justifyContent:'center',
+      width:dim, height:dim, borderRadius:'50%', flexShrink:0,
+      background:'var(--secondary)',
+      boxShadow:'0 2px 8px rgba(15,118,110,.35)',
     }}>
-      {Icon(CAT[type]?.glyph || 'Tag', size==='sm'||size==='xs' ? 11 : 13, {stroke:'currentColor',sw:2})}
-      {CAT[type]?.label || type}
+      {Icon(CAT[type]?.glyph || 'Tag', size==='xs' ? 12 : size==='sm' ? 14 : 17, {stroke:'#fff',sw:2.2})}
     </span>
   );
 }
@@ -558,7 +552,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(217,117,64,.30)' : 'none',
+      boxShadow: selected ? '0 4px 14px rgba(13,148,136,.30)' : 'none',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -671,7 +665,7 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
               background: active ? 'var(--accent)' : 'var(--surface-card)',
               color: active ? '#fff' : 'var(--text-secondary)',
               fontFamily:'var(--font-mono)', fontWeight:600, fontSize:'var(--text-sm)', cursor:'pointer',
-              boxShadow: active ? '0 4px 12px rgba(78,79,42,.35)' : 'var(--shadow-xs)',
+              boxShadow: active ? '0 4px 12px rgba(13,148,136,.35)' : 'var(--shadow-xs)',
               transition:'all var(--dur-fast)',
             }}>{p} mi</button>
           );
@@ -766,7 +760,7 @@ function FauxMap({ sales, selectedId, onSelect }) {
       <div style={{position:'absolute',left:'12%',bottom:'-8%',width:'30%',height:'26%',background:'#E0D8CE',borderRadius:26}} />
       <div style={{position:'absolute',inset:0,opacity:0.5,backgroundImage:'repeating-linear-gradient(0deg,transparent 0 52px,rgba(255,255,255,.6) 52px 57px),repeating-linear-gradient(90deg,transparent 0 64px,rgba(255,255,255,.6) 64px 69px)'}} />
       <div style={{position:'absolute',inset:0,opacity:0.4,backgroundImage:'repeating-linear-gradient(28deg,transparent 0 120px,rgba(255,255,255,.4) 120px 128px)'}} />
-      <div style={{position:'absolute',left:'50%',top:'50%',width:220,height:220,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'2px dashed rgba(78,79,42,.30)',background:'rgba(78,79,42,.05)'}} />
+      <div style={{position:'absolute',left:'50%',top:'50%',width:220,height:220,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'2px dashed rgba(13,148,136,.30)',background:'rgba(13,148,136,.05)'}} />
       <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)'}}>
         <div style={{width:18,height:18,borderRadius:'50%',background:'#3B82F6',border:'3px solid #fff',boxShadow:'0 2px 8px rgba(59,130,246,.5)'}} />
       </div>
@@ -982,7 +976,7 @@ function HeartBtn({ saved, onSave }) {
         display:'inline-flex',
         animation: tick > 0 ? 'heart-pop .55s cubic-bezier(.34,1.56,.64,1) both' : 'none',
       }}>
-        {Icon('Heart',18,saved?{fill:'#EE8D5C',stroke:'#B85E2F'}:{stroke:'var(--ink-500)'})}
+        {Icon('Heart',18,saved?{fill:'#14B8A6',stroke:'#0F766E'}:{stroke:'var(--ink-500)'})}
       </span>
     </button>
   );
@@ -1369,8 +1363,8 @@ const LANDING_ILLUSTRATION = (
     <circle cx="155" cy="65" r="22" fill="none" stroke="#8A6A0D" strokeWidth="2.5"/>
     <circle cx="155" cy="65" r="16" fill="#F8E8B0" opacity="0.5"/>
     <path d="M155 53L160 65L155 77L150 65Z" fill="#8A6A0D"/>
-    <circle cx="180" cy="55" r="16" fill="none" stroke="#B85E2F" strokeWidth="2.5"/>
-    <line x1="193" y1="68" x2="205" y2="80" stroke="#B85E2F" strokeWidth="2.5" strokeLinecap="round"/>
+    <circle cx="180" cy="55" r="16" fill="none" stroke="#0F766E" strokeWidth="2.5"/>
+    <line x1="193" y1="68" x2="205" y2="80" stroke="#0F766E" strokeWidth="2.5" strokeLinecap="round"/>
     <path d="M55 140 Q55 126 68 126 L88 126 Q101 126 101 140 L101 155 Q101 163 88 163 L68 163 Q55 163 55 155Z" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <ellipse cx="46" cy="145" rx="9" ry="7" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <rect x="101" y="138" width="5" height="18" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" rx="2"/>
@@ -1448,7 +1442,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <h1 style={{fontSize:36,fontWeight:900,color:'var(--ink-900)',lineHeight:0.98,letterSpacing:'-0.04em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-pill)',boxShadow:'0 4px 14px rgba(217,117,64,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-pill)',boxShadow:'0 4px 14px rgba(13,148,136,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
@@ -1507,7 +1501,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
           flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
           background:'var(--brand-grad)',color:'#fff',padding:'13px 18px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'0 8px 22px rgba(217,117,64,.35)',
+          borderRadius:'var(--radius-pill)',boxShadow:'0 8px 22px rgba(13,148,136,.35)',
           border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
         }}>
           <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
@@ -1900,7 +1894,7 @@ function AuthScreen({ onAuth }) {
     const isDevMode = authStep === 'verify-dev';
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:72,height:72,borderRadius:22,background:'linear-gradient(135deg,var(--brand-500),var(--brand-300))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(78,79,42,.30)'}}>
+        <div style={{width:72,height:72,borderRadius:22,background:'linear-gradient(135deg,var(--brand-500),var(--brand-300))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(13,148,136,.30)'}}>
           {Icon('Mail',34,{stroke:'#fff',sw:1.75})}
         </div>
         <h1 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 8px'}}>Check your email</h1>
@@ -1953,7 +1947,7 @@ function AuthScreen({ onAuth }) {
 
       {/* Branding */}
       <div style={{padding:'24px 24px 20px',textAlign:'center'}}>
-        <div style={{margin:'0 auto 16px',filter:'drop-shadow(0 8px 20px rgba(78,79,42,.32))'}}>
+        <div style={{margin:'0 auto 16px',filter:'drop-shadow(0 8px 20px rgba(13,148,136,.32))'}}>
           <RummageLogo markSize={60} textSize={24} />
         </div>
         <div style={{fontWeight:900,fontSize:22,letterSpacing:'-0.03em',color:'var(--ink-900)',lineHeight:1.1}}>
@@ -2179,7 +2173,7 @@ function FeedbackScreen({ onBack, userEmail }) {
   if (sent) {
     return (
       <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 28px',textAlign:'center'}}>
-        <div style={{width:80,height:80,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(78,79,42,.20)'}}>
+        <div style={{width:80,height:80,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(13,148,136,.20)'}}>
           {Icon('CheckCircle',40,{stroke:'var(--accent)'})}
         </div>
         <h2 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>Thanks for your feedback!</h2>
@@ -2215,7 +2209,7 @@ function FeedbackScreen({ onBack, userEmail }) {
                   display:'flex',alignItems:'center',gap:10,padding:'14px 16px',
                   background: on ? 'var(--accent)' : 'var(--surface-card)',
                   borderRadius:'var(--radius-xl)',border:'none',cursor:'pointer',textAlign:'left',
-                  boxShadow: on ? '0 4px 14px rgba(78,79,42,.35)' : 'var(--shadow-sm)',
+                  boxShadow: on ? '0 4px 14px rgba(13,148,136,.35)' : 'var(--shadow-sm)',
                   transition:'all var(--dur-fast)',
                 }}>
                   <span style={{display:'inline-flex',color: on ? '#fff' : 'var(--accent)'}}>
@@ -3962,7 +3956,7 @@ function ListScreen({ onPublish }) {
             width:'100%',borderRadius:'var(--radius-2xl)',border:'none',cursor:'pointer',
             background:'var(--brand-grad)',
             padding:'28px 24px',textAlign:'left',
-            boxShadow:'0 12px 32px rgba(217,117,64,.35)',
+            boxShadow:'0 12px 32px rgba(13,148,136,.35)',
             transition:'transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base)',
           }}
             onMouseDown={e=>e.currentTarget.style.transform='scale(.98)'}
@@ -3989,7 +3983,7 @@ function ListScreen({ onPublish }) {
           <div className="rmg-eyebrow" style={{marginBottom:14}}>How it works</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {[
-              {icon:'Tag',        color:'#B85E2F', bg:'#FDF2EC', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
+              {icon:'Tag',        color:'#0F766E', bg:'#F0FDFA', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
               {icon:'FileText',   color:'#3F5E3A', bg:'#E1E8D6', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
               {icon:'MapPin',     color:'#2C4A7C', bg:'#DCE4EF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
@@ -4015,7 +4009,7 @@ function ListScreen({ onPublish }) {
   if (step===4 && published) {
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:88,height:88,borderRadius:'50%',background:'linear-gradient(135deg,var(--brand-100),var(--brand-200))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 12px 40px rgba(78,79,42,.25)'}}>
+        <div style={{width:88,height:88,borderRadius:'50%',background:'linear-gradient(135deg,var(--brand-100),var(--brand-200))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 12px 40px rgba(13,148,136,.25)'}}>
           {Icon('CheckCircle',44,{stroke:'var(--accent)'})}
         </div>
         <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>You're live!</h1>
@@ -4063,7 +4057,7 @@ function ListScreen({ onPublish }) {
           const n = i+1, active = n===step, done = n<step;
           return (
             <div key={n} style={{flex:1,display:'flex',flexDirection:'column',gap:5,alignItems:'center'}}>
-              <div style={{width:'100%',height:4,borderRadius:2,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)',boxShadow:active?'0 2px 8px rgba(78,79,42,.4)':'none'}} />
+              <div style={{width:'100%',height:4,borderRadius:2,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)',boxShadow:active?'0 2px 8px rgba(13,148,136,.4)':'none'}} />
               <span style={{fontFamily:'var(--font-sans)',fontSize:10,fontWeight:active?700:500,color:active?'var(--accent)':done?'var(--ink-600)':'var(--text-faint)'}}>{label}</span>
             </div>
           );

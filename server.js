@@ -614,7 +614,7 @@ function isoDateLabel(startISO, endISO) {
 function mapThumbUrl(lat, lng) {
   const key = process.env.GEOAPIFY_KEY;
   if (!key || !lat || !lng) return null;
-  const marker = `lonlat:${lng},${lat};type:material;color:%23f97316;size:medium`;
+  const marker = `lonlat:${lng},${lat};type:material;color:%230d9488;size:medium`;
   return `https://maps.geoapify.com/v1/staticmap?style=osm-bright-smooth&width=400&height=260&center=lonlat:${lng},${lat}&zoom=15&marker=${marker}&apiKey=${key}`;
 }
 
