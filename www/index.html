@@ -24,7 +24,9 @@
      computed color, not the name, so this is the one place to retune it.) */
   --brand-50:#F0FDFA; --brand-100:#CCFBF1; --brand-200:#99F6E4; --brand-300:#5ECEBD;
   --brand-400:#2DD4BF; --brand-500:#14B8A6; --brand-600:#0D9488; --brand-700:#0F766E; --brand-800:#115E59;
-  --brand-grad:linear-gradient(135deg,#5ECEBD 0%,#14B8A6 45%,#0F766E 100%);
+  /* Buttons, filter chips, and other solid fills go black+white per direct
+     request; --brand-grad is what all of those actually read from. */
+  --brand-grad:#000000;
 
   --tape-50:#FDF6E0; --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-600:#C99C15; --tape-700:#8A6A0D;
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
@@ -365,11 +367,11 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
            : size==='sm' ? {height:36,padding:'0 16px',fontSize:13}
            : {height:48,padding:'0 24px',fontSize:15};
-  const v = variant==='primary'  ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(13,148,136,.30)'}
+  const v = variant==='primary'  ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(24,24,27,.30)'}
           : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',boxShadow:'0 6px 16px rgba(24,24,27,.20)'}
-          : variant==='ghost'    ? {background:'var(--ink-100)',color:'var(--ink-900)'}
+          : variant==='ghost'    ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 6px 16px rgba(24,24,27,.20)'}
           : variant==='surface'  ? {background:'#FFFFFF',color:'var(--ink-900)',boxShadow:'var(--shadow-sm)'}
-          : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(13,148,136,.30)'};
+          : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(24,24,27,.30)'};
   return (
     <button onClick={onClick} style={{...base,...sz,...v,...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
@@ -473,7 +475,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(13,148,136,.30)' : 'none',
+      boxShadow: selected ? '0 4px 14px rgba(24,24,27,.30)' : 'none',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -1363,7 +1365,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <h1 style={{fontSize:36,fontWeight:900,color:'var(--ink-900)',lineHeight:0.98,letterSpacing:'-0.04em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-pill)',boxShadow:'0 4px 14px rgba(13,148,136,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-pill)',boxShadow:'0 4px 14px rgba(24,24,27,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
@@ -1421,7 +1423,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
           flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
           background:'var(--brand-grad)',color:'#fff',padding:'13px 18px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'0 8px 22px rgba(13,148,136,.35)',
+          borderRadius:'var(--radius-pill)',boxShadow:'0 8px 22px rgba(24,24,27,.35)',
           border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
         }}>
           <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
@@ -1978,7 +1980,7 @@ function AuthScreen({ onAuth }) {
         )}
 
         <Btn variant="primary" size="lg" fullWidth onClick={submit}
-          style={{marginTop:4,height:64,fontSize:18,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
+          style={{marginTop:4,height:76,fontSize:19,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
           leadingIcon={loading ? Icon('Loader',18,{stroke:'#fff'}) : null}>
           {loading ? 'Just a sec…' : mode==='signin' ? 'Sign In' : 'Create Account'}
         </Btn>
@@ -3865,7 +3867,7 @@ function ListScreen({ onPublish }) {
             width:'100%',borderRadius:'var(--radius-2xl)',border:'none',cursor:'pointer',
             background:'var(--brand-grad)',
             padding:'28px 24px',textAlign:'left',
-            boxShadow:'0 12px 32px rgba(13,148,136,.35)',
+            boxShadow:'0 12px 32px rgba(24,24,27,.35)',
             transition:'transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base)',
           }}
             onMouseDown={e=>e.currentTarget.style.transform='scale(.98)'}
