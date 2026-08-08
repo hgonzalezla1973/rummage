@@ -943,23 +943,16 @@ function MapPlaceholder({ height, width, lat, lng, type='yard', id='ph', zoom=15
 // there are no coordinates either) on load error.
 function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }) {
   const [failed, setFailed] = React.useState(false);
-  const [tall, setTall] = React.useState(false);
   if (!src || failed) {
     if (lat != null && lng != null) return <MapPlaceholder height={height} width={width} lat={lat} lng={lng} type={type} id={id} />;
     return <PhotoPlaceholder height={height} type={type} blurb={blurb} title={title} />;
   }
-  const ps = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
-  // Sellers on OfferUp/Facebook often post a tall flyer graphic instead of a
-  // photo. Hard-cropping that to fill a landscape/square card slices off the
-  // date, address, or headline, so letterbox portrait images instead of
-  // cover-cropping them.
   return (
-    <div style={{ width: width || '100%', height, overflow:'hidden', background: tall ? ps.bg : 'transparent', ...style }}>
+    <div style={{ width: width || '100%', height, overflow:'hidden', background:'transparent', ...style }}>
       <img
         src={proxyImgUrl(src)}
         onError={() => setFailed(true)}
-        onLoad={e => { const { naturalWidth: w, naturalHeight: h } = e.target; if (w && h && h / w > 1.15) setTall(true); }}
-        style={{ width:'100%', height:'100%', objectFit: tall ? 'contain' : 'cover', display:'block' }}
+        style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
       />
     </div>
   );
