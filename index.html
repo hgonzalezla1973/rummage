@@ -1980,7 +1980,7 @@ function AuthScreen({ onAuth }) {
         )}
 
         <Btn variant="primary" size="lg" fullWidth onClick={submit}
-          style={{marginTop:4,height:76,fontSize:19,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
+          style={{marginTop:4,height:'auto',padding:'24px 32px',fontSize:19,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
           leadingIcon={loading ? Icon('Loader',18,{stroke:'#fff'}) : null}>
           {loading ? 'Just a sec…' : mode==='signin' ? 'Sign In' : 'Create Account'}
         </Btn>
