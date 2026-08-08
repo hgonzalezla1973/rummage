@@ -77,7 +77,7 @@
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--paper);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);color:var(--text-primary)}
-h1,h2,h3,h4{font-family:var(--font-display);font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin:0}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.03em;line-height:1.02;margin:0}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 .rmg-eyebrow{font-family:var(--font-sans);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;color:var(--text-muted)}
@@ -1323,13 +1323,13 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
       style={{
         boxShadow: live ? '0 0 0 3px var(--success-bg), 0 0 16px rgba(21,128,61,.35), var(--shadow-sm)' : 'var(--shadow-sm)',
       }}>
-      <div style={{position:'relative',aspectRatio:'1'}}>
+      <div style={{position:'relative',aspectRatio:'4/5'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
         <div style={{position:'absolute',top:6,right:6,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
         {live && <div style={{position:'absolute',bottom:8,left:8,zIndex:1000}}><Badge tone="live">Now</Badge></div>}
       </div>
-      <div style={{padding:'9px 10px 11px'}}>
+      <div style={{padding:'8px 9px 9px'}}>
         <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,lineHeight:1.25,color:'var(--text-primary)',
           display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',minHeight:'2.5em'}}>{title}</div>
         <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -1445,15 +1445,15 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--secondary)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
               {Icon('MapPin',12,{stroke:'currentColor'})} Near {zip}
             </div>
-            <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
+            <h1 style={{fontSize:36,fontWeight:900,color:'var(--ink-900)',lineHeight:0.98,letterSpacing:'-0.04em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'var(--secondary)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-pill)',boxShadow:'0 4px 14px rgba(217,117,64,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
-            activeBg="var(--ink-900)" activeFg="#fff" activeBorder="1px solid var(--ink-200)" />
+            activeBg="var(--brand-grad)" activeFg="#fff" activeBorder="none" />
         </div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
           <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
@@ -1506,15 +1506,15 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
       {liveCount > 0 && !openNow && !withinTwoWeeks && (
         <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
           flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'#FFFFFF',color:'var(--ink-900)',padding:'10px 16px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'var(--shadow-sm)',
+          background:'var(--brand-grad)',color:'#fff',padding:'13px 18px',margin:'10px 16px 0',
+          borderRadius:'var(--radius-pill)',boxShadow:'0 8px 22px rgba(217,117,64,.35)',
           border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
         }}>
-          <span style={{width:8,height:8,borderRadius:'50%',background:'var(--success)',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
-          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>
+          <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
+          <span style={{fontFamily:'var(--font-sans)',fontWeight:800,fontSize:14}}>
             {liveCount} sale{liveCount===1?'':'s'} live right now
           </span>
-          <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',16,{stroke:'var(--ink-400)'})}</span>
+          <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',18,{stroke:'#fff'})}</span>
         </button>
       )}
       {openNow && (
