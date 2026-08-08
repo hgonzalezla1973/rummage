@@ -7,32 +7,32 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Mohave:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* Kraft paper & index card surfaces */
-  --paper:#F6F6F6; --paper-2:#F6F6F6; --surface:#FFFFFF; --surface-tint:#FFFFFF;
+  /* Clean neutral surfaces — soft gray page, white cards */
+  --paper:#F7F7F8; --paper-2:#F2F2F4; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
-  /* Sharpie-black ink */
-  --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
-  --ink-500:#8A8069; --ink-400:#9C9280; --ink-300:#C4B593; --ink-200:#D8CBB0; --ink-100:#E8E0CC; --line:#D8CBB0;
+  /* Neutral ink — true gray, no warm undertone */
+  --ink-900:#18181B; --ink-800:#27272A; --ink-700:#3F3F46; --ink-600:#52525B;
+  --ink-500:#71717A; --ink-400:#A1A1AA; --ink-300:#D4D4D8; --ink-200:#E4E4E7; --ink-100:#F4F4F5; --line:#ECECEE;
 
-  /* Primary — coral-orange accent */
+  /* Primary — coral-orange accent, used sparingly on CTAs & selected states */
   --brand-50:#FDF2EC; --brand-100:#FBE1D2; --brand-200:#F7C7AC; --brand-300:#F2A97F;
   --brand-400:#EE8D5C; --brand-500:#D97540; --brand-600:#B85E2F; --brand-700:#954A25; --brand-800:#6E361B;
+  --brand-grad:linear-gradient(135deg,#F2A97F 0%,#EE8D5C 45%,#D9683A 100%);
 
-  /* Masking-tape yellow (secondary accent, used sparingly) */
   --tape-50:#FDF6E0; --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-600:#C99C15; --tape-700:#8A6A0D;
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
-  --green-600:#3F5E3A; --green-bg:#E1E8D6; --amber-600:#8A5A12; --amber-bg:#F1E0B8; --red-600:#DC2626; --red-bg:#FEE2E2;
+  --green-600:#15803D; --green-bg:#DCFCE7; --amber-600:#B45309; --amber-bg:#FEF3C7; --red-600:#DC2626; --red-bg:#FEE2E2;
   --coral:#EE8D5C; --coral-bg:#FDF2EC;
 
-  /* Sale type colors — office-supplies palette so they don't compete with the red accent */
-  --type-estate-fg:#2C4A7C; --type-estate-bg:#DCE4EF;
-  --type-yard-fg:#3F5E3A;   --type-yard-bg:#E1E8D6;
-  --type-moving-fg:#8A5A12; --type-moving-bg:#F1E0B8;
+  /* Sale type colors — quiet, muted tints so they don't compete with the accent */
+  --type-estate-fg:#2C4A7C; --type-estate-bg:#E8EEF7;
+  --type-yard-fg:#3F5E3A;   --type-yard-bg:#EAF2E8;
+  --type-moving-fg:#8A5A12; --type-moving-bg:#FBF0DC;
 
   /* Semantic aliases */
   --text-primary:var(--ink-900); --text-secondary:var(--ink-600); --text-muted:var(--ink-500); --text-faint:var(--ink-400);
@@ -44,11 +44,11 @@
   --secondary:var(--teal-600); --secondary-soft:var(--teal-50); --focus-ring:var(--brand-400);
   --success:var(--green-600); --success-bg:var(--green-bg); --warning:var(--amber-600); --warning-bg:var(--amber-bg);
   --danger:var(--red-600); --danger-bg:var(--red-bg);
-  --pin:var(--brand-400); --pin-saved:var(--coral); --live:#3F5E3A;
+  --pin:var(--brand-400); --pin-saved:var(--coral); --live:#15803D;
 
-  --font-display:'Mohave','Arial Narrow',system-ui,sans-serif;
-  --font-sans:'Mohave',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --font-mono:'Mohave',ui-monospace,'SF Mono',Menlo,monospace;
+  --font-display:'Inter',system-ui,-apple-system,sans-serif;
+  --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'Inter',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
   --text-lg:20px; --text-xl:24px; --text-2xl:30px; --text-3xl:38px; --text-4xl:48px;
@@ -58,17 +58,17 @@
 
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  --radius-xs:4px; --radius-sm:6px; --radius-md:8px; --radius-lg:10px;
-  --radius-xl:14px; --radius-2xl:20px; --radius-pill:999px;
+  --radius-xs:6px; --radius-sm:8px; --radius-md:12px; --radius-lg:16px;
+  --radius-xl:20px; --radius-2xl:24px; --radius-pill:999px;
 
-  /* Warm, neutral shadows — no purple tint */
-  --shadow-xs:0 1px 3px rgba(33,29,23,.08);
-  --shadow-sm:0 2px 10px rgba(33,29,23,.09);
-  --shadow-md:0 8px 24px rgba(33,29,23,.12),0 2px 6px rgba(33,29,23,.07);
-  --shadow-lg:0 20px 48px rgba(33,29,23,.16),0 6px 14px rgba(33,29,23,.09);
-  --shadow-sheet:0 -8px 40px rgba(33,29,23,.14);
-  --shadow-pin:0 6px 16px rgba(217,117,64,.35);
-  --shadow-focus:0 0 0 3px rgba(238,141,92,.28);
+  /* Soft, neutral shadows — no hard borders */
+  --shadow-xs:0 1px 2px rgba(24,24,27,.04);
+  --shadow-sm:0 2px 8px rgba(24,24,27,.06);
+  --shadow-md:0 8px 20px rgba(24,24,27,.08),0 2px 6px rgba(24,24,27,.04);
+  --shadow-lg:0 20px 40px rgba(24,24,27,.12),0 6px 14px rgba(24,24,27,.06);
+  --shadow-sheet:0 -8px 32px rgba(24,24,27,.10);
+  --shadow-pin:0 6px 16px rgba(217,117,64,.30);
+  --shadow-focus:0 0 0 3px rgba(238,141,92,.25);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -77,7 +77,7 @@
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--paper);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);color:var(--text-primary)}
-h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.01em;line-height:1.05;margin:0}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:800;letter-spacing:-0.02em;line-height:1.1;margin:0}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 .rmg-eyebrow{font-family:var(--font-sans);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;color:var(--text-muted)}
@@ -408,8 +408,6 @@ const FILTER_TYPES = [
   {key:'estate',label:'Estate'},{key:'yard',label:'Yard'},
   {key:'moving',label:'Moving'},
 ];
-const SALE_TYPE_BORDER = { estate:'#000000', yard:'#000000', moving:'#000000' };
-const THRIFT_STORE_BORDER = '#000000';
 
 // Sale `items` may be plain strings (legacy/scraped) or richer objects — normalize to one shape.
 function normalizeItem(it, i, saleId) {
@@ -438,14 +436,17 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
     gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
     fontWeight:700, letterSpacing:'-0.01em', whiteSpace:'nowrap',
     transition:`all var(--dur-fast) var(--ease-out)`,
-    borderRadius:'45px', width: fullWidth?'100%':'auto',
+    borderRadius:'var(--radius-lg)', width: fullWidth?'100%':'auto',
+    flex: fullWidth ? '1 1 0%' : 'initial', minWidth: fullWidth ? 0 : 'auto',
   };
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
            : size==='sm' ? {height:36,padding:'0 16px',fontSize:13}
            : {height:48,padding:'0 24px',fontSize:15};
-  const v = variant==='primary'  ? {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)',boxShadow:'0 6px 20px rgba(33,29,23,.28)'}
-          : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)'}
-          : {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)'};
+  const v = variant==='primary'  ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(217,117,64,.30)'}
+          : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',boxShadow:'0 6px 16px rgba(24,24,27,.20)'}
+          : variant==='ghost'    ? {background:'var(--ink-100)',color:'var(--ink-900)'}
+          : variant==='surface'  ? {background:'#FFFFFF',color:'var(--ink-900)',boxShadow:'var(--shadow-sm)'}
+          : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(217,117,64,.30)'};
   return (
     <button onClick={onClick} style={{...base,...sz,...v,...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
@@ -492,19 +493,24 @@ function Badge({ tone, children }) {
   );
 }
 
-// A rotated masking-tape sticker rather than a rounded pill — the one
-// deliberately "physical" detail that shows up on every card.
+const SALE_TYPE_TAG_COLORS = {
+  estate: { fg:'var(--type-estate-fg)' }, yard: { fg:'var(--type-yard-fg)' }, moving: { fg:'var(--type-moving-fg)' },
+};
+// A quiet glass chip floating on the photo — colored text per sale type,
+// no fill, no rotation, so it reads as information rather than decoration.
 function SaleTypeTag({ type, size }) {
+  const fg = SALE_TYPE_TAG_COLORS[type]?.fg || 'var(--ink-700)';
   return (
     <span style={{
       display:'inline-flex', alignItems:'center', gap:4,
-      padding: size==='sm' || size==='xs' ? '2px 8px' : '3px 10px',
-      borderRadius:'var(--radius-xs)',
-      background:'var(--tape-500)', color:'var(--ink-900)',
-      fontFamily:'var(--font-mono)', fontWeight:700,
+      padding: size==='sm' || size==='xs' ? '3px 9px' : '4px 11px',
+      borderRadius:'var(--radius-pill)',
+      background:'rgba(255,255,255,.94)', color: fg,
+      backdropFilter:'blur(8px)',
+      fontFamily:'var(--font-sans)', fontWeight:700,
       fontSize: size==='xs' ? 10 : size==='sm' ? 11 : 12,
-      letterSpacing:'0.03em', textTransform:'uppercase',
-      transform:'rotate(-2deg)', boxShadow:'0 1px 3px rgba(33,29,23,.25)',
+      letterSpacing:'0.02em', textTransform:'uppercase',
+      boxShadow:'0 2px 8px rgba(24,24,27,.12)',
     }}>
       {Icon(CAT[type]?.glyph || 'Tag', size==='sm'||size==='xs' ? 11 : 13, {stroke:'currentColor',sw:2})}
       {CAT[type]?.label || type}
@@ -546,13 +552,13 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
       padding:'9px 18px', borderRadius:'var(--radius-pill)',
-      border: selected ? '1px solid var(--ink-900)' : '1px solid #000000',
-      background: selected ? 'var(--ink-900)' : '#FFFFFF',
-      color: selected ? '#fff' : '#000000',
+      border: 'none',
+      background: selected ? 'var(--brand-grad)' : 'var(--ink-100)',
+      color: selected ? '#fff' : 'var(--ink-700)',
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(33,29,23,.28)' : 'none',
+      boxShadow: selected ? '0 4px 14px rgba(217,117,64,.30)' : 'none',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -564,7 +570,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
 function SegmentedControl({ options, value, onChange, style, activeBg='#fff', activeFg='var(--ink-900)', activeBorder='none' }) {
   return (
     <div style={{
-      display:'inline-flex', background:'#000000',
+      display:'inline-flex', background:'var(--ink-100)',
       borderRadius:'var(--radius-pill)', padding:4, gap:2, ...style,
     }}>
       {options.map(o => {
@@ -575,7 +581,7 @@ function SegmentedControl({ options, value, onChange, style, activeBg='#fff', ac
             padding:'8px 18px', borderRadius:'var(--radius-pill)',
             border: active ? activeBorder : 'none',
             background: active ? activeBg : 'transparent',
-            color: active ? activeFg : 'rgba(255,255,255,.65)',
+            color: active ? activeFg : 'var(--ink-500)',
             fontFamily:'var(--font-sans)', fontWeight: active ? 700 : 500, fontSize:14,
             boxShadow: active ? 'var(--shadow-sm)' : 'none',
             cursor:'pointer', transition:'all var(--dur-base) var(--ease-spring)',
@@ -679,7 +685,7 @@ function Switch({ checked, onChange }) {
   return (
     <button type="button" role="switch" aria-checked={checked} onClick={()=>onChange(!checked)} style={{
       width:48, height:28, borderRadius:14, padding:3, border:'none', cursor:'pointer',
-      background: checked ? 'var(--accent)' : '#000000',
+      background: checked ? 'var(--brand-grad)' : 'var(--ink-200)',
       transition:'background var(--dur-base)',display:'flex',
       alignItems:'center', justifyContent: checked ? 'flex-end' : 'flex-start',
       flexShrink:0,
@@ -1235,8 +1241,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
   const thumb = images && images.length ? images[0] : null;
   if (layout==='row') {
     return (
-      <Card interactive onClick={onClick} padded={false} elevation="sm"
-        style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
+      <Card interactive onClick={onClick} padded={false} elevation="sm">
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
             <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
@@ -1258,8 +1263,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
     );
   }
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="md"
-      style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
+    <Card interactive onClick={onClick} padded={false} elevation="md">
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
@@ -1317,8 +1321,7 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
   return (
     <Card interactive onClick={onClick} padded={false} elevation="xs"
       style={{
-        border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,
-        boxShadow: live ? '0 2px 6px rgba(0,0,0,.15), 0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)' : '0 2px 6px rgba(0,0,0,.15)',
+        boxShadow: live ? '0 0 0 3px var(--success-bg), 0 0 16px rgba(21,128,61,.35), var(--shadow-sm)' : 'var(--shadow-sm)',
       }}>
       <div style={{position:'relative',aspectRatio:'1'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
@@ -1495,23 +1498,23 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
       )}
       {apiStatus==='loading' && (
-        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'var(--ink-900)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(33,29,23,.28)'}}>
-          <span style={{display:'inline-flex',animation:'spin 1s linear infinite'}}>{Icon('Loader2',16,{stroke:'#fff'})}</span>
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#FFFFFF',color:'var(--ink-900)',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'var(--shadow-sm)'}}>
+          <span style={{display:'inline-flex',animation:'spin 1s linear infinite',color:'var(--accent)'}}>{Icon('Loader2',16,{stroke:'currentColor'})}</span>
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
         </div>
       )}
       {liveCount > 0 && !openNow && !withinTwoWeeks && (
         <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
           flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'#000000',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(0,0,0,.28)',
+          background:'#FFFFFF',color:'var(--ink-900)',padding:'10px 16px',margin:'10px 16px 0',
+          borderRadius:'var(--radius-pill)',boxShadow:'var(--shadow-sm)',
           border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
         }}>
-          <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
+          <span style={{width:8,height:8,borderRadius:'50%',background:'var(--success)',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>
             {liveCount} sale{liveCount===1?'':'s'} live right now
           </span>
-          <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',16,{stroke:'#fff'})}</span>
+          <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',16,{stroke:'var(--ink-400)'})}</span>
         </button>
       )}
       {openNow && (
@@ -2516,7 +2519,7 @@ function PriceCheckScreen({ onBack }) {
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
   const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
   return (
-    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`3px solid ${THRIFT_STORE_BORDER}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
+    <Card padded={false} elevation="xs" style={{marginBottom:12}}>
       <div style={{padding:'14px 16px'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
           <div style={{flex:1,minWidth:0}}>
@@ -3956,10 +3959,10 @@ function ListScreen({ onPublish }) {
         {/* Hero CTA block */}
         <div style={{margin:'0 20px 20px'}}>
           <button type="button" onClick={()=>setStep(1)} style={{
-            width:'100%',borderRadius:'45px',border:'none',cursor:'pointer',
-            background:'#000000',
+            width:'100%',borderRadius:'var(--radius-2xl)',border:'none',cursor:'pointer',
+            background:'var(--brand-grad)',
             padding:'28px 24px',textAlign:'left',
-            boxShadow:'0 12px 40px rgba(0,0,0,.38)',
+            boxShadow:'0 12px 32px rgba(217,117,64,.35)',
             transition:'transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base)',
           }}
             onMouseDown={e=>e.currentTarget.style.transform='scale(.98)'}
