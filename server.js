@@ -3464,24 +3464,22 @@ function digestEscapeHtml(s) {
 // Real listing `type` values only ever come back as estate/yard/moving/
 // auction (see detectType) -- no separate "thrift" category exists for
 // scraped sale listings, so that's not represented here.
-// Colors ported directly from index.html's PLACEHOLDER_STYLES (photo-less
-// card gradient) and SaleTypeTag (the single mustard-tape badge used for
-// every sale type, not a per-type color) so the email matches the app.
+// gradFrom/gradTo/iconFg ported directly from index.html's
+// PLACEHOLDER_STYLES (the photo-less card gradient) -- `icon` is the same
+// glyph SaleTypeTag shows in its small solid circle (no text label, that
+// badge style was dropped from the app).
 const DIGEST_TYPE_STYLES = {
-  estate:  { label: 'ESTATE SALE', icon: '&#127968;', gradFrom: '#DCE4EF', gradTo: '#A8BEDA', iconFg: '#2C4A7C' },
-  yard:    { label: 'YARD SALE',   icon: '&#127991;&#65039;', gradFrom: '#E1E8D6', gradTo: '#B7CBA0', iconFg: '#3F5E3A' },
-  moving:  { label: 'MOVING SALE', icon: '&#128666;', gradFrom: '#F1E0B8', gradTo: '#E0C070', iconFg: '#8A5A12' },
-  auction: { label: 'AUCTION',     icon: '&#128296;', gradFrom: '#EAD9DE', gradTo: '#CDA2AE', iconFg: '#6B2A3E' },
+  estate:  { icon: '&#127968;', gradFrom: '#DCE4EF', gradTo: '#A8BEDA', iconFg: '#2C4A7C' },
+  yard:    { icon: '&#127991;&#65039;', gradFrom: '#E1E8D6', gradTo: '#B7CBA0', iconFg: '#3F5E3A' },
+  moving:  { icon: '&#128666;', gradFrom: '#F1E0B8', gradTo: '#E0C070', iconFg: '#8A5A12' },
+  auction: { icon: '&#128296;', gradFrom: '#EAD9DE', gradTo: '#CDA2AE', iconFg: '#6B2A3E' },
 };
-const DIGEST_BADGE_BG = '#E8B923';
-const DIGEST_BADGE_FG = '#211D17';
 const DIGEST_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DIGEST_DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function digestCardHtml(l) {
   const style = DIGEST_TYPE_STYLES[l.type] || DIGEST_TYPE_STYLES.yard;
   const href = `${PUBLIC_BASE_URL}/app?sale=${encodeURIComponent(l.id)}`;
-  const live = digestSaleIsLive(l.dateLabel, l.timeLabel);
   // Escape each raw field individually, then join with the (already-safe,
   // not user data) &middot; entity -- escaping the joined string instead
   // would turn "&middot;" itself into visible "&amp;middot;" text.
@@ -3500,23 +3498,20 @@ function digestCardHtml(l) {
                       </tr>
                     </table>`;
   return `
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:2px solid #000000; border-radius:20px; box-shadow:0 2px 6px rgba(0,0,0,.15);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:20px; box-shadow:0 2px 8px rgba(24,24,27,.10);">
                 <tr>
                   <td style="position:relative;" bgcolor="${style.gradFrom}">
                     ${media}
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="position:absolute; top:10px; left:10px;">
-                      <tr><td bgcolor="${DIGEST_BADGE_BG}" style="border-radius:100px; padding:4px 10px; font-family:Arial,sans-serif; font-size:10px; font-weight:700; color:${DIGEST_BADGE_FG};">${style.label}</td></tr>
+                      <tr><td bgcolor="#0D9488" width="30" height="30" align="center" valign="middle" style="border-radius:50%; font-family:Arial,sans-serif; font-size:14px; line-height:30px; text-align:center;">${style.icon}</td></tr>
                     </table>
-                    ${live ? `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="position:absolute; top:10px; right:10px;">
-                      <tr><td bgcolor="#E1E8D6" style="border-radius:100px; padding:4px 8px; font-family:Arial,sans-serif; font-size:9px; font-weight:700; color:#3F5E3A;">&#9679; NOW</td></tr>
-                    </table>` : ''}
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:14px 16px 16px 16px;">
-                    <div style="font-family:'Mohave','Arial Narrow',Arial,sans-serif; font-size:17px; font-weight:700; color:#211D17; line-height:1.3; max-height:2.6em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${digestEscapeHtml(l.title || 'Sale')}</div>
-                    <div style="font-family:'Mohave',Arial,sans-serif; font-size:12px; color:#6B6252; padding-top:6px;">${cityLine}</div>
-                    <div style="font-family:'Mohave',Arial,sans-serif; font-size:12px; color:#8A8069; padding-top:2px;">${dateLine}</div>
+                    <div style="font-family:'Inter',Arial,sans-serif; font-size:17px; font-weight:700; color:#18181B; line-height:1.3; max-height:2.6em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${digestEscapeHtml(l.title || 'Sale')}</div>
+                    <div style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#52525B; padding-top:6px;">${cityLine}</div>
+                    <div style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#71717A; padding-top:2px;">${dateLine}</div>
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
                       <tr><td style="font-family:Arial,sans-serif; font-size:13px; font-weight:700;"><a href="${href}" style="color:#0F766E;">View sale &rarr;</a></td></tr>
                     </table>
@@ -3552,13 +3547,13 @@ function buildDigestHtml(listings, { zip, email }) {
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#211D17; border-radius:20px;">
           <tr>
             <td align="center" style="padding:32px 24px;">
-              <div style="font-family:'Mohave','Arial Narrow',Arial,sans-serif; font-size:20px; font-weight:800; color:#FFFFFF; line-height:1.3;">
+              <div style="font-family:'Inter',Arial,sans-serif; font-size:20px; font-weight:800; color:#FFFFFF; line-height:1.3;">
                 ${remaining} more sale${remaining===1?'':'s'} ${remaining===1?'is':'are'} waiting on the map.
               </div>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
                 <tr>
                   <td bgcolor="#FFFFFF" style="border-radius:45px;">
-                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 26px; font-family:'Mohave',Arial,sans-serif; font-size:14px; font-weight:700; color:#211D17; border-radius:45px;">Open Rummage</a>
+                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 26px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:700; color:#211D17; border-radius:45px;">Open Rummage</a>
                   </td>
                 </tr>
               </table>
@@ -3571,7 +3566,7 @@ function buildDigestHtml(listings, { zip, email }) {
   const now = new Date();
   const dateStr = `${DIGEST_DAY_NAMES[now.getDay()]}, ${DIGEST_MONTH_NAMES[now.getMonth()]} ${now.getDate()}`;
   const closestMi = shown[0]?.distanceMi;
-  const typesPresent = [...new Set(shown.map(l => (DIGEST_TYPE_STYLES[l.type] || DIGEST_TYPE_STYLES.yard).label.toLowerCase()))];
+  const typesPresent = [...new Set(shown.map(l => `${l.type} sale`))];
   const preheader = `${listings.length} sale${listings.length===1?'':'s'} near you today${closestMi!=null?`, starting ${closestMi} mi away`:''}${typesPresent.length?` — ${typesPresent.join(', ')} and more.`:'.'}`;
   const unsubUrl = `${PUBLIC_BASE_URL}/unsubscribe?email=${encodeURIComponent(email)}`;
   const prefsUrl = `${PUBLIC_BASE_URL}/app`;
@@ -3587,7 +3582,7 @@ function buildDigestHtml(listings, { zip, email }) {
 <title>Rummage — Sales near you today</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Mohave:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <!--[if mso]>
 <noscript>
 <xml>
@@ -3626,10 +3621,10 @@ function buildDigestHtml(listings, { zip, email }) {
       <td style="padding:24px 20px 12px 20px; background-color:#F6F6F6;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td style="font-family:'Mohave','Arial Narrow',Arial,sans-serif; font-size:19px; font-weight:800; color:#211D17; vertical-align:middle;">
-              <span style="color:#EE8D5C; font-size:18px;">&#9679;</span>&nbsp;Rummage
+            <td style="font-family:'Inter',Arial,sans-serif; font-size:19px; font-weight:800; color:#211D17; vertical-align:middle;">
+              <span style="color:#0D9488; font-size:18px;">&#9679;</span>&nbsp;Rummage
             </td>
-            <td align="right" style="font-family:'Mohave',Arial,sans-serif; font-size:12px; color:#8A8069; vertical-align:middle;">
+            <td align="right" style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#8A8069; vertical-align:middle;">
               ${dateStr}
             </td>
           </tr>
@@ -3639,19 +3634,19 @@ function buildDigestHtml(listings, { zip, email }) {
 
     <tr>
       <td style="padding:8px 20px 24px 20px; background-color:#F6F6F6;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border:2px solid #000000; border-radius:20px; box-shadow:0 2px 6px rgba(0,0,0,.15);">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:20px; box-shadow:0 2px 8px rgba(24,24,27,.10);">
           <tr>
             <td style="padding:28px 24px;">
-              <div style="font-family:'Mohave','Arial Narrow',Arial,sans-serif; font-size:28px; line-height:1.15; color:#211D17; font-weight:800;">
+              <div style="font-family:'Inter',Arial,sans-serif; font-size:28px; line-height:1.15; color:#211D17; font-weight:800;">
                 Good morning. Here's what's nearby today.
               </div>
-              <div style="font-family:'Mohave',Arial,sans-serif; font-size:14px; line-height:1.5; color:#6B6252; padding-top:8px;">
+              <div style="font-family:'Inter',Arial,sans-serif; font-size:14px; line-height:1.5; color:#6B6252; padding-top:8px;">
                 ${listings.length} sale${listings.length===1?'':'s'} near ${digestEscapeHtml(zip)}, closest first.
               </div>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
                 <tr>
                   <td bgcolor="#000000" style="border-radius:45px;">
-                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 24px; font-family:'Mohave',Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; border-radius:45px; white-space:nowrap;">Open the app</a>
+                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 24px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; border-radius:45px; white-space:nowrap;">Open the app</a>
                   </td>
                 </tr>
               </table>
@@ -3665,7 +3660,7 @@ function buildDigestHtml(listings, { zip, email }) {
       <td style="padding:0 24px 12px 24px; background-color:#F6F6F6;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td style="font-family:'Mohave',Arial,sans-serif; font-size:11px; letter-spacing:0.06em; color:#8A8069; text-transform:uppercase; font-weight:700;">
+            <td style="font-family:'Inter',Arial,sans-serif; font-size:11px; letter-spacing:0.06em; color:#8A8069; text-transform:uppercase; font-weight:700;">
               Nearest to furthest
             </td>
           </tr>
@@ -3679,8 +3674,8 @@ ${moreSection}
       <td style="padding:8px 24px 32px 24px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td align="center" style="font-family:'Mohave',Arial,sans-serif; font-size:12px; color:#8A8069; line-height:1.7; padding-top:8px;">
-              <span style="color:#EE8D5C;">&#9679;</span>&nbsp;Rummage &middot; Find the good stuff nearby.<br>
+            <td align="center" style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#8A8069; line-height:1.7; padding-top:8px;">
+              <span style="color:#0D9488;">&#9679;</span>&nbsp;Rummage &middot; Find the good stuff nearby.<br>
               You're getting this because you opted into the daily digest.<br>
               <a href="${prefsUrl}" style="color:#0F766E;">Manage email preferences</a>
               &nbsp;&middot;&nbsp;
