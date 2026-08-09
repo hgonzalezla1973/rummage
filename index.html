@@ -4348,6 +4348,18 @@ const TUTORIAL_SLIDES = [
       </div>
     ),
   },
+  {
+    title:'Create an account, stay in the loop',
+    body:"Get a daily email of nearby sales, plus a push notification the moment one matches something on your Interests list.",
+    visual:(
+      <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <span style={{position:'absolute',width:64,height:64,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out infinite'}} />
+        <span style={{position:'relative',display:'inline-flex',width:64,height:64,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)',animation:'tutTap 1.3s ease-in-out infinite'}}>
+          {Icon('Bell',30,{stroke:'#fff'})}
+        </span>
+      </div>
+    ),
+  },
 ];
 
 function WalkthroughScreen({ onDone, userName }) {
