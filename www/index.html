@@ -380,7 +380,7 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
   );
 }
 
-function Card({ padded=true, interactive, onClick, children, style, elevation }) {
+function Card({ padded=true, interactive, onClick, children, style, elevation, ...rest }) {
   const shadow = elevation==='lg' ? 'var(--shadow-lg)' : elevation==='md' ? 'var(--shadow-md)' : 'var(--shadow-sm)';
   return (
     <div onClick={onClick} style={{
@@ -389,9 +389,9 @@ function Card({ padded=true, interactive, onClick, children, style, elevation })
       padding: padded ? 20 : 0, overflow:'hidden',
       position:'relative', zIndex:0, isolation:'isolate',
       cursor: interactive ? 'pointer' : 'default',
-      transition: interactive ? 'box-shadow var(--dur-fast), transform var(--dur-fast)' : 'none',
+      transition: interactive ? 'box-shadow var(--dur-fast), transform var(--dur-base) var(--ease-spring)' : 'none',
       ...style,
-    }}>
+    }} {...rest}>
       {children}
     </div>
   );
@@ -468,7 +468,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
   return (
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
-      padding:'9px 18px', borderRadius:'var(--radius-pill)',
+      padding:'9px 18px', borderRadius:'var(--radius-md)',
       border: 'none',
       background: selected ? 'var(--brand-grad)' : 'var(--ink-100)',
       color: selected ? '#fff' : 'var(--ink-700)',
@@ -1029,15 +1029,12 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
           })}
         </div>
       </div>
-      {!zoomed && idx>0 && (
-        <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-          {Icon('ChevronLeft',20,{stroke:'#fff',sw:2.5})}
-        </button>
-      )}
-      {!zoomed && idx<total-1 && (
-        <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-          {Icon('ChevronRight',20,{stroke:'#fff',sw:2.5})}
-        </button>
+      {!zoomed && total > 1 && (
+        <div style={{position:'absolute',bottom:'calc(20px + var(--safe-bottom))',left:0,right:0,display:'flex',justifyContent:'center',gap:6}}>
+          {images.map((_,i)=>(
+            <span key={i} style={{width: i===idx?20:7,height:7,borderRadius:'var(--radius-pill)',background: i===idx?'var(--accent)':'rgba(255,255,255,.4)',transition:'all var(--dur-base) var(--ease-out)'}} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -1113,19 +1110,11 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
             <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
           </div>
         </div>
-        {idx>0 && (
-          <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-            {Icon('ChevronLeft',18,{stroke:'#fff',sw:2.5})}
-          </button>
-        )}
-        {idx<total-1 && (
-          <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-            {Icon('ChevronRight',18,{stroke:'#fff',sw:2.5})}
-          </button>
-        )}
-        {hasPhotos && (
-          <div style={{position:'absolute',bottom:10,right:14,background:'rgba(0,0,0,.52)',backdropFilter:'blur(4px)',color:'#fff',borderRadius:'var(--radius-pill)',padding:'3px 10px',fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-            {idx+1} / {total}
+        {total > 1 && (
+          <div style={{position:'absolute',bottom:12,left:0,right:0,display:'flex',justifyContent:'center',gap:6}}>
+            {slides.map((_,i)=>(
+              <span key={i} style={{width: i===idx?20:7,height:7,borderRadius:'var(--radius-pill)',background: i===idx?'var(--accent)':'rgba(255,255,255,.5)',transition:'all var(--dur-base) var(--ease-out)',boxShadow:'0 1px 3px rgba(0,0,0,.3)'}} />
+            ))}
           </div>
         )}
       </div>
@@ -1152,13 +1141,24 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
   );
 }
 
+// A light tactile "press" on tap -- shared by every listing tile so they all
+// feel the same, rather than each card wiring its own transform handlers.
+const pressScaleHandlers = {
+  onMouseDown: e => { e.currentTarget.style.transform = 'scale(.97)'; },
+  onMouseUp:   e => { e.currentTarget.style.transform = 'scale(1)'; },
+  onMouseLeave:e => { e.currentTarget.style.transform = 'scale(1)'; },
+  onTouchStart:e => { e.currentTarget.style.transform = 'scale(.97)'; },
+  onTouchEnd:  e => { e.currentTarget.style.transform = 'scale(1)'; },
+  onTouchCancel:e => { e.currentTarget.style.transform = 'scale(1)'; },
+};
+
 function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLabel,photoCount,images,blurb='',saved=false,onSave,onClick,layout='full',inTrip=false,onToggleTrip,lat,lng }) {
   const countdown = useCountdown(dateLabel, timeLabel);
   const live = countdown.status==='live';
   const thumb = images && images.length ? images[0] : null;
   if (layout==='row') {
     return (
-      <Card interactive onClick={onClick} padded={false} elevation="sm">
+      <Card interactive onClick={onClick} padded={false} elevation="sm" {...pressScaleHandlers}>
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
             <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
@@ -1166,7 +1166,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
           <div style={{flex:1,minWidth:0,padding:'12px 14px',display:'flex',flexDirection:'column',gap:5}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <SaleTypeTag type={type} size="sm" />
-              {live && <Badge tone="live">Now</Badge>}
+              {live && <Badge tone="live">Live</Badge>}
             </div>
             <h3 style={{fontWeight:800,fontSize:15,lineHeight:1.2,color:'var(--ink-900)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',letterSpacing:'-0.02em'}}>{title}</h3>
             <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)'}}>
@@ -1180,17 +1180,22 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
     );
   }
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="md">
+    <Card interactive onClick={onClick} padded={false} elevation="md" {...pressScaleHandlers}>
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
-        <div style={{position:'absolute',top:12,right:12,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
-        {live && <div style={{position:'absolute',bottom:12,left:12,zIndex:1000}}><Badge tone="live">Happening now</Badge></div>}
-        {photoCount!=null && (
-          <div style={{position:'absolute',bottom:12,right:12,zIndex:1000,display:'inline-flex',alignItems:'center',gap:4,height:24,padding:'0 8px',borderRadius:'var(--radius-pill)',background:'rgba(28,25,23,.6)',backdropFilter:'blur(4px)',color:'#fff',fontFamily:'var(--font-mono)',fontSize:11}}>
-            {Icon('Camera',12,{stroke:'#fff'})} {photoCount}
-          </div>
+        {live && <div style={{position:'absolute',top:12,right:12,zIndex:1000}}><Badge tone="live">Live</Badge></div>}
+        {onToggleTrip && (
+          <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
+            position:'absolute',bottom:12,left:12,zIndex:1000,
+            width:34,height:34,borderRadius:'50%',background:'#000',border:'none',
+            display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
+            boxShadow:'0 2px 8px rgba(0,0,0,.35)',transition:'transform var(--dur-fast) var(--ease-out)',
+          }}>
+            {Icon(inTrip?'Check':'Plus',17,{stroke:'#fff',sw:2.5})}
+          </button>
         )}
+        <div style={{position:'absolute',bottom:12,right:12,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
       </div>
       <div style={{padding:'14px 16px 16px'}}>
         <h3 style={{fontWeight:800,fontSize:17,lineHeight:1.2,color:'var(--ink-900)',marginBottom:4,letterSpacing:'-0.02em'}}>{title}</h3>
@@ -1200,29 +1205,20 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
             {dateLabel}{timeLabel ? ` · ${timeLabel}` : ''}
           </div>
         )}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flex:1,minWidth:0}}>
-            <span style={{fontSize:13,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
-            {countdown.status==='live' && countdown.label && (
-              <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
-                background:'var(--success-bg)',color:'var(--success)',
-                fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-                {Icon('Clock',10,{stroke:'currentColor'})}
-                {countdown.label}
-              </div>
-            )}
-          </div>
-          {onToggleTrip && (
-            <button type="button"
-              onClick={e=>{e.stopPropagation();onToggleTrip();}}
-              style={{display:'inline-flex',alignItems:'center',gap:4,height:28,padding:'0 10px',borderRadius:'var(--radius-pill)',
-                background: inTrip ? 'var(--brand-500)' : 'var(--surface-sunken)',
-                border: inTrip ? 'none' : '1.5px solid var(--border-default)',
-                cursor:'pointer',color: inTrip ? '#fff' : 'var(--text-muted)',
-                fontSize:11,fontWeight:700,flexShrink:0,transition:'all .15s'}}>
-              {inTrip ? Icon('Check',11,{stroke:'#fff'}) : Icon('Plus',11,{stroke:'currentColor'})}
-              {inTrip ? 'In trip' : 'Add to trip'}
-            </button>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontSize:13,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
+          {countdown.status==='live' && countdown.label && (
+            <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
+              background:'var(--success-bg)',color:'var(--success)',
+              fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
+              {Icon('Clock',10,{stroke:'currentColor'})}
+              {countdown.label}
+            </div>
+          )}
+          {photoCount!=null && (
+            <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,color:'var(--text-faint)',fontFamily:'var(--font-mono)'}}>
+              {Icon('Camera',12,{stroke:'currentColor'})} {photoCount}
+            </span>
           )}
         </div>
       </div>
@@ -1236,15 +1232,25 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
   const thumb = images && images.length ? images[0] : null;
   const live = useCountdown(dateLabel, timeLabel).status==='live';
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="xs"
+    <Card interactive onClick={onClick} padded={false} elevation="xs" {...pressScaleHandlers}
       style={{
         boxShadow: live ? '0 0 0 3px var(--success-bg), 0 0 16px rgba(21,128,61,.35), var(--shadow-sm)' : 'var(--shadow-sm)',
       }}>
       <div style={{position:'relative',aspectRatio:'4/5'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
-        <div style={{position:'absolute',top:6,right:6,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
-        {live && <div style={{position:'absolute',bottom:8,left:8,zIndex:1000}}><Badge tone="live">Now</Badge></div>}
+        {live && <div style={{position:'absolute',top:8,right:8,zIndex:1000}}><Badge tone="live">Live</Badge></div>}
+        {onToggleTrip && (
+          <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
+            position:'absolute',bottom:8,left:8,zIndex:1000,
+            width:30,height:30,borderRadius:'50%',background:'#000',border:'none',
+            display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
+            boxShadow:'0 2px 8px rgba(0,0,0,.35)',transition:'transform var(--dur-fast) var(--ease-out)',
+          }}>
+            {Icon(inTrip?'Check':'Plus',15,{stroke:'#fff',sw:2.5})}
+          </button>
+        )}
+        <div style={{position:'absolute',bottom:8,right:8,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
       </div>
       <div style={{padding:'8px 9px 9px'}}>
         <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,lineHeight:1.25,color:'var(--text-primary)',
@@ -1256,17 +1262,6 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
           <div style={{fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-faint)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
             {dateLabel}
           </div>
-        )}
-        {onToggleTrip && (
-          <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} style={{
-            display:'inline-flex',alignItems:'center',gap:4,height:26,padding:'0 9px',marginTop:7,borderRadius:'var(--radius-pill)',
-            background: inTrip ? 'var(--brand-500)' : 'var(--surface-sunken)',
-            border: inTrip ? 'none' : '1.5px solid var(--border-default)',
-            cursor:'pointer',color: inTrip ? '#fff' : 'var(--text-muted)',
-            fontSize:11,fontWeight:700}}>
-            {inTrip ? Icon('Check',11,{stroke:'#fff'}) : Icon('Plus',11,{stroke:'currentColor'})}
-            {inTrip ? 'In trip' : 'Add to trip'}
-          </button>
         )}
       </div>
     </Card>
@@ -1329,31 +1324,23 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
 
 function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage,
     homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
-    activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
+    activeTypes, setActiveTypes, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
   const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
   const { isLandscape } = useViewport();
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
-  // The ±2 day / 2-week date windowing itself happens upstream in App's
-  // allSales filter (withinTwoWeeks only widens that window's future edge) —
-  // this screen just applies type/open-now/keyword on top of what it's given.
-  // Both modes are a compound sort — the toggle just picks which criterion
-  // leads. "Closest" ranks by distance from your account's ZIP first, then
-  // breaks ties by soonest date; "Soonest" is the reverse.
+  // Both sort modes are a compound sort — the toggle just picks which
+  // criterion leads. "Closest" ranks by distance from your account's ZIP
+  // first, then breaks ties by soonest date; "Soonest" is the reverse.
   const typeFiltered = sales.filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type));
   const shown = typeFiltered
-    .filter(s => !openNow || isSaleLive(s.dateLabel, s.timeLabel))
     .slice().sort((a, b) => {
       const distDiff = (a.distanceMi ?? 999) - (b.distanceMi ?? 999);
       const dateDiff = saleSortDate(a.dateLabel) - saleSortDate(b.dateLabel);
       return sortBy === 'date' ? (dateDiff || distDiff) : (distDiff || dateDiff);
     });
   const sel = shown.find(s=>s.id===selected) || null;
-  // Live count computed independent of the openNow filter itself, so the
-  // banner below can say "N sales live now" and offer to apply the filter,
-  // rather than only being able to describe results after it's already on.
-  const liveCount = typeFiltered.filter(s => isSaleLive(s.dateLabel, s.timeLabel)).length;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
@@ -1372,6 +1359,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
             activeBg="var(--brand-grad)" activeFg="#fff" activeBorder="none" />
         </div>
+        <div className="rmg-eyebrow" style={{padding:'0 16px 6px'}}>Categories</div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
           <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
           {keyword && (
@@ -1388,7 +1376,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           {onOpenVintageStores && (
             <button type="button" onClick={onOpenVintageStores} style={{
               display:'inline-flex', alignItems:'center', gap:5,
-              padding:'9px 18px', borderRadius:'var(--radius-pill)', border:'none',
+              padding:'9px 18px', borderRadius:'var(--radius-md)', border:'none',
               background:'var(--tape-500)', color:'var(--ink-900)',
               fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
               cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
@@ -1397,7 +1385,6 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
               {Icon('Store',15,{stroke:'var(--ink-900)'})} Thrift Stores
             </button>
           )}
-          <FilterChip leadingIcon={Icon('CalendarRange',15)} selected={withinTwoWeeks} onClick={()=>{ setWithinTwoWeeks(p=>!p); setOpenNow(false); }}>Within 2 weeks</FilterChip>
         </div>
       </div>
       {awayFromHome && (
@@ -1418,37 +1405,6 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <span style={{display:'inline-flex',animation:'spin 1s linear infinite',color:'var(--accent)'}}>{Icon('Loader2',16,{stroke:'currentColor'})}</span>
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
         </div>
-      )}
-      {liveCount > 0 && !openNow && !withinTwoWeeks && (
-        <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
-          flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'var(--brand-grad)',color:'#fff',padding:'13px 18px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'0 8px 22px rgba(24,24,27,.35)',
-          border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
-        }}>
-          <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
-          <span style={{fontFamily:'var(--font-sans)',fontWeight:800,fontSize:14}}>
-            {liveCount} sale{liveCount===1?'':'s'} live right now
-          </span>
-          <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',18,{stroke:'#fff'})}</span>
-        </button>
-      )}
-      {openNow && (
-        <button type="button" onClick={()=>setOpenNow(false)} style={{
-          flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'#FFFFFF',color:'var(--secondary)',padding:'10px 16px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',border:'1.5px solid var(--secondary)',
-          cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
-        }}>
-          <span style={{width:8,height:8,borderRadius:'50%',background:'var(--secondary)',display:'inline-block'}} />
-          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>
-            Showing sales live now
-          </span>
-          <span style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:4}}>
-            {Icon('X',14,{stroke:'currentColor'})}
-            <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Show all</span>
-          </span>
-        </button>
       )}
       {view==='map' ? (
         <div style={{position:'relative',flex:1,overflow:'hidden',zIndex:0,isolation:'isolate'}}>
@@ -4400,8 +4356,6 @@ function App() {
     _setAuthUser(user);
   };
   const [activeTypes, setActiveTypes] = useState({});
-  const [openNow, setOpenNow]         = useState(false);
-  const [withinTwoWeeks, setWithinTwoWeeks] = useState(false);
   const [keyword, setKeyword]         = useState('');
   const [detailId, setDetailId] = useState(null);
   // Every "open this listing" entry point routes through here, regardless
@@ -4526,12 +4480,11 @@ function App() {
 
   // Default window is 2 days before today through 2 days after — wide enough
   // to still catch a sale that started yesterday, but not a stale posting
-  // from weeks ago. "Within 2 weeks" (the Explore toggle) only widens the
-  // future edge of that window, not the past edge.
+  // from weeks ago.
   const PAST_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
-  const futureWindowMs = (withinTwoWeeks ? 14 : 2) * 24 * 60 * 60 * 1000;
+  const FUTURE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
   const windowStart = todayStart.getTime() - PAST_WINDOW_MS;
-  const windowEnd   = todayStart.getTime() + futureWindowMs;
+  const windowEnd   = todayStart.getTime() + FUTURE_WINDOW_MS;
 
   const allSales = [...ALL_SALES, ...apiListings, ...userListings]
     .map(s => ({ ...s, saved: !!savedIds[s.id] }))
@@ -4662,8 +4615,6 @@ function App() {
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
             onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
-            openNow={openNow} setOpenNow={setOpenNow}
-            withinTwoWeeks={withinTwoWeeks} setWithinTwoWeeks={setWithinTwoWeeks}
             keyword={keyword} onClearKeyword={()=>setKeyword('')}
             tripIds={tripIds} onToggleTrip={toggleTrip}
             onOpenVintageStores={()=>setVintageStoresOpen(true)} />
