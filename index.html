@@ -1184,7 +1184,7 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
         {onToggleTrip && (
           <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
-            position:'absolute',bottom:12,left:12,zIndex:1000,
+            position:'absolute',top:12,right:12,zIndex:1000,
             width:34,height:34,borderRadius:'50%',background:'#000',border:'none',
             display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
             boxShadow:'0 2px 8px rgba(0,0,0,.35)',transition:'transform var(--dur-fast) var(--ease-out)',
@@ -1235,7 +1235,7 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
         {onToggleTrip && (
           <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
-            position:'absolute',bottom:8,left:8,zIndex:1000,
+            position:'absolute',top:8,right:8,zIndex:1000,
             width:30,height:30,borderRadius:'50%',background:'#000',border:'none',
             display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
             boxShadow:'0 2px 8px rgba(0,0,0,.35)',transition:'transform var(--dur-fast) var(--ease-out)',
