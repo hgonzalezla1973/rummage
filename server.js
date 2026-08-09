@@ -121,15 +121,16 @@ app.post('/api/send-verification', async (req, res) => {
   verifyCodes.set(email, { code, expiresAt: Date.now() + 10 * 60 * 1000 });
 
   const html = `
-  <div style="background:#EDE6D6;padding:32px 16px">
-    <div style="max-width:480px;margin:0 auto;background:#FBF8F0;border-radius:16px;padding:32px 24px;font-family:Arial,Helvetica,sans-serif;text-align:center">
-      <div style="display:inline-block;width:60px;height:60px;border-radius:50%;background:#C1272D;line-height:60px;font-size:28px">📍</div>
-      <h1 style="font-size:24px;font-weight:900;color:#211D17;margin:16px 0 4px;letter-spacing:-0.02em">Verify your email</h1>
+  <div style="background:#F6F6F6;padding:32px 16px">
+    <div style="max-width:420px;margin:0 auto;background:#FFFFFF;border-radius:20px;padding:36px 28px;font-family:Arial,Helvetica,sans-serif;text-align:center;box-shadow:0 2px 8px rgba(24,24,27,.10)">
+      <div style="display:inline-block;width:56px;height:56px;border-radius:16px;background:#0D9488;line-height:56px;font-size:24px">✉️</div>
+      <h1 style="font-size:22px;font-weight:800;color:#211D17;margin:20px 0 6px;letter-spacing:-0.02em">Verify your email</h1>
       <p style="color:#6B6252;font-size:14px;margin:0 0 24px">Enter this code in Rummage to confirm your account.</p>
-      <div style="background:#F1EAD6;border-radius:12px;padding:24px;margin:0 0 20px">
-        <div style="font-size:38px;font-weight:900;letter-spacing:10px;color:#C1272D;font-family:monospace">${code}</div>
+      <div style="background:#F6F6F6;border-radius:14px;padding:24px;margin:0 0 20px">
+        <div style="font-size:36px;font-weight:800;letter-spacing:10px;color:#0D9488;font-family:monospace">${code}</div>
       </div>
       <p style="color:#9C9280;font-size:12px;margin:0">Expires in 10 minutes. If you didn't request this, you can ignore this email.</p>
+      <p style="color:#9C9280;font-size:11px;margin:24px 0 0;padding-top:20px;border-top:1px solid #F0F0F0"><span style="color:#0D9488">&#9679;</span>&nbsp;Rummage &middot; Find the good stuff nearby.</p>
     </div>
   </div>`;
 
