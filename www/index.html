@@ -2795,7 +2795,10 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         </Card>
         <div style={{marginTop:16}}>
           <Card padded={false}>
-            <ListRow first icon={Icon('LogOut',18)} label="Sign out" danger onClick={onSignOut} />
+            {authUser?.guest
+              ? <ListRow first icon={Icon('LogIn',18)} label="Sign in" sublabel="Create a free account to save your settings" onClick={onSignOut} />
+              : <ListRow first icon={Icon('LogOut',18)} label="Sign out" danger onClick={onSignOut} />
+            }
           </Card>
         </div>
         <div style={{textAlign:'center',marginTop:18,fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)'}}>Rummage · v1.0.0</div>
