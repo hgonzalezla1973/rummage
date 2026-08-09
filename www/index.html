@@ -334,6 +334,18 @@ const FILTER_TYPES = [
   {key:'moving',label:'Moving'},
 ];
 
+// Must match server.js's ITEM_KEYWORDS tag strings exactly (case-sensitive)
+// -- these are matched directly against a listing's `items` array server-side
+// for interest-tag push notifications, not just used for display here.
+const INTEREST_TAGS = ['Furniture','Tools','Vinyl & Records','Electronics','Jewelry','Clothing','Books','Kitchenware','Art','Toys & Games','Sporting Goods','Antiques & Collectibles','Lighting','Rugs','Appliances','Musical Instruments','Holiday Decor','Garden & Outdoor'];
+const INTEREST_TAG_ICONS = {
+  'Furniture':'Sofa', 'Tools':'Wrench', 'Vinyl & Records':'Disc3', 'Electronics':'Cpu',
+  'Jewelry':'Gem', 'Clothing':'Shirt', 'Books':'BookOpen', 'Kitchenware':'UtensilsCrossed',
+  'Art':'Palette', 'Toys & Games':'Gamepad2', 'Sporting Goods':'Dumbbell', 'Antiques & Collectibles':'Archive',
+  'Lighting':'Lightbulb', 'Rugs':'LayoutGrid', 'Appliances':'Plug', 'Musical Instruments':'Music',
+  'Holiday Decor':'Gift', 'Garden & Outdoor':'Flower2',
+};
+
 // Sale `items` may be plain strings (legacy/scraped) or richer objects — normalize to one shape.
 function normalizeItem(it, i, saleId) {
   if (typeof it === 'string') {
@@ -2485,9 +2497,11 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
   const digestEmail = authUser?.email || '';
   const [saleTypes, setSaleTypes] = useState({estate:true,yard:true,moving:true});
+  const [interestTags, setInterestTags] = useState({});
   const [push, setPush] = useState(false);
   const [newSales, setNewSales] = useState(true);
   const [reminders, setReminders] = useState(true);
+  const [interestAlerts, setInterestAlerts] = useState(true);
   const [dailyDigest, setDailyDigest] = useState(!!authUser?.digestOptIn);
   const [digestToast, setDigestToast] = useState(null);
 
@@ -2565,6 +2579,15 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       }).catch(()=>{});
     }
   };
+  const toggleInterestAlerts = (checked) => {
+    setInterestAlerts(checked);
+    if (digestEmail) {
+      fetch(`${API_BASE}/api/push/register`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email: digestEmail, notifyInterests: checked }),
+      }).catch(()=>{});
+    }
+  };
 
   const toggleDailyDigest = (checked) => {
     if (checked && !digestEmail) {
@@ -2579,7 +2602,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     setTimeout(()=>setDigestToast(null), 3000);
   };
 
-  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types' | 'mapsApp'
+  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types' | 'mapsApp' | 'interests'
   const [sheet, setSheet] = useState(null);
   const [draft, setDraft] = useState({});
   const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'terms' | 'privacy' | 'pricecheck'
@@ -2588,11 +2611,12 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
 
   const openSheet = (key) => {
     const defaults = {
-      profile: { name, avatar },
-      zip:     { zip },
-      radius:  { radiusMi },
-      types:   { saleTypes: {...saleTypes} },
-      mapsApp: { mapsApp },
+      profile:   { name, avatar },
+      zip:       { zip },
+      radius:    { radiusMi },
+      types:     { saleTypes: {...saleTypes} },
+      mapsApp:   { mapsApp },
+      interests: { interestTags: {...interestTags} },
     };
     setDraft(defaults[key]);
     setSheet(key);
@@ -2610,6 +2634,16 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     if (sheet==='radius') setRadiusMi(draft.radiusMi);
     if (sheet==='types')  setSaleTypes(draft.saleTypes);
     if (sheet==='mapsApp') { setPreferredMapsApp(draft.mapsApp); setMapsApp(draft.mapsApp); }
+    if (sheet==='interests') {
+      setInterestTags(draft.interestTags);
+      const selected = Object.keys(draft.interestTags).filter(k => draft.interestTags[k]);
+      if (digestEmail) {
+        fetch(`${API_BASE}/api/push/register`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ email: digestEmail, interestTags: selected, notifyInterests: selected.length > 0 }),
+        }).catch(()=>{});
+      }
+    }
     if (dailyDigest && ['zip','radius','types'].includes(sheet)) {
       syncDigestSubscription(true, {
         zip: sheet==='zip' ? draft.zip : undefined,
@@ -2622,6 +2656,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
 
   const typeCount = Object.values(saleTypes).filter(Boolean).length;
   const typesLabel = typeCount === Object.keys(saleTypes).length ? 'All' : typeCount === 0 ? 'None' : `${typeCount} selected`;
+  const interestCount = Object.values(interestTags).filter(Boolean).length;
+  const interestsLabel = interestCount === 0 ? 'None' : `${interestCount} selected`;
   const chev = Icon('ChevronRight',18,{stroke:'var(--text-faint)'});
 
   return (
@@ -2667,6 +2703,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <ListRow first icon={Icon('MapPin',18)} label="Home ZIP code" value={zip} trailing={chev} onClick={()=>openSheet('zip')} />
           <ListRow icon={Icon('Ruler',18)} label="Default radius" value={`${radiusMi} mi`} trailing={chev} onClick={()=>openSheet('radius')} />
           <ListRow icon={Icon('Tag',18)} label="Sale types" value={typesLabel} trailing={chev} onClick={()=>openSheet('types')} />
+          <ListRow icon={Icon('Sparkles',18)} label="Interests" value={interestsLabel} trailing={chev} onClick={()=>openSheet('interests')} />
           <ListRow icon={Icon('Navigation',18)} label="Preferred maps app" value={MAPS_APPS.find(a=>a.key===mapsApp)?.label || 'Google Maps'} trailing={chev} onClick={()=>openSheet('mapsApp')} />
         </Card>
 
@@ -2676,6 +2713,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <ListRow first icon={Icon('Bell',18)} label="Push notifications" trailing={<Switch checked={push} onChange={togglePush} />} />
           <ListRow icon={Icon('Sparkles',18)} label="New sales nearby" sublabel="Within your radius" trailing={<Switch checked={newSales} onChange={toggleNewSales} />} />
           <ListRow icon={Icon('Clock',18)} label="Sale reminders" sublabel="About 30 min before saved sales" trailing={<Switch checked={reminders} onChange={toggleReminders} />} />
+          <ListRow icon={Icon('Sparkles',18)} label="Interest alerts" sublabel="When a sale lists something you're into" trailing={<Switch checked={interestAlerts} onChange={toggleInterestAlerts} />} />
           <ListRow icon={Icon('Mail',18)} label="Daily digest email" sublabel={digestEmail ? `Today's sales, sent to ${digestEmail}` : 'Sign in to enable'} trailing={<Switch checked={dailyDigest} onChange={toggleDailyDigest} />} />
           {onOpenNotifications && (
             <ListRow icon={Icon('BellRing',18)} label="View notifications" trailing={chev} onClick={onOpenNotifications} />
@@ -2886,6 +2924,31 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
                     {Icon(CAT[t.key].glyph,18,{stroke:'currentColor'})}
                   </span>
                   <span style={{flex:1,fontFamily:'var(--font-sans)',fontWeight:500,fontSize:15,color:'var(--text-primary)'}}>{CAT[t.key].label}</span>
+                  <span style={{display:'inline-flex',width:24,height:24,borderRadius:'50%',border:`2px solid ${on?'var(--accent)':'var(--border-strong)'}`,background: on ? 'var(--accent)' : 'transparent',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {on && Icon('Check',14,{stroke:'#fff',sw:2.5})}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </EditSheet>
+      )}
+
+      {/* Edit interests sheet */}
+      {sheet==='interests' && (
+        <EditSheet title="Interests" onSave={saveSheet} onCancel={()=>setSheet(null)}>
+          <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Get a push notification when a nearby sale lists one of these.</p>
+          <div style={{display:'flex',flexDirection:'column',gap:2}}>
+            {INTEREST_TAGS.map(tag => {
+              const on = !!draft.interestTags?.[tag];
+              return (
+                <button key={tag} type="button"
+                  onClick={()=>setDraft(d=>({...d,interestTags:{...d.interestTags,[tag]:!d.interestTags?.[tag]}}))}
+                  style={{display:'flex',alignItems:'center',gap:14,padding:'13px 4px',background:'none',border:'none',borderBottom:'1px solid var(--border-default)',cursor:'pointer',textAlign:'left'}}>
+                  <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,borderRadius:'var(--radius-md)',background: on ? 'var(--accent-soft)' : 'var(--surface-sunken)',color: on ? 'var(--accent)' : 'var(--text-faint)',flexShrink:0}}>
+                    {Icon(INTEREST_TAG_ICONS[tag] || 'Tag',18,{stroke:'currentColor'})}
+                  </span>
+                  <span style={{flex:1,fontFamily:'var(--font-sans)',fontWeight:500,fontSize:15,color:'var(--text-primary)'}}>{tag}</span>
                   <span style={{display:'inline-flex',width:24,height:24,borderRadius:'50%',border:`2px solid ${on?'var(--accent)':'var(--border-strong)'}`,background: on ? 'var(--accent)' : 'transparent',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                     {on && Icon('Check',14,{stroke:'#fff',sw:2.5})}
                   </span>

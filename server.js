@@ -3286,14 +3286,18 @@ app.post('/api/push/register', async (req, res) => {
   let sub = subscribers.find(s => s.email === email);
   if (!sub) {
     sub = { email, zip: '90601', radiusMi: 15, saleTypes: { estate: true, yard: true, moving: true }, active: false, lastSentDate: null,
-      pushToken: null, notifyNewSales: true, notifyReminders: true, notifiedKeys: [], watchedSales: [] };
+      pushToken: null, notifyNewSales: true, notifyReminders: true, notifiedKeys: [], watchedSales: [],
+      interestTags: [], notifyInterests: true };
     subscribers.push(sub);
   }
   if ('pushToken' in req.body) sub.pushToken = req.body.pushToken || null;
   if ('notifyNewSales' in req.body) sub.notifyNewSales = !!req.body.notifyNewSales;
   if ('notifyReminders' in req.body) sub.notifyReminders = !!req.body.notifyReminders;
+  if ('interestTags' in req.body) sub.interestTags = Array.isArray(req.body.interestTags) ? req.body.interestTags : [];
+  if ('notifyInterests' in req.body) sub.notifyInterests = !!req.body.notifyInterests;
   if (!sub.notifiedKeys) sub.notifiedKeys = [];
   if (!sub.watchedSales) sub.watchedSales = [];
+  if (!sub.interestTags) sub.interestTags = [];
 
   await saveSubscribers(subscribers);
   res.json({ ok: true });
@@ -3816,6 +3820,67 @@ setInterval(runNewSaleNotifications, 30 * 60 * 1000);
 // POST /api/push/check-new-sales — manual trigger for testing, bypasses the interval wait.
 app.post('/api/push/check-new-sales', async (req, res) => {
   await runNewSaleNotifications();
+  res.json({ ok: true });
+});
+
+// ── Push trigger: interest-tag match ────────────────────────────────────────
+// Every scraped listing already gets tagged (up to 6 tags) against the same
+// ITEM_KEYWORDS vocabulary via extractItemTags -- listing.items. So "does
+// this sale have something the subscriber is hunting for" is just a set
+// intersection, no new matching logic needed at the listing level.
+//
+// Deliberately ignores the subscriber's saleTypes filter (unlike
+// runNewSaleNotifications) -- an interest tag like "Vinyl & Records" is a
+// more specific signal than a sale category, so it should surface
+// regardless of whether the sale itself is estate/yard/moving.
+//
+// Shares sub.notifiedKeys with runNewSaleNotifications (same subscriber
+// record, same cap) but prefixes its keys with "tag:" so the two triggers'
+// dedup state can't collide -- a listing marked "already notified" by one
+// must not silently suppress the other.
+async function runInterestMatchNotifications() {
+  const subscribers = await loadSubscribers();
+  const candidates = subscribers.filter(s => s.pushToken && s.notifyInterests !== false && (s.interestTags || []).length);
+  if (!candidates.length) return;
+
+  let touched = false;
+  for (const sub of candidates) {
+    let listings;
+    try {
+      listings = await getListingsForZip(sub.zip, sub.radiusMi);
+    } catch (err) {
+      console.error(`Interest-match check failed for ${sub.email}:`, err.message);
+      continue;
+    }
+    const relevant = listings.filter(l =>
+      saleTouchesToday(l.dateLabel) && (l.items || []).some(tag => sub.interestTags.includes(tag))
+    );
+
+    const known = new Set(sub.notifiedKeys || []);
+    const fresh = relevant.filter(l => !known.has(`tag:${noveltyKey(l)}`));
+    if (!fresh.length) continue;
+
+    const matchedTags = [...new Set(fresh.flatMap(l => l.items.filter(t => sub.interestTags.includes(t))))];
+    const title = fresh.length === 1 ? fresh[0].title : `${fresh.length} sales match your interests`;
+    const body = fresh.length === 1
+      ? `Has ${matchedTags.slice(0, 2).join(', ')} · ${fresh[0].neighborhood || 'Nearby'}`
+      : `${matchedTags.slice(0, 3).join(', ')} and more nearby.`;
+    try {
+      await sendApnsPush(sub.pushToken, { title, body, saleId: fresh.length === 1 ? fresh[0].id : undefined });
+    } catch (err) {
+      console.error(`Interest-match push failed for ${sub.email}:`, err.message);
+    }
+
+    sub.notifiedKeys = [...(sub.notifiedKeys || []), ...fresh.map(l => `tag:${noveltyKey(l)}`)].slice(-NOTIFIED_KEYS_MAX);
+    touched = true;
+  }
+  if (touched) await saveSubscribers(subscribers);
+}
+setInterval(runInterestMatchNotifications, 30 * 60 * 1000);
+
+// POST /api/push/check-interests — manual trigger for testing, bypasses the interval wait.
+app.post('/api/push/check-interests', async (req, res) => {
+  await runInterestMatchNotifications();
   res.json({ ok: true });
 });
 
