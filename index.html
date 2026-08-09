@@ -2432,7 +2432,15 @@ function PriceCheckScreen({ onBack }) {
 
 // ── Vintage Stores ────────────────────────────────────────────────────────────
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
+  const openDirections = () => {
+    const app = getPreferredMapsApp();
+    // Google specifically supports a place_id for pinpoint accuracy; Waze
+    // and Apple Maps have no equivalent, so they fall back to a text query.
+    const url = app === 'google'
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`
+      : buildMapsUrl(app, { query: [store.title, store.address].filter(Boolean).join(', ') });
+    openExternalUrl(url);
+  };
   return (
     <Card padded={false} elevation="xs" style={{marginBottom:12}}>
       <div style={{padding:'14px 16px'}}>
@@ -2456,7 +2464,7 @@ function VintageStoreCard({ store, inTrip, onToggleTrip }) {
           </div>
         )}
         <div style={{display:'flex',gap:8,marginTop:12}}>
-          <Btn variant="secondary" size="sm" fullWidth leadingIcon={Icon('Navigation',14)} onClick={()=>window.open(mapsUrl,'_blank')}>Directions</Btn>
+          <Btn variant="secondary" size="sm" fullWidth leadingIcon={Icon('Navigation',14)} onClick={openDirections}>Directions</Btn>
           <Btn variant={inTrip ? 'primary' : 'secondary'} size="sm" fullWidth leadingIcon={Icon(inTrip?'Check':'Plus',14)} onClick={onToggleTrip}>
             {inTrip ? 'In trip' : 'Add to trip'}
           </Btn>
@@ -2622,11 +2630,12 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     setTimeout(()=>setDigestToast(null), 3000);
   };
 
-  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types'
+  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types' | 'mapsApp'
   const [sheet, setSheet] = useState(null);
   const [draft, setDraft] = useState({});
   const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'terms' | 'privacy' | 'pricecheck'
   const [deleteConfirm, setDeleteConfirm] = useState(null); // listing id pending delete
+  const [mapsApp, setMapsApp] = useState(() => getPreferredMapsApp());
 
   const openSheet = (key) => {
     const defaults = {
@@ -2634,6 +2643,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       zip:     { zip },
       radius:  { radiusMi },
       types:   { saleTypes: {...saleTypes} },
+      mapsApp: { mapsApp },
     };
     setDraft(defaults[key]);
     setSheet(key);
@@ -2650,6 +2660,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     if (sheet==='zip')    setZip(draft.zip);
     if (sheet==='radius') setRadiusMi(draft.radiusMi);
     if (sheet==='types')  setSaleTypes(draft.saleTypes);
+    if (sheet==='mapsApp') { setPreferredMapsApp(draft.mapsApp); setMapsApp(draft.mapsApp); }
     if (dailyDigest && ['zip','radius','types'].includes(sheet)) {
       syncDigestSubscription(true, {
         zip: sheet==='zip' ? draft.zip : undefined,
@@ -2707,6 +2718,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <ListRow first icon={Icon('MapPin',18)} label="Home ZIP code" value={zip} trailing={chev} onClick={()=>openSheet('zip')} />
           <ListRow icon={Icon('Ruler',18)} label="Default radius" value={`${radiusMi} mi`} trailing={chev} onClick={()=>openSheet('radius')} />
           <ListRow icon={Icon('Tag',18)} label="Sale types" value={typesLabel} trailing={chev} onClick={()=>openSheet('types')} />
+          <ListRow icon={Icon('Navigation',18)} label="Preferred maps app" value={MAPS_APPS.find(a=>a.key===mapsApp)?.label || 'Google Maps'} trailing={chev} onClick={()=>openSheet('mapsApp')} />
         </Card>
 
         {/* Notifications */}
@@ -2935,6 +2947,32 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         </EditSheet>
       )}
 
+      {/* Edit preferred maps app sheet */}
+      {sheet==='mapsApp' && (
+        <EditSheet title="Preferred maps app" onSave={saveSheet} onCancel={()=>setSheet(null)}>
+          <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Directions from Rummage open in this app. A trip with multiple stops only routes through all of them in Google Maps — Waze and Apple Maps will go straight to the last stop.</p>
+          <div style={{display:'flex',flexDirection:'column',gap:2}}>
+            {[{key:'google',icon:'Map'},{key:'waze',icon:'Navigation'},{key:'apple',icon:'Compass'}].map(({key,icon}) => {
+              const on = draft.mapsApp === key;
+              const label = MAPS_APPS.find(a=>a.key===key)?.label;
+              return (
+                <button key={key} type="button"
+                  onClick={()=>setDraft(d=>({...d,mapsApp:key}))}
+                  style={{display:'flex',alignItems:'center',gap:14,padding:'13px 4px',background:'none',border:'none',borderBottom:'1px solid var(--border-default)',cursor:'pointer',textAlign:'left'}}>
+                  <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,borderRadius:'var(--radius-md)',background: on ? 'var(--accent-soft)' : 'var(--surface-sunken)',color: on ? 'var(--accent)' : 'var(--text-faint)',flexShrink:0}}>
+                    {Icon(icon,18,{stroke:'currentColor'})}
+                  </span>
+                  <span style={{flex:1,fontFamily:'var(--font-sans)',fontWeight:500,fontSize:15,color:'var(--text-primary)'}}>{label}</span>
+                  <span style={{display:'inline-flex',width:24,height:24,borderRadius:'50%',border:`2px solid ${on?'var(--accent)':'var(--border-strong)'}`,background: on ? 'var(--accent)' : 'transparent',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {on && Icon('Check',14,{stroke:'#fff',sw:2.5})}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </EditSheet>
+      )}
+
       {/* Support pages */}
       {page==='help'     && <HelpScreen     onBack={()=>setPage(null)} />}
       {page==='feedback' && <FeedbackScreen onBack={()=>setPage(null)} userEmail={authUser?.email} />}
@@ -3036,20 +3074,69 @@ async function fetchOsrmRoute(waypoints) {
   };
 }
 
-// Builds a Google Maps multi-stop directions URL -- the one navigation app
-// with an actual documented multi-waypoint URL scheme (Apple Maps and Waze
-// only support a single destination), so "Start Trip" always hands off to
-// Google Maps regardless of platform. Origin is left out on purpose: Google
-// Maps resolves an omitted origin to the user's live location at the moment
-// the link opens, which is fresher than a location we fetched earlier.
-function buildGoogleMapsTripUrl(stops) {
-  const pts = stops.filter(s => s.lat != null && s.lng != null).map(s => `${s.lat},${s.lng}`);
+// ── Maps app preference ──────────────────────────────────────────────────────
+// Which external navigation app "Directions" hands off to. Persisted like the
+// other simple device-local prefs in this file (trip, saved).
+const MAPS_APPS = [
+  { key:'google', label:'Google Maps' },
+  { key:'waze',   label:'Waze' },
+  { key:'apple',  label:'Apple Maps' },
+];
+function getPreferredMapsApp() {
+  try { return localStorage.getItem('rummage_maps_app') || 'google'; } catch (_) { return 'google'; }
+}
+function setPreferredMapsApp(v) {
+  try { localStorage.setItem('rummage_maps_app', v); } catch (_) {}
+}
+
+// Builds a directions URL for the given app. `dest` is {lat,lng} or a text
+// {query}. `waypoints` (optional, Google-only) -- Waze and Apple Maps only
+// have a documented single-destination URL scheme, so a multi-stop trip
+// still resolves to just the final stop for those two. Origin is left out on
+// purpose: every one of these apps resolves an omitted origin to the user's
+// live location at the moment the link opens, fresher than a location we
+// fetched earlier.
+function buildMapsUrl(app, dest, waypoints) {
+  const hasCoords = dest.lat != null && dest.lng != null;
+  if (app === 'waze') {
+    return hasCoords
+      ? `https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes`
+      : `https://waze.com/ul?q=${encodeURIComponent(dest.query || '')}&navigate=yes`;
+  }
+  if (app === 'apple') {
+    return hasCoords
+      ? `https://maps.apple.com/?daddr=${dest.lat},${dest.lng}`
+      : `https://maps.apple.com/?q=${encodeURIComponent(dest.query || '')}`;
+  }
+  if (hasCoords) {
+    const params = new URLSearchParams({ api: '1', destination: `${dest.lat},${dest.lng}`, travelmode: 'driving' });
+    if (waypoints?.length) params.set('waypoints', waypoints.map(w => `${w.lat},${w.lng}`).join('|'));
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest.query || '')}`;
+}
+
+// window.open(url, '_blank') is unreliable from inside the native WKWebView
+// shell for a JS-invoked open (as opposed to a real <a target=_blank> click)
+// -- Capacitor's popup handling doesn't consistently hand off to Safari/the
+// target app for it, which is exactly what showed up as "the button doesn't
+// do anything, I have to open Maps myself." Setting location.href instead
+// routes through WKWebView's navigation delegate, which Capacitor does
+// correctly intercept for external-domain and custom-scheme handoff, on both
+// native and plain mobile web.
+function openExternalUrl(url) {
+  if (!url) return;
+  window.location.href = url;
+}
+
+// Builds a trip-stops URL for the current preferred app (multi-stop only
+// honored for Google -- see buildMapsUrl).
+function buildTripMapsUrl(stops) {
+  const pts = stops.filter(s => s.lat != null && s.lng != null).map(s => ({ lat: s.lat, lng: s.lng }));
   if (!pts.length) return null;
   const destination = pts[pts.length - 1];
   const waypoints = pts.slice(0, -1);
-  const params = new URLSearchParams({ api: '1', destination, travelmode: 'driving' });
-  if (waypoints.length) params.set('waypoints', waypoints.join('|'));
-  return `https://www.google.com/maps/dir/?${params.toString()}`;
+  return buildMapsUrl(getPreferredMapsApp(), destination, waypoints);
 }
 
 // ── Trip Map (Leaflet) ────────────────────────────────────────────────────────
@@ -3076,7 +3163,7 @@ function TripMap({ stops, userLoc, routeCoords, height = 260, interactive = true
     // Route polyline (real roads)
     if (routeCoords?.length > 1) {
       const latlngs = routeCoords.map(([lng, lat]) => [lat, lng]);
-      window.L.polyline(latlngs, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(map);
+      window.L.polyline(latlngs, { color: '#0d9488', weight: 4, opacity: 0.85 }).addTo(map);
       latlngs.forEach(p => bounds.push(p));
     }
 
@@ -3092,7 +3179,7 @@ function TripMap({ stops, userLoc, routeCoords, height = 260, interactive = true
     stops.forEach((s, i) => {
       if (!s.lat || !s.lng) return;
       const icon = window.L.divIcon({
-        html: `<div style="background:#f97316;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-family:sans-serif">${i + 1}</div>`,
+        html: `<div style="background:#0d9488;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-family:sans-serif">${i + 1}</div>`,
         iconSize: [30, 30], iconAnchor: [15, 15], className: ''
       });
       window.L.marker([s.lat, s.lng], { icon }).addTo(map);
@@ -3195,7 +3282,14 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
           ) : (
             ordered.map((s, i) => (
               <div key={s.id} onClick={() => {
-                  if (s.type === 'store') { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.title)}&query_place_id=${s.id.replace('store-','')}`, '_blank'); return; }
+                  if (s.type === 'store') {
+                    const app = getPreferredMapsApp();
+                    const url = app === 'google'
+                      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.title)}&query_place_id=${s.id.replace('store-','')}`
+                      : buildMapsUrl(app, { query: s.title });
+                    openExternalUrl(url);
+                    return;
+                  }
                   onOpenSale(s.id); onClose();
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
@@ -3238,11 +3332,8 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
             <Btn variant="primary" size="lg" fullWidth
               leadingIcon={Icon('Navigation', 18)}
               style={{ opacity: tripSales.length ? 1 : 0.5 }}
-              onClick={() => {
-                const url = tripSales.length ? buildGoogleMapsTripUrl(ordered) : null;
-                if (url) window.open(url, '_blank');
-              }}>
-              Open in Google Maps
+              onClick={() => openExternalUrl(tripSales.length ? buildTripMapsUrl(ordered) : null)}>
+              Open in {MAPS_APPS.find(a => a.key === getPreferredMapsApp())?.label || 'Google Maps'}
             </Btn>
           </div>
         </div>
@@ -3273,19 +3364,15 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
 // as well as the items gallery / item detail screens.
 function openSaleDirections(s, onNavigateTo) {
   if (onNavigateTo) { onNavigateTo(); return; }
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const app = getPreferredMapsApp();
   // Prefer the precise pin coordinates over the address text — most sources
   // (Craigslist, OfferUp, Facebook) never expose a full street address, only
   // a city/neighborhood, which makes a text search land nowhere near the
   // actual location. We always have an accurate lat/lng for the map pin.
-  if (s.lat != null && s.lng != null) {
-    const dest = `${s.lat},${s.lng}`;
-    window.open(isIOS ? `maps://maps.apple.com/?daddr=${dest}` : `https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
-    return;
-  }
-  const addr = [s.address, s.neighborhood].filter(Boolean).join(', ');
-  const q = encodeURIComponent(addr);
-  window.open(isIOS ? `maps://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
+  const dest = s.lat != null && s.lng != null
+    ? { lat: s.lat, lng: s.lng }
+    : { query: [s.address, s.neighborhood].filter(Boolean).join(', ') };
+  openExternalUrl(buildMapsUrl(app, dest));
 }
 
 // ── Share sheet ─────────────────────────────────────────────────────────────────
