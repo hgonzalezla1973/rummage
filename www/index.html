@@ -424,25 +424,9 @@ function normalizeItem(it, i, saleId) {
   };
 }
 
-const AVATARS = [
-  {id:'a1',  emoji:'/assets/avatars/avatar_1_1.png', label:'Avatar 1'},
-  {id:'a2',  emoji:'/assets/avatars/avatar_1_2.png', label:'Avatar 2'},
-  {id:'a3',  emoji:'/assets/avatars/avatar_1_3.png', label:'Avatar 3'},
-  {id:'a4',  emoji:'/assets/avatars/avatar_2_1.png', label:'Avatar 4'},
-  {id:'a5',  emoji:'/assets/avatars/avatar_2_2.png', label:'Avatar 5'},
-  {id:'a6',  emoji:'/assets/avatars/avatar_2_3.png', label:'Avatar 6'},
-  {id:'a7',  emoji:'/assets/avatars/avatar_3_1.png', label:'Avatar 7'},
-  {id:'a8',  emoji:'/assets/avatars/avatar_3_2.png', label:'Avatar 8'},
-  {id:'a9',  emoji:'/assets/avatars/avatar_3_3.png', label:'Avatar 9'},
-  {id:'a10', emoji:'/assets/avatars/avatar_4_1.png', label:'Avatar 10'},
-  {id:'a11', emoji:'/assets/avatars/avatar_4_2.png', label:'Avatar 11'},
-  {id:'a12', emoji:'/assets/avatars/avatar_4_3.png', label:'Avatar 12'},
-  {id:'a13', emoji:'/assets/avatars/avatar_5_1.png', label:'Avatar 13'},
-  {id:'a14', emoji:'/assets/avatars/avatar_5_2.png', label:'Avatar 14'},
-  {id:'a15', emoji:'/assets/avatars/avatar_5_3.png', label:'Avatar 15'},
-  ...Array.from({length:16}, (_,i) => ({id:`a${16+i}`, emoji:`/assets/avatars/avatar_6_${i+1}.png`, label:`Avatar ${16+i}`})),
-  ...Array.from({length:12}, (_,i) => ({id:`a${32+i}`, emoji:`/assets/avatars/avatar_7_${i+1}.png`, label:`Avatar ${32+i}`})),
-];
+const AVATARS = Array.from({length:24}, (_,i) => ({
+  id:`p${i+1}`, emoji:`/assets/avatars/person_${i+1}.png`, label:`Avatar ${i+1}`,
+}));
 
 // No mock data — all listings come from the live API
 const ALL_SALES = [];
@@ -534,7 +518,7 @@ function Avatar({ name='?', size=44, emoji=null }) {
     return (
       <div style={{
         width:size, height:size, borderRadius:'50%', flexShrink:0,
-        background:'var(--ink-100)',
+        background:'#FFFFFF',
         border:'none', overflow:'hidden',
         display:'flex', alignItems:'center', justifyContent:'center',
         fontSize: Math.round(size * 0.52),

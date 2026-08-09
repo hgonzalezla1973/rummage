@@ -3688,6 +3688,23 @@ app.post('/api/send-digest-now', async (req, res) => {
   res.json({ ok: true });
 });
 
+// GET /api/digest-preview?zip=X&radiusMi=Y — renders the digest HTML
+// without sending an email, for debugging what a subscriber would see.
+app.get('/api/digest-preview', async (req, res) => {
+  try {
+    const zip = req.query.zip;
+    const radiusMi = Number(req.query.radiusMi) || 15;
+    if (!zip) return res.status(400).send('zip required');
+    const all = await getListingsForZip(zip, radiusMi);
+    const todays = all
+      .filter(l => saleTouchesToday(l.dateLabel))
+      .sort((a, b) => (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
+    res.set('Content-Type', 'text/html').send(buildDigestHtml(todays, { zip, email: 'preview@example.com' }));
+  } catch (err) {
+    res.status(500).send('Error: ' + err.message);
+  }
+});
+
 // ── Push trigger: new sale nearby ───────────────────────────────────────────
 // A stable-enough identity for "is this the same real-world sale I already
 // notified about," independent of `id` -- YardSaleSearch/GarageSaleFinder/

@@ -7,16 +7,12 @@ const path = require('path');
 const root = path.join(__dirname, '..');
 const wwwDir = path.join(root, 'www');
 
-// Unused raw source photos that live in assets/avatars/ but were never
-// wired into the app (not referenced anywhere in index.html) -- kept
-// locally for reference, deliberately excluded from what actually ships.
-const EXCLUDE = new Set(['1400.jpg', '3102.jpg']);
-
 fs.mkdirSync(wwwDir, { recursive: true });
 fs.copyFileSync(path.join(root, 'index.html'), path.join(wwwDir, 'index.html'));
-fs.cpSync(path.join(root, 'assets'), path.join(wwwDir, 'assets'), {
-  recursive: true,
-  filter: (src) => !EXCLUDE.has(path.basename(src)),
-});
+// cpSync only overlays files -- it never removes destination files whose
+// source was deleted (e.g. a swapped-out avatar set), so www/assets would
+// silently accumulate stale files forever. Wipe it first for a true mirror.
+fs.rmSync(path.join(wwwDir, 'assets'), { recursive: true, force: true });
+fs.cpSync(path.join(root, 'assets'), path.join(wwwDir, 'assets'), { recursive: true });
 
-console.log('Synced index.html + assets → www/ (excluding unused source photos)');
+console.log('Synced index.html + assets → www/');
