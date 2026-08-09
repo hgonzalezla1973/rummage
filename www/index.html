@@ -4496,7 +4496,15 @@ function App() {
       pos => {
         fetch(`${API_BASE}/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
           .then(r => r.json())
-          .then(data => { if (data.zip) { setDetectedZip(data.zip); setDetectedCity(data.city || null); } })
+          .then(data => {
+            if (!data.zip) return;
+            // First run, no saved home ZIP yet -- use the real detected
+            // location as home instead of leaving the hardcoded fallback
+            // ZIP in place. Once a home ZIP exists, later detections only
+            // drive the "away from home" banner below, not overwrite it.
+            if (!localStorage.getItem('rummage_zip')) setZip(data.zip);
+            else { setDetectedZip(data.zip); setDetectedCity(data.city || null); }
+          })
           .catch(() => {});
       },
       () => {}, // permission denied or unavailable — fall back to home ZIP silently
