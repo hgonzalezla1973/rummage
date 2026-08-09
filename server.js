@@ -450,6 +450,12 @@ function fromCache(key) {
 }
 function toCache(key, data) { cache.set(key, { ts: Date.now(), data }); }
 
+// Promises for a scrape that's currently in flight, keyed the same as
+// `cache` -- lets getListingsForZip dedupe concurrent identical requests
+// (two tabs hitting the same zip/radius at once) and background refreshes
+// onto a single real scrape instead of running it twice.
+const inFlight = new Map();
+
 // ── ZIP → lat/lng ─────────────────────────────────────────────────────────────
 const ZIP_COORDS = {
   '90601': { lat: 33.9731, lng: -118.0311 },
@@ -864,7 +870,7 @@ async function newPage(browser) {
 // CL detail pages embed full-size images as <img src="..._600x450.jpg"> even
 // with JS disabled. Thumbnails (_50x50c) are also present; we convert them to
 // full-size by swapping the size suffix.
-async function fetchListingImages(listings, concurrency = 5) {
+async function fetchListingImages(listings, concurrency = 8) {
   const browser  = await getBrowser();
   const imageMap = new Map(); // listing.url → { images: string[], address: string }
 
@@ -883,7 +889,7 @@ async function fetchListingImages(listings, concurrency = 5) {
         page.on('request', req => {
           req.resourceType() === 'document' ? req.continue() : req.abort();
         });
-        await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 12000 });
+        await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 9000 });
 
         const { images, address } = await page.evaluate(() => {
           const seen = new Set();
@@ -927,7 +933,7 @@ async function fetchListingImages(listings, concurrency = 5) {
 }
 
 // ── EstateSales.org detail-page image scraper ─────────────────────────────────
-async function fetchEstateSalesImages(listings, concurrency = 3) {
+async function fetchEstateSalesImages(listings, concurrency = 8) {
   const browser  = await getBrowser();
   const imageMap = new Map();
   const work = listings.filter(l => l.url && l.url.includes('estatesales.org'));
@@ -954,7 +960,7 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
           if (['document','script','xhr','fetch','websocket'].includes(t)) req.continue();
           else req.abort();
         });
-        await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 18000 });
+        await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 9000 });
 
         const { images, address } = await page.evaluate((goodDomains, badDomains) => {
           const seen = new Set();
@@ -1352,7 +1358,7 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
 // The search feed's GraphQL only returns one thumbnail per listing, but each
 // listing's own detail page embeds a full __NEXT_DATA__ blob with a real
 // photos array (Apollo cache, keyed as `listing({"listingId":"..."})`).
-async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 5) {
+async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 8) {
   const detailMap = new Map(); // listing.url → { images: string[], description: string }
   const work = listings.filter(l => l.url);
   console.log(`  OU: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
@@ -1421,7 +1427,7 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
   try {
     // Step 1: GET offerup.com to collect session cookies
     const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    const initRes = await fetchTimeout('https://offerup.com', 12000, { headers: { 'User-Agent': UA } });
+    const initRes = await fetchTimeout('https://offerup.com', 8000, { headers: { 'User-Agent': UA } });
     const rawCookies = (initRes.headers.getSetCookie ? initRes.headers.getSetCookie() : [initRes.headers.get('set-cookie') || ''])
       .map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
 
@@ -1442,8 +1448,17 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
     // which is what made nationwide searches hang for minutes. Instead we
     // dedupe city names across all 4 queries and geocode them once, in
     // parallel, after the search loop (same fix as scrapeCraigslist).
+    //
+    // The 4 queries themselves also run in parallel rather than one after
+    // another -- they're independent requests, and running them sequentially
+    // meant a slow response on any one of them (or its own 15s timeout
+    // ceiling) added straight onto the total instead of overlapping with the
+    // other 3. Safe to push into the shared `rawTiles`/`seen` from inside
+    // Promise.all: each callback's tile-processing loop is fully synchronous
+    // (no awaits inside it), so JS's single-threaded event loop runs it to
+    // completion without interleaving, same as the sequential version did.
     const rawTiles = []; // { tile, q }
-    for (const q of queries) {
+    await Promise.all(queries.map(async q => {
       const searchParams = [
         { key: 'q',               value: q },
         { key: 'distance',        value: String(radiusMi) },
@@ -1462,11 +1477,11 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
         query: OU_GQL_QUERY,
       });
 
-      const res  = await fetchTimeout('https://offerup.com/api/graphql', 15000, {
+      const res  = await fetchTimeout('https://offerup.com/api/graphql', 9000, {
         method: 'POST', headers: gqlHeaders, body,
       });
 
-      if (!res.ok) { console.warn(`  OU GraphQL "${q}" → HTTP ${res.status}`); continue; }
+      if (!res.ok) { console.warn(`  OU GraphQL "${q}" → HTTP ${res.status}`); return; }
 
       const data  = await res.json();
       const tiles = data?.data?.modularFeed?.looseTiles || [];
@@ -1478,7 +1493,7 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
         seen.add(listing.listingId);
         rawTiles.push({ tile, q });
       }
-    }
+    }));
 
     const ouState = stateFromZip(zip);
     const cityCoords = await batchGeocodePlaceNames(
@@ -1964,7 +1979,7 @@ const SCRAPE_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 
 // The search-results state only exposes one mainPicture per sale, but each
 // sale's own detail page embeds the same NGRX_STATE pattern with a full
 // `pictures` array under entitiesById[saleId].
-async function fetchEstateSalesNetPhotos(listings, concurrency = 5) {
+async function fetchEstateSalesNetPhotos(listings, concurrency = 8) {
   const imageMap = new Map(); // listing.url → string[]
   const work = listings.filter(l => l.url && l.saleId);
   console.log(`  ESN: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
@@ -2008,7 +2023,7 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
   const results = [];
   try {
     console.log(`  EstateSales.net: zip=${zip}`);
-    const res = await fetchTimeout(`https://www.estatesales.net/CA/Los-Angeles/${zip}`, 15000, {
+    const res = await fetchTimeout(`https://www.estatesales.net/CA/Los-Angeles/${zip}`, 9000, {
       headers: { 'User-Agent': SCRAPE_UA },
     });
     if (!res.ok) { console.warn(`  ESN HTTP ${res.status}`); toCache(cacheKey, results); return results; }
@@ -2079,7 +2094,7 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
 // Same TLC network as GarageSaleFinder — listings syndicated from
 // EstateSales.org host photos on eso-cdn.tlcdn.workers.dev with a "-t"
 // thumbnail suffix; stripping it serves the full-size original.
-async function fetchYardSaleSearchPhotos(listings, concurrency = 5) {
+async function fetchYardSaleSearchPhotos(listings, concurrency = 8) {
   const imageMap = new Map(); // listing.url → string[]
   const work = listings.filter(l => l.url);
   console.log(`  YSS: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
@@ -2118,7 +2133,7 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
   const results = [];
   try {
     console.log(`  YardSaleSearch: zip=${zip}`);
-    const res = await fetchTimeout(`https://www.yardsalesearch.com/garage-sales.html?zip=${zip}`, 15000, {
+    const res = await fetchTimeout(`https://www.yardsalesearch.com/garage-sales.html?zip=${zip}`, 9000, {
       headers: { 'User-Agent': SCRAPE_UA },
     });
     if (!res.ok) { console.warn(`  YSS HTTP ${res.status}`); toCache(cacheKey, results); return results; }
@@ -2205,7 +2220,7 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
 // than duplicated, since GSALR's own search results only ever exposed a
 // single w100-h100 thumbnail per listing, visibly blurry once stretched to
 // fill the detail screen's photo gallery.
-async function fetchGarageSaleFinderPhotos(listings, concurrency = 5) {
+async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
   const imageMap = new Map(); // listing.url → string[]
   const work = listings.filter(l => l.url);
   console.log(`  GSF: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
@@ -2252,7 +2267,7 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
   const results = [];
   try {
     console.log(`  GarageSaleFinder: zip=${zip}`);
-    const res = await fetchTimeout(`https://garagesalefinder.com/yard-sales/${zip}`, 15000, {
+    const res = await fetchTimeout(`https://garagesalefinder.com/yard-sales/${zip}`, 9000, {
       headers: { 'User-Agent': SCRAPE_UA },
     });
     if (!res.ok) { console.warn(`  GSF HTTP ${res.status}`); toCache(cacheKey, results); return results; }
@@ -2336,7 +2351,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
   const results = [];
   try {
     console.log(`  GSALR: lat=${centerLat} lon=${centerLng} radius=${radiusMi}`);
-    const res = await fetchTimeout('https://gsalr.com/block/city/listings', 15000, {
+    const res = await fetchTimeout('https://gsalr.com/block/city/listings', 9000, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/x-www-form-urlencoded',
@@ -2436,7 +2451,7 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
 
     let cityMap = fromCache('esc:ca-cities');
     if (!cityMap) {
-      const stateRes = await fetchTimeout('https://www.estatesale.com/states/view/5/California-Estate-Sales.html', 15000, {
+      const stateRes = await fetchTimeout('https://www.estatesale.com/states/view/5/California-Estate-Sales.html', 9000, {
         headers: { 'User-Agent': SCRAPE_UA },
       });
       const stateHtml = await stateRes.text();
@@ -2457,7 +2472,7 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); toCache(cacheKey, results); return results; }
 
     const citySlug = cityName.replace(/\s+/g, '-');
-    const listRes = await fetchTimeout(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, 15000, {
+    const listRes = await fetchTimeout(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, 9000, {
       headers: { 'User-Agent': SCRAPE_UA },
     });
     if (!listRes.ok) { console.warn(`  ESC HTTP ${listRes.status}`); toCache(cacheKey, results); return results; }
@@ -2827,14 +2842,50 @@ app.get('/api/vintage-stores', async (req, res) => {
 });
 
 // ── Listings aggregation (shared by the /api/listings route and the daily digest job) ──
+// Stale-while-revalidate: a cold cache miss still pays the full scrape cost
+// (nothing to serve instead), but everything after that returns instantly.
+// Once the 8-minute TTL lapses, the *next* request gets the old data
+// immediately while a fresh scrape runs in the background for the request
+// after that -- scraping 10 sources (one of which visits every individual
+// Craigslist listing's detail page to pull images) easily takes 15-20+
+// seconds, and almost nothing about "what sales are nearby" actually
+// changes minute to minute, so making a user sit through that on every
+// cache expiry was pure waste.
 async function getListingsForZip(zip, radiusMi) {
   const cacheKey = `all:${zip}:${radiusMi}`;
-  const cached   = fromCache(cacheKey);
-  if (cached) {
-    console.log('Cache hit:', cacheKey);
-    return cached;
+  const hit = cache.get(cacheKey);
+  const isFresh = hit && (Date.now() - hit.ts < CACHE_TTL);
+
+  if (isFresh) {
+    console.log('Cache hit (fresh):', cacheKey);
+    return hit.data;
   }
 
+  if (hit) {
+    // Stale but present — serve it now, refresh in the background. Multiple
+    // requests arriving while a refresh is already running share the same
+    // in-flight promise instead of each kicking off their own scrape.
+    console.log('Cache hit (stale, refreshing in background):', cacheKey);
+    if (!inFlight.has(cacheKey)) {
+      const refresh = fetchListingsFresh(cacheKey, zip, radiusMi)
+        .catch(err => { console.error('Background refresh failed for', cacheKey, '—', err.message); return hit.data; })
+        .finally(() => inFlight.delete(cacheKey));
+      inFlight.set(cacheKey, refresh);
+    }
+    return hit.data;
+  }
+
+  // Nothing cached at all yet — this request has to wait for the real thing.
+  if (inFlight.has(cacheKey)) return inFlight.get(cacheKey);
+  const fresh = fetchListingsFresh(cacheKey, zip, radiusMi).finally(() => inFlight.delete(cacheKey));
+  inFlight.set(cacheKey, fresh);
+  return fresh;
+}
+
+// Does the actual scrape-all-sources-and-dedupe work, with no caching logic
+// of its own beyond writing its own result back at the end -- the wrapper
+// above is what decides when to call this versus serve from cache.
+async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   console.log(`\nFetching listings — zip=${zip} radius=${radiusMi}mi`);
   const center = await geocodeZip(zip);
   if (!center) throw new Error(`Cannot geocode ZIP: ${zip}${geocodeZip.lastErrors ? ' (' + geocodeZip.lastErrors.join(' | ') + ')' : ''}`);
@@ -2855,18 +2906,19 @@ async function getListingsForZip(zip, radiusMi) {
   }
 
   // Run all scrapers in parallel
+  const timed = (label, p) => { const t0 = Date.now(); return p.then(v => { console.log(`  [timing] ${label}: ${Date.now()-t0}ms`); return v; }); };
   const [clListings, ouListings, esListings, fbListings, googleListings,
          esnListings, yssListings, gsfListings, gsalrListings, escListings] = await Promise.allSettled([
-    scrapeCraigslist(zip, radiusMi, center.lat, center.lng),
-    scrapeOfferUp(zip, radiusMi, center.lat, center.lng),
-    scrapeEstateSales(zip, radiusMi, center.lat, center.lng),
-    scrapeFacebookMarketplace(zip, radiusMi, center.lat, center.lng),
-    fetchGoogleListings(zip),
-    scrapeEstateSalesNet(zip, radiusMi, center.lat, center.lng),
-    scrapeYardSaleSearch(zip, radiusMi, center.lat, center.lng),
-    scrapeGarageSaleFinder(zip, radiusMi, center.lat, center.lng),
-    scrapeGsalr(zip, radiusMi, center.lat, center.lng),
-    scrapeEstateSaleCom(zip, radiusMi, center.lat, center.lng),
+    timed('CL', scrapeCraigslist(zip, radiusMi, center.lat, center.lng)),
+    timed('OU', scrapeOfferUp(zip, radiusMi, center.lat, center.lng)),
+    timed('ES', scrapeEstateSales(zip, radiusMi, center.lat, center.lng)),
+    timed('FB', scrapeFacebookMarketplace(zip, radiusMi, center.lat, center.lng)),
+    timed('Google', fetchGoogleListings(zip)),
+    timed('ESN', scrapeEstateSalesNet(zip, radiusMi, center.lat, center.lng)),
+    timed('YSS', scrapeYardSaleSearch(zip, radiusMi, center.lat, center.lng)),
+    timed('GSF', scrapeGarageSaleFinder(zip, radiusMi, center.lat, center.lng)),
+    timed('GSALR', scrapeGsalr(zip, radiusMi, center.lat, center.lng)),
+    timed('ESC', scrapeEstateSaleCom(zip, radiusMi, center.lat, center.lng)),
   ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : []));
 
   // Dedicated sale-listing platforms (EstateSales.org, EstateSales.net,
