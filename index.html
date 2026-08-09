@@ -7,32 +7,36 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Mohave:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* Kraft paper & index card surfaces */
-  --paper:#F6F6F6; --paper-2:#F6F6F6; --surface:#FFFFFF; --surface-tint:#FFFFFF;
+  /* Clean neutral surfaces — soft gray page, white cards */
+  --paper:#F7F7F8; --paper-2:#F2F2F4; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
-  /* Sharpie-black ink */
-  --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
-  --ink-500:#8A8069; --ink-400:#9C9280; --ink-300:#C4B593; --ink-200:#D8CBB0; --ink-100:#E8E0CC; --line:#D8CBB0;
+  /* Neutral ink — true gray, no warm undertone */
+  --ink-900:#18181B; --ink-800:#27272A; --ink-700:#3F3F46; --ink-600:#52525B;
+  --ink-500:#71717A; --ink-400:#A1A1AA; --ink-300:#D4D4D8; --ink-200:#E4E4E7; --ink-100:#F4F4F5; --line:#ECECEE;
 
-  /* Primary — coral-orange accent */
-  --brand-50:#FDF2EC; --brand-100:#FBE1D2; --brand-200:#F7C7AC; --brand-300:#F2A97F;
-  --brand-400:#EE8D5C; --brand-500:#D97540; --brand-600:#B85E2F; --brand-700:#954A25; --brand-800:#6E361B;
+  /* Primary — teal accent, used sparingly on CTAs & selected states.
+     (Named --brand-* for historical reasons; every call site reads the
+     computed color, not the name, so this is the one place to retune it.) */
+  --brand-50:#F0FDFA; --brand-100:#CCFBF1; --brand-200:#99F6E4; --brand-300:#5ECEBD;
+  --brand-400:#2DD4BF; --brand-500:#14B8A6; --brand-600:#0D9488; --brand-700:#0F766E; --brand-800:#115E59;
+  /* Buttons, filter chips, and other solid fills go black+white per direct
+     request; --brand-grad is what all of those actually read from. */
+  --brand-grad:#000000;
 
-  /* Masking-tape yellow (secondary accent, used sparingly) */
   --tape-50:#FDF6E0; --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-600:#C99C15; --tape-700:#8A6A0D;
   --teal-50:#F0FDFA; --teal-100:#CCFBF1; --teal-300:#5ECEBD; --teal-500:#14B8A6; --teal-600:#0D9488; --teal-700:#0F766E;
-  --green-600:#3F5E3A; --green-bg:#E1E8D6; --amber-600:#8A5A12; --amber-bg:#F1E0B8; --red-600:#DC2626; --red-bg:#FEE2E2;
-  --coral:#EE8D5C; --coral-bg:#FDF2EC;
+  --green-600:#15803D; --green-bg:#DCFCE7; --amber-600:#B45309; --amber-bg:#FEF3C7; --red-600:#DC2626; --red-bg:#FEE2E2;
+  --coral:#0D9488; --coral-bg:#F0FDFA;
 
-  /* Sale type colors — office-supplies palette so they don't compete with the red accent */
-  --type-estate-fg:#2C4A7C; --type-estate-bg:#DCE4EF;
-  --type-yard-fg:#3F5E3A;   --type-yard-bg:#E1E8D6;
-  --type-moving-fg:#8A5A12; --type-moving-bg:#F1E0B8;
+  /* Sale type colors — quiet, muted tints so they don't compete with the accent */
+  --type-estate-fg:#2C4A7C; --type-estate-bg:#E8EEF7;
+  --type-yard-fg:#3F5E3A;   --type-yard-bg:#EAF2E8;
+  --type-moving-fg:#8A5A12; --type-moving-bg:#FBF0DC;
 
   /* Semantic aliases */
   --text-primary:var(--ink-900); --text-secondary:var(--ink-600); --text-muted:var(--ink-500); --text-faint:var(--ink-400);
@@ -44,11 +48,11 @@
   --secondary:var(--teal-600); --secondary-soft:var(--teal-50); --focus-ring:var(--brand-400);
   --success:var(--green-600); --success-bg:var(--green-bg); --warning:var(--amber-600); --warning-bg:var(--amber-bg);
   --danger:var(--red-600); --danger-bg:var(--red-bg);
-  --pin:var(--brand-400); --pin-saved:var(--coral); --live:#3F5E3A;
+  --pin:var(--brand-400); --pin-saved:var(--coral); --live:#15803D;
 
-  --font-display:'Mohave','Arial Narrow',system-ui,sans-serif;
-  --font-sans:'Mohave',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --font-mono:'Mohave',ui-monospace,'SF Mono',Menlo,monospace;
+  --font-display:'Inter',system-ui,-apple-system,sans-serif;
+  --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'Inter',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
   --text-lg:20px; --text-xl:24px; --text-2xl:30px; --text-3xl:38px; --text-4xl:48px;
@@ -58,17 +62,17 @@
 
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  --radius-xs:4px; --radius-sm:6px; --radius-md:8px; --radius-lg:10px;
-  --radius-xl:14px; --radius-2xl:20px; --radius-pill:999px;
+  --radius-xs:6px; --radius-sm:8px; --radius-md:12px; --radius-lg:16px;
+  --radius-xl:20px; --radius-2xl:24px; --radius-pill:999px;
 
-  /* Warm, neutral shadows — no purple tint */
-  --shadow-xs:0 1px 3px rgba(33,29,23,.08);
-  --shadow-sm:0 2px 10px rgba(33,29,23,.09);
-  --shadow-md:0 8px 24px rgba(33,29,23,.12),0 2px 6px rgba(33,29,23,.07);
-  --shadow-lg:0 20px 48px rgba(33,29,23,.16),0 6px 14px rgba(33,29,23,.09);
-  --shadow-sheet:0 -8px 40px rgba(33,29,23,.14);
-  --shadow-pin:0 6px 16px rgba(217,117,64,.35);
-  --shadow-focus:0 0 0 3px rgba(238,141,92,.28);
+  /* Soft, neutral shadows — no hard borders */
+  --shadow-xs:0 1px 2px rgba(24,24,27,.04);
+  --shadow-sm:0 2px 8px rgba(24,24,27,.06);
+  --shadow-md:0 8px 20px rgba(24,24,27,.08),0 2px 6px rgba(24,24,27,.04);
+  --shadow-lg:0 20px 40px rgba(24,24,27,.12),0 6px 14px rgba(24,24,27,.06);
+  --shadow-sheet:0 -8px 32px rgba(24,24,27,.10);
+  --shadow-pin:0 6px 16px rgba(13,148,136,.30);
+  --shadow-focus:0 0 0 3px rgba(20,184,166,.25);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -77,7 +81,7 @@
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--paper);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);color:var(--text-primary)}
-h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.01em;line-height:1.05;margin:0}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.03em;line-height:1.02;margin:0}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 .rmg-eyebrow{font-family:var(--font-sans);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;color:var(--text-muted)}
@@ -187,86 +191,7 @@ function RummageLogo({ markSize = 56, textSize = 26 }) {
   );
 }
 
-// ── Sound & celebration effects ─────────────────────────────────────────────
-// Synthesized with the Web Audio API rather than shipped audio files -- a
-// couple of oscillators is plenty for a short UI ping/chime and avoids
-// bundling assets for something this small.
-let _audioCtx = null;
-// Plain module-level flag, not React state -- playPing/playTripBlip/etc. are
-// called from all over the app (avatar taps, listing opens, auth), and
-// gating each call site individually would mean threading a "sound on?"
-// prop through every one of them. The on-screen toggle button keeps its
-// own React state in sync with this via setSoundEnabled() so it re-renders.
-let _soundEnabled = (() => { try { return localStorage.getItem('rummage_sound') !== 'off'; } catch (_) { return true; } })();
-function isSoundEnabled() { return _soundEnabled; }
-function setSoundEnabled(v) {
-  _soundEnabled = v;
-  try { localStorage.setItem('rummage_sound', v ? 'on' : 'off'); } catch (_) {}
-}
-function getAudioCtx() {
-  if (!_soundEnabled) return null;
-  if (!window.AudioContext && !window.webkitAudioContext) return null;
-  if (!_audioCtx) _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  if (_audioCtx.state === 'suspended') _audioCtx.resume().catch(()=>{});
-  return _audioCtx;
-}
-function playPing() {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  try {
-    const osc = ctx.createOscillator(), gain = ctx.createGain();
-    osc.type = 'sine';
-    osc.frequency.setValueAtTime(760, ctx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(1180, ctx.currentTime + 0.08);
-    gain.gain.setValueAtTime(0.14, ctx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.14);
-    osc.connect(gain); gain.connect(ctx.destination);
-    osc.start(); osc.stop(ctx.currentTime + 0.15);
-  } catch (_) {}
-}
-function playCelebration() {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    [523.25, 659.25, 783.99, 1046.50].forEach((freq, i) => { // C5 E5 G5 C6
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.type = 'triangle';
-      osc.frequency.value = freq;
-      const t = now + i * 0.09;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.linearRampToValueAtTime(0.2, t + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.4);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(t); osc.stop(t + 0.45);
-    });
-  } catch (_) {}
-}
-// Two-note blip for adding/removing a sale from the trip planner -- lighter
-// than the celebration chime (this isn't as big a moment as finishing
-// sign-up), distinct from the ping/boom already used elsewhere. Rising
-// pitch reads as "added," the same two notes played in reverse read as
-// "removed," without needing two unrelated sounds.
-function playTripBlip(added) {
-  const ctx = getAudioCtx();
-  if (!ctx) return;
-  try {
-    const now = ctx.currentTime;
-    const [f1, f2] = added ? [600, 900] : [900, 600];
-    [[f1, 0], [f2, 0.07]].forEach(([freq, delay]) => {
-      const osc = ctx.createOscillator(), gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      const t = now + delay;
-      gain.gain.setValueAtTime(0.0001, t);
-      gain.gain.linearRampToValueAtTime(0.16, t + 0.015);
-      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
-      osc.connect(gain); gain.connect(ctx.destination);
-      osc.start(t); osc.stop(t + 0.13);
-    });
-  } catch (_) {}
-}
-
+// ── Celebration effects ──────────────────────────────────────────────────────
 // Confetti scoped to the phone-mockup frame (id="phone-frame") rather than
 // canvas-confetti's default full-browser-window canvas -- the app renders
 // inside a scaled/centered phone mockup, so an unscoped burst would fire
@@ -283,7 +208,7 @@ function burstConfetti() {
   fire({
     particleCount: 100, spread: 75, startVelocity: 42, gravity: 1.1, ticks: 220,
     origin: { x: 0.5, y: 0.35 },
-    colors: ['#EE8D5C', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
+    colors: ['#0D9488', '#E8B923', '#3F5E3A', '#2C4A7C', '#211D17'],
   });
   setTimeout(() => canvas.remove(), 3200);
 }
@@ -408,8 +333,18 @@ const FILTER_TYPES = [
   {key:'estate',label:'Estate'},{key:'yard',label:'Yard'},
   {key:'moving',label:'Moving'},
 ];
-const SALE_TYPE_BORDER = { estate:'#000000', yard:'#000000', moving:'#000000' };
-const THRIFT_STORE_BORDER = '#000000';
+
+// Must match server.js's ITEM_KEYWORDS tag strings exactly (case-sensitive)
+// -- these are matched directly against a listing's `items` array server-side
+// for interest-tag push notifications, not just used for display here.
+const INTEREST_TAGS = ['Furniture','Tools','Vinyl & Records','Electronics','Jewelry','Clothing','Books','Kitchenware','Art','Toys & Games','Sporting Goods','Antiques & Collectibles','Lighting','Rugs','Appliances','Musical Instruments','Holiday Decor','Garden & Outdoor'];
+const INTEREST_TAG_ICONS = {
+  'Furniture':'Sofa', 'Tools':'Wrench', 'Vinyl & Records':'Disc3', 'Electronics':'Cpu',
+  'Jewelry':'Gem', 'Clothing':'Shirt', 'Books':'BookOpen', 'Kitchenware':'UtensilsCrossed',
+  'Art':'Palette', 'Toys & Games':'Gamepad2', 'Sporting Goods':'Dumbbell', 'Antiques & Collectibles':'Archive',
+  'Lighting':'Lightbulb', 'Rugs':'LayoutGrid', 'Appliances':'Plug', 'Musical Instruments':'Music',
+  'Holiday Decor':'Gift', 'Garden & Outdoor':'Flower2',
+};
 
 // Sale `items` may be plain strings (legacy/scraped) or richer objects — normalize to one shape.
 function normalizeItem(it, i, saleId) {
@@ -438,14 +373,17 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
     gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
     fontWeight:700, letterSpacing:'-0.01em', whiteSpace:'nowrap',
     transition:`all var(--dur-fast) var(--ease-out)`,
-    borderRadius:'45px', width: fullWidth?'100%':'auto',
+    borderRadius:'var(--radius-lg)', width: fullWidth?'100%':'auto',
+    flex: fullWidth ? '1 1 0%' : 'initial', minWidth: fullWidth ? 0 : 'auto',
   };
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
            : size==='sm' ? {height:36,padding:'0 16px',fontSize:13}
            : {height:48,padding:'0 24px',fontSize:15};
-  const v = variant==='primary'  ? {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)',boxShadow:'0 6px 20px rgba(33,29,23,.28)'}
-          : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)'}
-          : {background:'var(--ink-900)',color:'#FFFFFF',border:'1px solid var(--ink-200)'};
+  const v = variant==='primary'  ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(24,24,27,.30)'}
+          : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',boxShadow:'0 6px 16px rgba(24,24,27,.20)'}
+          : variant==='ghost'    ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 6px 16px rgba(24,24,27,.20)'}
+          : variant==='surface'  ? {background:'#FFFFFF',color:'var(--ink-900)',boxShadow:'var(--shadow-sm)'}
+          : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(24,24,27,.30)'};
   return (
     <button onClick={onClick} style={{...base,...sz,...v,...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
@@ -454,7 +392,7 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
   );
 }
 
-function Card({ padded=true, interactive, onClick, children, style, elevation }) {
+function Card({ padded=true, interactive, onClick, children, style, elevation, ...rest }) {
   const shadow = elevation==='lg' ? 'var(--shadow-lg)' : elevation==='md' ? 'var(--shadow-md)' : 'var(--shadow-sm)';
   return (
     <div onClick={onClick} style={{
@@ -463,9 +401,9 @@ function Card({ padded=true, interactive, onClick, children, style, elevation })
       padding: padded ? 20 : 0, overflow:'hidden',
       position:'relative', zIndex:0, isolation:'isolate',
       cursor: interactive ? 'pointer' : 'default',
-      transition: interactive ? 'box-shadow var(--dur-fast), transform var(--dur-fast)' : 'none',
+      transition: interactive ? 'box-shadow var(--dur-fast), transform var(--dur-base) var(--ease-spring)' : 'none',
       ...style,
-    }}>
+    }} {...rest}>
       {children}
     </div>
   );
@@ -492,22 +430,19 @@ function Badge({ tone, children }) {
   );
 }
 
-// A rotated masking-tape sticker rather than a rounded pill — the one
-// deliberately "physical" detail that shows up on every card.
+// A small solid circle floating on the photo — just the type glyph in
+// white, no label, no per-type color coding (one accent, one meaning:
+// "this is a sale"). Same top-left position every card used before.
 function SaleTypeTag({ type, size }) {
+  const dim = size==='xs' ? 24 : size==='sm' ? 28 : 34;
   return (
-    <span style={{
-      display:'inline-flex', alignItems:'center', gap:4,
-      padding: size==='sm' || size==='xs' ? '2px 8px' : '3px 10px',
-      borderRadius:'var(--radius-xs)',
-      background:'var(--tape-500)', color:'var(--ink-900)',
-      fontFamily:'var(--font-mono)', fontWeight:700,
-      fontSize: size==='xs' ? 10 : size==='sm' ? 11 : 12,
-      letterSpacing:'0.03em', textTransform:'uppercase',
-      transform:'rotate(-2deg)', boxShadow:'0 1px 3px rgba(33,29,23,.25)',
+    <span aria-label={CAT[type]?.label || type} style={{
+      display:'inline-flex', alignItems:'center', justifyContent:'center',
+      width:dim, height:dim, borderRadius:'50%', flexShrink:0,
+      background:'var(--secondary)',
+      boxShadow:'0 2px 8px rgba(15,118,110,.35)',
     }}>
-      {Icon(CAT[type]?.glyph || 'Tag', size==='sm'||size==='xs' ? 11 : 13, {stroke:'currentColor',sw:2})}
-      {CAT[type]?.label || type}
+      {Icon(CAT[type]?.glyph || 'Tag', size==='xs' ? 12 : size==='sm' ? 14 : 17, {stroke:'#fff',sw:2.2})}
     </span>
   );
 }
@@ -545,14 +480,14 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
   return (
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
-      padding:'9px 18px', borderRadius:'var(--radius-pill)',
-      border: selected ? '1px solid var(--ink-900)' : '1px solid #000000',
-      background: selected ? 'var(--ink-900)' : '#FFFFFF',
-      color: selected ? '#fff' : '#000000',
+      padding:'9px 18px', borderRadius:'var(--radius-md)',
+      border: 'none',
+      background: selected ? 'var(--brand-grad)' : 'var(--ink-100)',
+      color: selected ? '#fff' : 'var(--ink-700)',
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(33,29,23,.28)' : 'none',
+      boxShadow: selected ? '0 4px 14px rgba(24,24,27,.30)' : 'none',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -564,7 +499,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
 function SegmentedControl({ options, value, onChange, style, activeBg='#fff', activeFg='var(--ink-900)', activeBorder='none' }) {
   return (
     <div style={{
-      display:'inline-flex', background:'#000000',
+      display:'inline-flex', background:'var(--ink-100)',
       borderRadius:'var(--radius-pill)', padding:4, gap:2, ...style,
     }}>
       {options.map(o => {
@@ -575,7 +510,7 @@ function SegmentedControl({ options, value, onChange, style, activeBg='#fff', ac
             padding:'8px 18px', borderRadius:'var(--radius-pill)',
             border: active ? activeBorder : 'none',
             background: active ? activeBg : 'transparent',
-            color: active ? activeFg : 'rgba(255,255,255,.65)',
+            color: active ? activeFg : 'var(--ink-500)',
             fontFamily:'var(--font-sans)', fontWeight: active ? 700 : 500, fontSize:14,
             boxShadow: active ? 'var(--shadow-sm)' : 'none',
             cursor:'pointer', transition:'all var(--dur-base) var(--ease-spring)',
@@ -665,7 +600,7 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
               background: active ? 'var(--accent)' : 'var(--surface-card)',
               color: active ? '#fff' : 'var(--text-secondary)',
               fontFamily:'var(--font-mono)', fontWeight:600, fontSize:'var(--text-sm)', cursor:'pointer',
-              boxShadow: active ? '0 4px 12px rgba(78,79,42,.35)' : 'var(--shadow-xs)',
+              boxShadow: active ? '0 4px 12px rgba(13,148,136,.35)' : 'var(--shadow-xs)',
               transition:'all var(--dur-fast)',
             }}>{p} mi</button>
           );
@@ -679,7 +614,7 @@ function Switch({ checked, onChange }) {
   return (
     <button type="button" role="switch" aria-checked={checked} onClick={()=>onChange(!checked)} style={{
       width:48, height:28, borderRadius:14, padding:3, border:'none', cursor:'pointer',
-      background: checked ? 'var(--accent)' : '#000000',
+      background: checked ? 'var(--brand-grad)' : 'var(--ink-200)',
       transition:'background var(--dur-base)',display:'flex',
       alignItems:'center', justifyContent: checked ? 'flex-end' : 'flex-start',
       flexShrink:0,
@@ -760,7 +695,7 @@ function FauxMap({ sales, selectedId, onSelect }) {
       <div style={{position:'absolute',left:'12%',bottom:'-8%',width:'30%',height:'26%',background:'#E0D8CE',borderRadius:26}} />
       <div style={{position:'absolute',inset:0,opacity:0.5,backgroundImage:'repeating-linear-gradient(0deg,transparent 0 52px,rgba(255,255,255,.6) 52px 57px),repeating-linear-gradient(90deg,transparent 0 64px,rgba(255,255,255,.6) 64px 69px)'}} />
       <div style={{position:'absolute',inset:0,opacity:0.4,backgroundImage:'repeating-linear-gradient(28deg,transparent 0 120px,rgba(255,255,255,.4) 120px 128px)'}} />
-      <div style={{position:'absolute',left:'50%',top:'50%',width:220,height:220,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'2px dashed rgba(78,79,42,.30)',background:'rgba(78,79,42,.05)'}} />
+      <div style={{position:'absolute',left:'50%',top:'50%',width:220,height:220,transform:'translate(-50%,-50%)',borderRadius:'50%',border:'2px dashed rgba(13,148,136,.30)',background:'rgba(13,148,136,.05)'}} />
       <div style={{position:'absolute',left:'50%',top:'50%',transform:'translate(-50%,-50%)'}}>
         <div style={{width:18,height:18,borderRadius:'50%',background:'#3B82F6',border:'3px solid #fff',boxShadow:'0 2px 8px rgba(59,130,246,.5)'}} />
       </div>
@@ -943,23 +878,16 @@ function MapPlaceholder({ height, width, lat, lng, type='yard', id='ph', zoom=15
 // there are no coordinates either) on load error.
 function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }) {
   const [failed, setFailed] = React.useState(false);
-  const [tall, setTall] = React.useState(false);
   if (!src || failed) {
     if (lat != null && lng != null) return <MapPlaceholder height={height} width={width} lat={lat} lng={lng} type={type} id={id} />;
     return <PhotoPlaceholder height={height} type={type} blurb={blurb} title={title} />;
   }
-  const ps = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
-  // Sellers on OfferUp/Facebook often post a tall flyer graphic instead of a
-  // photo. Hard-cropping that to fill a landscape/square card slices off the
-  // date, address, or headline, so letterbox portrait images instead of
-  // cover-cropping them.
   return (
-    <div style={{ width: width || '100%', height, overflow:'hidden', background: tall ? ps.bg : 'transparent', ...style }}>
+    <div style={{ width: width || '100%', height, overflow:'hidden', background:'transparent', ...style }}>
       <img
         src={proxyImgUrl(src)}
         onError={() => setFailed(true)}
-        onLoad={e => { const { naturalWidth: w, naturalHeight: h } = e.target; if (w && h && h / w > 1.15) setTall(true); }}
-        style={{ width:'100%', height:'100%', objectFit: tall ? 'contain' : 'cover', display:'block' }}
+        style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
       />
     </div>
   );
@@ -983,7 +911,7 @@ function HeartBtn({ saved, onSave }) {
         display:'inline-flex',
         animation: tick > 0 ? 'heart-pop .55s cubic-bezier(.34,1.56,.64,1) both' : 'none',
       }}>
-        {Icon('Heart',18,saved?{fill:'#EE8D5C',stroke:'#B85E2F'}:{stroke:'var(--ink-500)'})}
+        {Icon('Heart',18,saved?{fill:'#14B8A6',stroke:'#0F766E'}:{stroke:'var(--ink-500)'})}
       </span>
     </button>
   );
@@ -1113,15 +1041,12 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
           })}
         </div>
       </div>
-      {!zoomed && idx>0 && (
-        <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-          {Icon('ChevronLeft',20,{stroke:'#fff',sw:2.5})}
-        </button>
-      )}
-      {!zoomed && idx<total-1 && (
-        <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:38,height:38,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-          {Icon('ChevronRight',20,{stroke:'#fff',sw:2.5})}
-        </button>
+      {!zoomed && total > 1 && (
+        <div style={{position:'absolute',bottom:'calc(20px + var(--safe-bottom))',left:0,right:0,display:'flex',justifyContent:'center',gap:6}}>
+          {images.map((_,i)=>(
+            <span key={i} style={{width: i===idx?20:7,height:7,borderRadius:'var(--radius-pill)',background: i===idx?'var(--accent)':'rgba(255,255,255,.4)',transition:'all var(--dur-base) var(--ease-out)'}} />
+          ))}
+        </div>
       )}
     </div>
   );
@@ -1197,19 +1122,11 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
             <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
           </div>
         </div>
-        {idx>0 && (
-          <button onClick={()=>setIdx(i=>clamp(i-1))} style={{position:'absolute',left:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-            {Icon('ChevronLeft',18,{stroke:'#fff',sw:2.5})}
-          </button>
-        )}
-        {idx<total-1 && (
-          <button onClick={()=>setIdx(i=>clamp(i+1))} style={{position:'absolute',right:10,top:'50%',transform:'translateY(-50%)',width:34,height:34,borderRadius:'50%',background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)'}}>
-            {Icon('ChevronRight',18,{stroke:'#fff',sw:2.5})}
-          </button>
-        )}
-        {hasPhotos && (
-          <div style={{position:'absolute',bottom:10,right:14,background:'rgba(0,0,0,.52)',backdropFilter:'blur(4px)',color:'#fff',borderRadius:'var(--radius-pill)',padding:'3px 10px',fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-            {idx+1} / {total}
+        {total > 1 && (
+          <div style={{position:'absolute',bottom:12,left:0,right:0,display:'flex',justifyContent:'center',gap:6}}>
+            {slides.map((_,i)=>(
+              <span key={i} style={{width: i===idx?20:7,height:7,borderRadius:'var(--radius-pill)',background: i===idx?'var(--accent)':'rgba(255,255,255,.5)',transition:'all var(--dur-base) var(--ease-out)',boxShadow:'0 1px 3px rgba(0,0,0,.3)'}} />
+            ))}
           </div>
         )}
       </div>
@@ -1236,14 +1153,23 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
   );
 }
 
+// A light tactile "press" on tap -- shared by every listing tile so they all
+// feel the same, rather than each card wiring its own transform handlers.
+const pressScaleHandlers = {
+  onMouseDown: e => { e.currentTarget.style.transform = 'scale(.97)'; },
+  onMouseUp:   e => { e.currentTarget.style.transform = 'scale(1)'; },
+  onMouseLeave:e => { e.currentTarget.style.transform = 'scale(1)'; },
+  onTouchStart:e => { e.currentTarget.style.transform = 'scale(.97)'; },
+  onTouchEnd:  e => { e.currentTarget.style.transform = 'scale(1)'; },
+  onTouchCancel:e => { e.currentTarget.style.transform = 'scale(1)'; },
+};
+
 function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLabel,photoCount,images,blurb='',saved=false,onSave,onClick,layout='full',inTrip=false,onToggleTrip,lat,lng }) {
   const countdown = useCountdown(dateLabel, timeLabel);
-  const live = countdown.status==='live';
   const thumb = images && images.length ? images[0] : null;
   if (layout==='row') {
     return (
-      <Card interactive onClick={onClick} padded={false} elevation="sm"
-        style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
+      <Card interactive onClick={onClick} padded={false} elevation="sm" {...pressScaleHandlers}>
         <div style={{display:'flex'}}>
           <div style={{width:104,flexShrink:0,position:'relative',overflow:'hidden'}}>
             <SaleImg src={thumb} height={88} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
@@ -1251,7 +1177,6 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
           <div style={{flex:1,minWidth:0,padding:'12px 14px',display:'flex',flexDirection:'column',gap:5}}>
             <div style={{display:'flex',alignItems:'center',gap:6}}>
               <SaleTypeTag type={type} size="sm" />
-              {live && <Badge tone="live">Now</Badge>}
             </div>
             <h3 style={{fontWeight:800,fontSize:15,lineHeight:1.2,color:'var(--ink-900)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',letterSpacing:'-0.02em'}}>{title}</h3>
             <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)'}}>
@@ -1265,18 +1190,21 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
     );
   }
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="md"
-      style={{border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
+    <Card interactive onClick={onClick} padded={false} elevation="md" {...pressScaleHandlers}>
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
-        <div style={{position:'absolute',top:12,right:12,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
-        {live && <div style={{position:'absolute',bottom:12,left:12,zIndex:1000}}><Badge tone="live">Happening now</Badge></div>}
-        {photoCount!=null && (
-          <div style={{position:'absolute',bottom:12,right:12,zIndex:1000,display:'inline-flex',alignItems:'center',gap:4,height:24,padding:'0 8px',borderRadius:'var(--radius-pill)',background:'rgba(28,25,23,.6)',backdropFilter:'blur(4px)',color:'#fff',fontFamily:'var(--font-mono)',fontSize:11}}>
-            {Icon('Camera',12,{stroke:'#fff'})} {photoCount}
-          </div>
+        {onToggleTrip && (
+          <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
+            position:'absolute',top:12,right:12,zIndex:1000,
+            width:34,height:34,borderRadius:'50%',background:'#000',border:'none',
+            display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
+            boxShadow:'0 2px 8px rgba(0,0,0,.35)',transition:'transform var(--dur-fast) var(--ease-out)',
+          }}>
+            {Icon(inTrip?'Check':'Plus',17,{stroke:'#fff',sw:2.5})}
+          </button>
         )}
+        <div style={{position:'absolute',bottom:12,right:12,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
       </div>
       <div style={{padding:'14px 16px 16px'}}>
         <h3 style={{fontWeight:800,fontSize:17,lineHeight:1.2,color:'var(--ink-900)',marginBottom:4,letterSpacing:'-0.02em'}}>{title}</h3>
@@ -1286,29 +1214,20 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
             {dateLabel}{timeLabel ? ` · ${timeLabel}` : ''}
           </div>
         )}
-        <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',gap:8}}>
-          <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap',flex:1,minWidth:0}}>
-            <span style={{fontSize:13,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
-            {countdown.status==='live' && countdown.label && (
-              <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
-                background:'var(--success-bg)',color:'var(--success)',
-                fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-                {Icon('Clock',10,{stroke:'currentColor'})}
-                {countdown.label}
-              </div>
-            )}
-          </div>
-          {onToggleTrip && (
-            <button type="button"
-              onClick={e=>{e.stopPropagation();onToggleTrip();}}
-              style={{display:'inline-flex',alignItems:'center',gap:4,height:28,padding:'0 10px',borderRadius:'var(--radius-pill)',
-                background: inTrip ? 'var(--brand-500)' : 'var(--surface-sunken)',
-                border: inTrip ? 'none' : '1.5px solid var(--border-default)',
-                cursor:'pointer',color: inTrip ? '#fff' : 'var(--text-muted)',
-                fontSize:11,fontWeight:700,flexShrink:0,transition:'all .15s'}}>
-              {inTrip ? Icon('Check',11,{stroke:'#fff'}) : Icon('Plus',11,{stroke:'currentColor'})}
-              {inTrip ? 'In trip' : 'Add to trip'}
-            </button>
+        <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+          <span style={{fontSize:13,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
+          {countdown.status==='live' && countdown.label && (
+            <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
+              background:'var(--success-bg)',color:'var(--success)',
+              fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
+              {Icon('Clock',10,{stroke:'currentColor'})}
+              {countdown.label}
+            </div>
+          )}
+          {photoCount!=null && (
+            <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,color:'var(--text-faint)',fontFamily:'var(--font-mono)'}}>
+              {Icon('Camera',12,{stroke:'currentColor'})} {photoCount}
+            </span>
           )}
         </div>
       </div>
@@ -1320,20 +1239,25 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
 // (square photo, capsule badges floated over it, name + meta line below).
 function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLabel, neighborhood, images, saved=false, onSave, onClick, inTrip=false, onToggleTrip, lat, lng }) {
   const thumb = images && images.length ? images[0] : null;
-  const live = useCountdown(dateLabel, timeLabel).status==='live';
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="xs"
-      style={{
-        border:`3px solid ${SALE_TYPE_BORDER[type] || SALE_TYPE_BORDER.estate}`,
-        boxShadow: live ? '0 2px 6px rgba(0,0,0,.15), 0 0 0 3px var(--success-bg), 0 0 16px rgba(63,94,58,.45)' : '0 2px 6px rgba(0,0,0,.15)',
-      }}>
-      <div style={{position:'relative',aspectRatio:'1'}}>
+    <Card interactive onClick={onClick} padded={false} elevation="xs" {...pressScaleHandlers}
+      style={{ boxShadow: 'var(--shadow-sm)' }}>
+      <div style={{position:'relative',aspectRatio:'4/5'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
-        <div style={{position:'absolute',top:6,right:6,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
-        {live && <div style={{position:'absolute',bottom:8,left:8,zIndex:1000}}><Badge tone="live">Now</Badge></div>}
+        {onToggleTrip && (
+          <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
+            position:'absolute',top:8,right:8,zIndex:1000,
+            width:30,height:30,borderRadius:'50%',background:'#000',border:'none',
+            display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
+            boxShadow:'0 2px 8px rgba(0,0,0,.35)',transition:'transform var(--dur-fast) var(--ease-out)',
+          }}>
+            {Icon(inTrip?'Check':'Plus',15,{stroke:'#fff',sw:2.5})}
+          </button>
+        )}
+        <div style={{position:'absolute',bottom:8,right:8,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
       </div>
-      <div style={{padding:'9px 10px 11px'}}>
+      <div style={{padding:'8px 9px 9px'}}>
         <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,lineHeight:1.25,color:'var(--text-primary)',
           display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',minHeight:'2.5em'}}>{title}</div>
         <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -1343,17 +1267,6 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
           <div style={{fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-faint)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
             {dateLabel}
           </div>
-        )}
-        {onToggleTrip && (
-          <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} style={{
-            display:'inline-flex',alignItems:'center',gap:4,height:26,padding:'0 9px',marginTop:7,borderRadius:'var(--radius-pill)',
-            background: inTrip ? 'var(--brand-500)' : 'var(--surface-sunken)',
-            border: inTrip ? 'none' : '1.5px solid var(--border-default)',
-            cursor:'pointer',color: inTrip ? '#fff' : 'var(--text-muted)',
-            fontSize:11,fontWeight:700}}>
-            {inTrip ? Icon('Check',11,{stroke:'#fff'}) : Icon('Plus',11,{stroke:'currentColor'})}
-            {inTrip ? 'In trip' : 'Add to trip'}
-          </button>
         )}
       </div>
     </Card>
@@ -1373,8 +1286,8 @@ const LANDING_ILLUSTRATION = (
     <circle cx="155" cy="65" r="22" fill="none" stroke="#8A6A0D" strokeWidth="2.5"/>
     <circle cx="155" cy="65" r="16" fill="#F8E8B0" opacity="0.5"/>
     <path d="M155 53L160 65L155 77L150 65Z" fill="#8A6A0D"/>
-    <circle cx="180" cy="55" r="16" fill="none" stroke="#B85E2F" strokeWidth="2.5"/>
-    <line x1="193" y1="68" x2="205" y2="80" stroke="#B85E2F" strokeWidth="2.5" strokeLinecap="round"/>
+    <circle cx="180" cy="55" r="16" fill="none" stroke="#0F766E" strokeWidth="2.5"/>
+    <line x1="193" y1="68" x2="205" y2="80" stroke="#0F766E" strokeWidth="2.5" strokeLinecap="round"/>
     <path d="M55 140 Q55 126 68 126 L88 126 Q101 126 101 140 L101 155 Q101 163 88 163 L68 163 Q55 163 55 155Z" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <ellipse cx="46" cy="145" rx="9" ry="7" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <rect x="101" y="138" width="5" height="18" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" rx="2"/>
@@ -1416,31 +1329,23 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
 
 function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage,
     homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
-    activeTypes, setActiveTypes, openNow, setOpenNow, withinTwoWeeks, setWithinTwoWeeks, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
+    activeTypes, setActiveTypes, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
   const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
   const { isLandscape } = useViewport();
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
-  // The ±2 day / 2-week date windowing itself happens upstream in App's
-  // allSales filter (withinTwoWeeks only widens that window's future edge) —
-  // this screen just applies type/open-now/keyword on top of what it's given.
-  // Both modes are a compound sort — the toggle just picks which criterion
-  // leads. "Closest" ranks by distance from your account's ZIP first, then
-  // breaks ties by soonest date; "Soonest" is the reverse.
+  // Both sort modes are a compound sort — the toggle just picks which
+  // criterion leads. "Closest" ranks by distance from your account's ZIP
+  // first, then breaks ties by soonest date; "Soonest" is the reverse.
   const typeFiltered = sales.filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type));
   const shown = typeFiltered
-    .filter(s => !openNow || isSaleLive(s.dateLabel, s.timeLabel))
     .slice().sort((a, b) => {
       const distDiff = (a.distanceMi ?? 999) - (b.distanceMi ?? 999);
       const dateDiff = saleSortDate(a.dateLabel) - saleSortDate(b.dateLabel);
       return sortBy === 'date' ? (dateDiff || distDiff) : (distDiff || dateDiff);
     });
   const sel = shown.find(s=>s.id===selected) || null;
-  // Live count computed independent of the openNow filter itself, so the
-  // banner below can say "N sales live now" and offer to apply the filter,
-  // rather than only being able to describe results after it's already on.
-  const liveCount = typeFiltered.filter(s => isSaleLive(s.dateLabel, s.timeLabel)).length;
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
@@ -1449,16 +1354,17 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--secondary)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
               {Icon('MapPin',12,{stroke:'currentColor'})} Near {zip}
             </div>
-            <h1 style={{fontSize:28,fontWeight:900,color:'var(--ink-900)',lineHeight:1.05,letterSpacing:'-0.03em',marginTop:0}}>Sales near you</h1>
+            <h1 style={{fontSize:36,fontWeight:900,color:'var(--ink-900)',lineHeight:0.98,letterSpacing:'-0.04em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'var(--secondary)',background:'var(--brand-50)',padding:'7px 14px',borderRadius:'var(--radius-pill)',boxShadow:'0 2px 10px rgba(78,79,42,.18)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-pill)',boxShadow:'0 4px 14px rgba(24,24,27,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
-            activeBg="var(--ink-900)" activeFg="#fff" activeBorder="1px solid var(--ink-200)" />
+            activeBg="var(--brand-grad)" activeFg="#fff" activeBorder="none" />
         </div>
+        <div className="rmg-eyebrow" style={{padding:'0 16px 6px'}}>Categories</div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
           <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
           {keyword && (
@@ -1475,7 +1381,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           {onOpenVintageStores && (
             <button type="button" onClick={onOpenVintageStores} style={{
               display:'inline-flex', alignItems:'center', gap:5,
-              padding:'9px 18px', borderRadius:'var(--radius-pill)', border:'none',
+              padding:'9px 18px', borderRadius:'var(--radius-md)', border:'none',
               background:'var(--tape-500)', color:'var(--ink-900)',
               fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
               cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
@@ -1484,8 +1390,6 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
               {Icon('Store',15,{stroke:'var(--ink-900)'})} Thrift Stores
             </button>
           )}
-          <FilterChip leadingIcon={Icon('Clock',15)} selected={openNow} onClick={()=>{ setOpenNow(p=>!p); setWithinTwoWeeks(false); }}>Open now</FilterChip>
-          <FilterChip leadingIcon={Icon('CalendarRange',15)} selected={withinTwoWeeks} onClick={()=>{ setWithinTwoWeeks(p=>!p); setOpenNow(false); }}>Within 2 weeks</FilterChip>
         </div>
       </div>
       {awayFromHome && (
@@ -1502,41 +1406,10 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
       )}
       {apiStatus==='loading' && (
-        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'var(--ink-900)',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(33,29,23,.28)'}}>
-          <span style={{display:'inline-flex',animation:'spin 1s linear infinite'}}>{Icon('Loader2',16,{stroke:'#fff'})}</span>
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#FFFFFF',color:'var(--ink-900)',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'var(--shadow-sm)'}}>
+          <span style={{display:'inline-flex',animation:'spin 1s linear infinite',color:'var(--accent)'}}>{Icon('Loader2',16,{stroke:'currentColor'})}</span>
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
         </div>
-      )}
-      {liveCount > 0 && !openNow && !withinTwoWeeks && (
-        <button type="button" onClick={()=>{ setOpenNow(true); setWithinTwoWeeks(false); }} style={{
-          flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'#000000',color:'#fff',padding:'10px 16px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',boxShadow:'0 6px 20px rgba(0,0,0,.28)',
-          border:'none',cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
-        }}>
-          <span style={{width:8,height:8,borderRadius:'50%',background:'#fff',display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
-          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>
-            {liveCount} sale{liveCount===1?'':'s'} live right now
-          </span>
-          <span style={{marginLeft:'auto',display:'inline-flex'}}>{Icon('ChevronRight',16,{stroke:'#fff'})}</span>
-        </button>
-      )}
-      {openNow && (
-        <button type="button" onClick={()=>setOpenNow(false)} style={{
-          flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,
-          background:'var(--success-bg)',color:'var(--success)',padding:'10px 16px',margin:'10px 16px 0',
-          borderRadius:'var(--radius-pill)',border:'1.5px solid var(--success)',
-          cursor:'pointer',fontFamily:'inherit',width:'calc(100% - 32px)',
-        }}>
-          <span style={{width:8,height:8,borderRadius:'50%',background:'var(--success)',display:'inline-block'}} />
-          <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>
-            Showing sales live now
-          </span>
-          <span style={{marginLeft:'auto',display:'inline-flex',alignItems:'center',gap:4}}>
-            {Icon('X',14,{stroke:'currentColor'})}
-            <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Show all</span>
-          </span>
-        </button>
       )}
       {view==='map' ? (
         <div style={{position:'relative',flex:1,overflow:'hidden',zIndex:0,isolation:'isolate'}}>
@@ -1835,7 +1708,7 @@ function AuthScreen({ onAuth }) {
       const data = await res.json();
       setAppleLoading(false);
       if (data.error) { setAppleError(data.error); return; }
-      playCelebration(); burstConfetti();
+      burstConfetti();
       onAuth({ name: data.name || 'Rummager', email: data.email, avatar: null });
     } catch (err) {
       setAppleLoading(false);
@@ -1894,7 +1767,6 @@ function AuthScreen({ onAuth }) {
     }).then(r=>r.json()).then(res => {
       setLoading(false);
       if (res.error) { setCodeError(res.error); setCodeDigits(['','','','','','']); setTimeout(()=>codeRefs[0].current?.focus(),0); return; }
-      playCelebration();
       burstConfetti();
       onAuth({ name: fullName.trim(), email: email.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
     }).catch(() => { setLoading(false); setCodeError('Could not verify — is the backend server running?'); });
@@ -1904,7 +1776,7 @@ function AuthScreen({ onAuth }) {
     const isDevMode = authStep === 'verify-dev';
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:72,height:72,borderRadius:22,background:'linear-gradient(135deg,var(--brand-500),var(--brand-300))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(78,79,42,.30)'}}>
+        <div style={{width:72,height:72,borderRadius:22,background:'linear-gradient(135deg,var(--brand-500),var(--brand-300))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(13,148,136,.30)'}}>
           {Icon('Mail',34,{stroke:'#fff',sw:1.75})}
         </div>
         <h1 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 8px'}}>Check your email</h1>
@@ -1957,7 +1829,7 @@ function AuthScreen({ onAuth }) {
 
       {/* Branding */}
       <div style={{padding:'24px 24px 20px',textAlign:'center'}}>
-        <div style={{margin:'0 auto 16px',filter:'drop-shadow(0 8px 20px rgba(78,79,42,.32))'}}>
+        <div style={{margin:'0 auto 16px',filter:'drop-shadow(0 8px 20px rgba(13,148,136,.32))'}}>
           <RummageLogo markSize={60} textSize={24} />
         </div>
         <div style={{fontWeight:900,fontSize:22,letterSpacing:'-0.03em',color:'var(--ink-900)',lineHeight:1.1}}>
@@ -2019,7 +1891,7 @@ function AuthScreen({ onAuth }) {
               {AVATARS.map(av => {
                 const on = selAvatar===av.id;
                 return (
-                  <button key={av.id} type="button" onClick={()=>{playPing();setSelAvatar(av.id);}} aria-label={av.label} style={{
+                  <button key={av.id} type="button" onClick={()=>setSelAvatar(av.id)} aria-label={av.label} style={{
                     flexShrink:0,width:52,height:52,borderRadius:'50%',overflow:'hidden',
                     border:'2.5px solid '+(on?'var(--accent)':'transparent'),
                     background:on?'var(--brand-50)':'var(--surface-sunken)',
@@ -2069,7 +1941,7 @@ function AuthScreen({ onAuth }) {
         )}
 
         <Btn variant="primary" size="lg" fullWidth onClick={submit}
-          style={{marginTop:4,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
+          style={{marginTop:4,height:'auto',padding:'24px 32px',fontSize:19,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
           leadingIcon={loading ? Icon('Loader',18,{stroke:'#fff'}) : null}>
           {loading ? 'Just a sec…' : mode==='signin' ? 'Sign In' : 'Create Account'}
         </Btn>
@@ -2183,7 +2055,7 @@ function FeedbackScreen({ onBack, userEmail }) {
   if (sent) {
     return (
       <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'32px 28px',textAlign:'center'}}>
-        <div style={{width:80,height:80,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(78,79,42,.20)'}}>
+        <div style={{width:80,height:80,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20,boxShadow:'0 8px 32px rgba(13,148,136,.20)'}}>
           {Icon('CheckCircle',40,{stroke:'var(--accent)'})}
         </div>
         <h2 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>Thanks for your feedback!</h2>
@@ -2219,7 +2091,7 @@ function FeedbackScreen({ onBack, userEmail }) {
                   display:'flex',alignItems:'center',gap:10,padding:'14px 16px',
                   background: on ? 'var(--accent)' : 'var(--surface-card)',
                   borderRadius:'var(--radius-xl)',border:'none',cursor:'pointer',textAlign:'left',
-                  boxShadow: on ? '0 4px 14px rgba(78,79,42,.35)' : 'var(--shadow-sm)',
+                  boxShadow: on ? '0 4px 14px rgba(13,148,136,.35)' : 'var(--shadow-sm)',
                   transition:'all var(--dur-fast)',
                 }}>
                   <span style={{display:'inline-flex',color: on ? '#fff' : 'var(--accent)'}}>
@@ -2521,33 +2393,39 @@ function PriceCheckScreen({ onBack }) {
 
 // ── Vintage Stores ────────────────────────────────────────────────────────────
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
-  const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`;
+  const openDirections = () => {
+    const app = getPreferredMapsApp();
+    // Google specifically supports a place_id for pinpoint accuracy; Waze
+    // and Apple Maps have no equivalent, so they fall back to a text query.
+    const url = app === 'google'
+      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(store.title)}&query_place_id=${store.id.replace('store-','')}`
+      : buildMapsUrl(app, { query: [store.title, store.address].filter(Boolean).join(', ') });
+    openExternalUrl(url);
+  };
   return (
-    <Card padded={false} elevation="xs" style={{marginBottom:12,border:`3px solid ${THRIFT_STORE_BORDER}`,boxShadow:'0 2px 6px rgba(0,0,0,.15)'}}>
+    <Card padded={false} elevation="xs" style={{marginBottom:12}}>
       <div style={{padding:'14px 16px'}}>
         <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10}}>
           <div style={{flex:1,minWidth:0}}>
-            <div style={{fontWeight:800,fontSize:15,color:'var(--ink-900)',marginBottom:2}}>{store.title}</div>
+            <div style={{display:'flex',alignItems:'center',gap:6,marginBottom:2}}>
+              {store.openNow === true && (
+                <span aria-label="Open now" title="Open now" style={{width:8,height:8,borderRadius:'50%',background:'var(--success)',flexShrink:0,display:'inline-block',animation:'pulse 1.6s ease-in-out infinite'}} />
+              )}
+              <div style={{fontWeight:800,fontSize:15,color:'var(--ink-900)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{store.title}</div>
+            </div>
             <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{store.address}</div>
           </div>
           <span style={{fontSize:12,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 9px',borderRadius:'var(--radius-pill)',flexShrink:0}}>{store.distanceMi} mi</span>
         </div>
-        {(store.rating || store.openNow != null) && (
+        {store.rating && (
           <div style={{display:'flex',alignItems:'center',gap:10,marginTop:8}}>
-            {store.rating && (
-              <span style={{display:'inline-flex',alignItems:'center',gap:3,fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',fontWeight:600}}>
-                {Icon('Star',13,{fill:'#E8A93B',stroke:'#E8A93B'})} {store.rating}{store.ratingsCount ? ` (${store.ratingsCount})` : ''}
-              </span>
-            )}
-            {store.openNow != null && (
-              <span style={{fontFamily:'var(--font-sans)',fontSize:12,fontWeight:700,color: store.openNow ? 'var(--success)' : 'var(--text-faint)'}}>
-                {store.openNow ? 'Open now' : 'Closed'}
-              </span>
-            )}
+            <span style={{display:'inline-flex',alignItems:'center',gap:3,fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',fontWeight:600}}>
+              {Icon('Star',13,{fill:'#E8A93B',stroke:'#E8A93B'})} {store.rating}{store.ratingsCount ? ` (${store.ratingsCount})` : ''}
+            </span>
           </div>
         )}
         <div style={{display:'flex',gap:8,marginTop:12}}>
-          <Btn variant="secondary" size="sm" fullWidth leadingIcon={Icon('Navigation',14)} onClick={()=>window.open(mapsUrl,'_blank')}>Directions</Btn>
+          <Btn variant="secondary" size="sm" fullWidth leadingIcon={Icon('Navigation',14)} onClick={openDirections}>Directions</Btn>
           <Btn variant={inTrip ? 'primary' : 'secondary'} size="sm" fullWidth leadingIcon={Icon(inTrip?'Check':'Plus',14)} onClick={onToggleTrip}>
             {inTrip ? 'In trip' : 'Add to trip'}
           </Btn>
@@ -2619,13 +2497,13 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
   const digestEmail = authUser?.email || '';
   const [saleTypes, setSaleTypes] = useState({estate:true,yard:true,moving:true});
+  const [interestTags, setInterestTags] = useState({});
   const [push, setPush] = useState(false);
   const [newSales, setNewSales] = useState(true);
   const [reminders, setReminders] = useState(true);
+  const [interestAlerts, setInterestAlerts] = useState(true);
   const [dailyDigest, setDailyDigest] = useState(!!authUser?.digestOptIn);
   const [digestToast, setDigestToast] = useState(null);
-  const [soundOn, setSoundOn] = useState(() => isSoundEnabled());
-  const toggleSound = (checked) => { setSoundEnabled(checked); setSoundOn(checked); };
 
   const syncDigestSubscription = (enabled, overrides={}) => {
     const emailToUse = overrides.email ?? digestEmail;
@@ -2701,6 +2579,15 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       }).catch(()=>{});
     }
   };
+  const toggleInterestAlerts = (checked) => {
+    setInterestAlerts(checked);
+    if (digestEmail) {
+      fetch(`${API_BASE}/api/push/register`, {
+        method: 'POST', headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({ email: digestEmail, notifyInterests: checked }),
+      }).catch(()=>{});
+    }
+  };
 
   const toggleDailyDigest = (checked) => {
     if (checked && !digestEmail) {
@@ -2715,18 +2602,21 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     setTimeout(()=>setDigestToast(null), 3000);
   };
 
-  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types'
+  // Edit sheet: null | 'profile' | 'zip' | 'radius' | 'types' | 'mapsApp' | 'interests'
   const [sheet, setSheet] = useState(null);
   const [draft, setDraft] = useState({});
   const [page, setPage] = useState(null); // null | 'help' | 'feedback' | 'terms' | 'privacy' | 'pricecheck'
   const [deleteConfirm, setDeleteConfirm] = useState(null); // listing id pending delete
+  const [mapsApp, setMapsApp] = useState(() => getPreferredMapsApp());
 
   const openSheet = (key) => {
     const defaults = {
-      profile: { name, avatar },
-      zip:     { zip },
-      radius:  { radiusMi },
-      types:   { saleTypes: {...saleTypes} },
+      profile:   { name, avatar },
+      zip:       { zip },
+      radius:    { radiusMi },
+      types:     { saleTypes: {...saleTypes} },
+      mapsApp:   { mapsApp },
+      interests: { interestTags: {...interestTags} },
     };
     setDraft(defaults[key]);
     setSheet(key);
@@ -2743,6 +2633,17 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
     if (sheet==='zip')    setZip(draft.zip);
     if (sheet==='radius') setRadiusMi(draft.radiusMi);
     if (sheet==='types')  setSaleTypes(draft.saleTypes);
+    if (sheet==='mapsApp') { setPreferredMapsApp(draft.mapsApp); setMapsApp(draft.mapsApp); }
+    if (sheet==='interests') {
+      setInterestTags(draft.interestTags);
+      const selected = Object.keys(draft.interestTags).filter(k => draft.interestTags[k]);
+      if (digestEmail) {
+        fetch(`${API_BASE}/api/push/register`, {
+          method: 'POST', headers: {'Content-Type':'application/json'},
+          body: JSON.stringify({ email: digestEmail, interestTags: selected, notifyInterests: selected.length > 0 }),
+        }).catch(()=>{});
+      }
+    }
     if (dailyDigest && ['zip','radius','types'].includes(sheet)) {
       syncDigestSubscription(true, {
         zip: sheet==='zip' ? draft.zip : undefined,
@@ -2755,6 +2656,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
 
   const typeCount = Object.values(saleTypes).filter(Boolean).length;
   const typesLabel = typeCount === Object.keys(saleTypes).length ? 'All' : typeCount === 0 ? 'None' : `${typeCount} selected`;
+  const interestCount = Object.values(interestTags).filter(Boolean).length;
+  const interestsLabel = interestCount === 0 ? 'None' : `${interestCount} selected`;
   const chev = Icon('ChevronRight',18,{stroke:'var(--text-faint)'});
 
   return (
@@ -2800,6 +2703,8 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <ListRow first icon={Icon('MapPin',18)} label="Home ZIP code" value={zip} trailing={chev} onClick={()=>openSheet('zip')} />
           <ListRow icon={Icon('Ruler',18)} label="Default radius" value={`${radiusMi} mi`} trailing={chev} onClick={()=>openSheet('radius')} />
           <ListRow icon={Icon('Tag',18)} label="Sale types" value={typesLabel} trailing={chev} onClick={()=>openSheet('types')} />
+          <ListRow icon={Icon('Sparkles',18)} label="Interests" value={interestsLabel} trailing={chev} onClick={()=>openSheet('interests')} />
+          <ListRow icon={Icon('Navigation',18)} label="Preferred maps app" value={MAPS_APPS.find(a=>a.key===mapsApp)?.label || 'Google Maps'} trailing={chev} onClick={()=>openSheet('mapsApp')} />
         </Card>
 
         {/* Notifications */}
@@ -2808,16 +2713,11 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <ListRow first icon={Icon('Bell',18)} label="Push notifications" trailing={<Switch checked={push} onChange={togglePush} />} />
           <ListRow icon={Icon('Sparkles',18)} label="New sales nearby" sublabel="Within your radius" trailing={<Switch checked={newSales} onChange={toggleNewSales} />} />
           <ListRow icon={Icon('Clock',18)} label="Sale reminders" sublabel="About 30 min before saved sales" trailing={<Switch checked={reminders} onChange={toggleReminders} />} />
+          <ListRow icon={Icon('Sparkles',18)} label="Interest alerts" sublabel="When a sale lists something you're into" trailing={<Switch checked={interestAlerts} onChange={toggleInterestAlerts} />} />
           <ListRow icon={Icon('Mail',18)} label="Daily digest email" sublabel={digestEmail ? `Today's sales, sent to ${digestEmail}` : 'Sign in to enable'} trailing={<Switch checked={dailyDigest} onChange={toggleDailyDigest} />} />
           {onOpenNotifications && (
             <ListRow icon={Icon('BellRing',18)} label="View notifications" trailing={chev} onClick={onOpenNotifications} />
           )}
-        </Card>
-
-        {/* Sound */}
-        <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Sound</div>
-        <Card padded={false}>
-          <ListRow first icon={Icon(soundOn ? 'Volume2' : 'VolumeX',18)} label="Sound effects" sublabel="Pings, chimes, and confetti sounds" trailing={<Switch checked={soundOn} onChange={toggleSound} />} />
         </Card>
 
         {/* My Listings */}
@@ -2895,7 +2795,10 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         </Card>
         <div style={{marginTop:16}}>
           <Card padded={false}>
-            <ListRow first icon={Icon('LogOut',18)} label="Sign out" danger onClick={onSignOut} />
+            {authUser?.guest
+              ? <ListRow first icon={Icon('LogIn',18)} label="Sign in" sublabel="Create a free account to save your settings" onClick={onSignOut} />
+              : <ListRow first icon={Icon('LogOut',18)} label="Sign out" danger onClick={onSignOut} />
+            }
           </Card>
         </div>
         <div style={{textAlign:'center',marginTop:18,fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)'}}>Rummage · v1.0.0</div>
@@ -2961,7 +2864,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
               {AVATARS.map(av => {
                 const sel = draft.avatar === av.emoji;
                 return (
-                  <button key={av.id} type="button" onClick={()=>{playPing();setDraft(d=>({...d,avatar:av.emoji}));}}
+                  <button key={av.id} type="button" onClick={()=>setDraft(d=>({...d,avatar:av.emoji}))}
                     title={av.label}
                     style={{
                       display:'flex',flexDirection:'column',alignItems:'center',gap:4,
@@ -3024,6 +2927,57 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
                     {Icon(CAT[t.key].glyph,18,{stroke:'currentColor'})}
                   </span>
                   <span style={{flex:1,fontFamily:'var(--font-sans)',fontWeight:500,fontSize:15,color:'var(--text-primary)'}}>{CAT[t.key].label}</span>
+                  <span style={{display:'inline-flex',width:24,height:24,borderRadius:'50%',border:`2px solid ${on?'var(--accent)':'var(--border-strong)'}`,background: on ? 'var(--accent)' : 'transparent',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {on && Icon('Check',14,{stroke:'#fff',sw:2.5})}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </EditSheet>
+      )}
+
+      {/* Edit interests sheet */}
+      {sheet==='interests' && (
+        <EditSheet title="Interests" onSave={saveSheet} onCancel={()=>setSheet(null)}>
+          <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Get a push notification when a nearby sale lists one of these.</p>
+          <div style={{display:'flex',flexDirection:'column',gap:2}}>
+            {INTEREST_TAGS.map(tag => {
+              const on = !!draft.interestTags?.[tag];
+              return (
+                <button key={tag} type="button"
+                  onClick={()=>setDraft(d=>({...d,interestTags:{...d.interestTags,[tag]:!d.interestTags?.[tag]}}))}
+                  style={{display:'flex',alignItems:'center',gap:14,padding:'13px 4px',background:'none',border:'none',borderBottom:'1px solid var(--border-default)',cursor:'pointer',textAlign:'left'}}>
+                  <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,borderRadius:'var(--radius-md)',background: on ? 'var(--accent-soft)' : 'var(--surface-sunken)',color: on ? 'var(--accent)' : 'var(--text-faint)',flexShrink:0}}>
+                    {Icon(INTEREST_TAG_ICONS[tag] || 'Tag',18,{stroke:'currentColor'})}
+                  </span>
+                  <span style={{flex:1,fontFamily:'var(--font-sans)',fontWeight:500,fontSize:15,color:'var(--text-primary)'}}>{tag}</span>
+                  <span style={{display:'inline-flex',width:24,height:24,borderRadius:'50%',border:`2px solid ${on?'var(--accent)':'var(--border-strong)'}`,background: on ? 'var(--accent)' : 'transparent',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                    {on && Icon('Check',14,{stroke:'#fff',sw:2.5})}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </EditSheet>
+      )}
+
+      {/* Edit preferred maps app sheet */}
+      {sheet==='mapsApp' && (
+        <EditSheet title="Preferred maps app" onSave={saveSheet} onCancel={()=>setSheet(null)}>
+          <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>Directions from Rummage open in this app. A trip with multiple stops only routes through all of them in Google Maps — Waze and Apple Maps will go straight to the last stop.</p>
+          <div style={{display:'flex',flexDirection:'column',gap:2}}>
+            {[{key:'google',icon:'Map'},{key:'waze',icon:'Navigation'},{key:'apple',icon:'Compass'}].map(({key,icon}) => {
+              const on = draft.mapsApp === key;
+              const label = MAPS_APPS.find(a=>a.key===key)?.label;
+              return (
+                <button key={key} type="button"
+                  onClick={()=>setDraft(d=>({...d,mapsApp:key}))}
+                  style={{display:'flex',alignItems:'center',gap:14,padding:'13px 4px',background:'none',border:'none',borderBottom:'1px solid var(--border-default)',cursor:'pointer',textAlign:'left'}}>
+                  <span style={{display:'inline-flex',alignItems:'center',justifyContent:'center',width:36,height:36,borderRadius:'var(--radius-md)',background: on ? 'var(--accent-soft)' : 'var(--surface-sunken)',color: on ? 'var(--accent)' : 'var(--text-faint)',flexShrink:0}}>
+                    {Icon(icon,18,{stroke:'currentColor'})}
+                  </span>
+                  <span style={{flex:1,fontFamily:'var(--font-sans)',fontWeight:500,fontSize:15,color:'var(--text-primary)'}}>{label}</span>
                   <span style={{display:'inline-flex',width:24,height:24,borderRadius:'50%',border:`2px solid ${on?'var(--accent)':'var(--border-strong)'}`,background: on ? 'var(--accent)' : 'transparent',alignItems:'center',justifyContent:'center',flexShrink:0}}>
                     {on && Icon('Check',14,{stroke:'#fff',sw:2.5})}
                   </span>
@@ -3135,20 +3089,69 @@ async function fetchOsrmRoute(waypoints) {
   };
 }
 
-// Builds a Google Maps multi-stop directions URL -- the one navigation app
-// with an actual documented multi-waypoint URL scheme (Apple Maps and Waze
-// only support a single destination), so "Start Trip" always hands off to
-// Google Maps regardless of platform. Origin is left out on purpose: Google
-// Maps resolves an omitted origin to the user's live location at the moment
-// the link opens, which is fresher than a location we fetched earlier.
-function buildGoogleMapsTripUrl(stops) {
-  const pts = stops.filter(s => s.lat != null && s.lng != null).map(s => `${s.lat},${s.lng}`);
+// ── Maps app preference ──────────────────────────────────────────────────────
+// Which external navigation app "Directions" hands off to. Persisted like the
+// other simple device-local prefs in this file (trip, saved).
+const MAPS_APPS = [
+  { key:'google', label:'Google Maps' },
+  { key:'waze',   label:'Waze' },
+  { key:'apple',  label:'Apple Maps' },
+];
+function getPreferredMapsApp() {
+  try { return localStorage.getItem('rummage_maps_app') || 'google'; } catch (_) { return 'google'; }
+}
+function setPreferredMapsApp(v) {
+  try { localStorage.setItem('rummage_maps_app', v); } catch (_) {}
+}
+
+// Builds a directions URL for the given app. `dest` is {lat,lng} or a text
+// {query}. `waypoints` (optional, Google-only) -- Waze and Apple Maps only
+// have a documented single-destination URL scheme, so a multi-stop trip
+// still resolves to just the final stop for those two. Origin is left out on
+// purpose: every one of these apps resolves an omitted origin to the user's
+// live location at the moment the link opens, fresher than a location we
+// fetched earlier.
+function buildMapsUrl(app, dest, waypoints) {
+  const hasCoords = dest.lat != null && dest.lng != null;
+  if (app === 'waze') {
+    return hasCoords
+      ? `https://waze.com/ul?ll=${dest.lat},${dest.lng}&navigate=yes`
+      : `https://waze.com/ul?q=${encodeURIComponent(dest.query || '')}&navigate=yes`;
+  }
+  if (app === 'apple') {
+    return hasCoords
+      ? `https://maps.apple.com/?daddr=${dest.lat},${dest.lng}`
+      : `https://maps.apple.com/?q=${encodeURIComponent(dest.query || '')}`;
+  }
+  if (hasCoords) {
+    const params = new URLSearchParams({ api: '1', destination: `${dest.lat},${dest.lng}`, travelmode: 'driving' });
+    if (waypoints?.length) params.set('waypoints', waypoints.map(w => `${w.lat},${w.lng}`).join('|'));
+    return `https://www.google.com/maps/dir/?${params.toString()}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(dest.query || '')}`;
+}
+
+// window.open(url, '_blank') is unreliable from inside the native WKWebView
+// shell for a JS-invoked open (as opposed to a real <a target=_blank> click)
+// -- Capacitor's popup handling doesn't consistently hand off to Safari/the
+// target app for it, which is exactly what showed up as "the button doesn't
+// do anything, I have to open Maps myself." Setting location.href instead
+// routes through WKWebView's navigation delegate, which Capacitor does
+// correctly intercept for external-domain and custom-scheme handoff, on both
+// native and plain mobile web.
+function openExternalUrl(url) {
+  if (!url) return;
+  window.location.href = url;
+}
+
+// Builds a trip-stops URL for the current preferred app (multi-stop only
+// honored for Google -- see buildMapsUrl).
+function buildTripMapsUrl(stops) {
+  const pts = stops.filter(s => s.lat != null && s.lng != null).map(s => ({ lat: s.lat, lng: s.lng }));
   if (!pts.length) return null;
   const destination = pts[pts.length - 1];
   const waypoints = pts.slice(0, -1);
-  const params = new URLSearchParams({ api: '1', destination, travelmode: 'driving' });
-  if (waypoints.length) params.set('waypoints', waypoints.join('|'));
-  return `https://www.google.com/maps/dir/?${params.toString()}`;
+  return buildMapsUrl(getPreferredMapsApp(), destination, waypoints);
 }
 
 // ── Trip Map (Leaflet) ────────────────────────────────────────────────────────
@@ -3175,7 +3178,7 @@ function TripMap({ stops, userLoc, routeCoords, height = 260, interactive = true
     // Route polyline (real roads)
     if (routeCoords?.length > 1) {
       const latlngs = routeCoords.map(([lng, lat]) => [lat, lng]);
-      window.L.polyline(latlngs, { color: '#f97316', weight: 4, opacity: 0.85 }).addTo(map);
+      window.L.polyline(latlngs, { color: '#0d9488', weight: 4, opacity: 0.85 }).addTo(map);
       latlngs.forEach(p => bounds.push(p));
     }
 
@@ -3191,7 +3194,7 @@ function TripMap({ stops, userLoc, routeCoords, height = 260, interactive = true
     stops.forEach((s, i) => {
       if (!s.lat || !s.lng) return;
       const icon = window.L.divIcon({
-        html: `<div style="background:#f97316;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-family:sans-serif">${i + 1}</div>`,
+        html: `<div style="background:#0d9488;color:#fff;border-radius:50%;width:30px;height:30px;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;border:2.5px solid #fff;box-shadow:0 2px 6px rgba(0,0,0,.35);font-family:sans-serif">${i + 1}</div>`,
         iconSize: [30, 30], iconAnchor: [15, 15], className: ''
       });
       window.L.marker([s.lat, s.lng], { icon }).addTo(map);
@@ -3294,7 +3297,14 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
           ) : (
             ordered.map((s, i) => (
               <div key={s.id} onClick={() => {
-                  if (s.type === 'store') { window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.title)}&query_place_id=${s.id.replace('store-','')}`, '_blank'); return; }
+                  if (s.type === 'store') {
+                    const app = getPreferredMapsApp();
+                    const url = app === 'google'
+                      ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(s.title)}&query_place_id=${s.id.replace('store-','')}`
+                      : buildMapsUrl(app, { query: s.title });
+                    openExternalUrl(url);
+                    return;
+                  }
                   onOpenSale(s.id); onClose();
                 }}
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
@@ -3337,11 +3347,8 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
             <Btn variant="primary" size="lg" fullWidth
               leadingIcon={Icon('Navigation', 18)}
               style={{ opacity: tripSales.length ? 1 : 0.5 }}
-              onClick={() => {
-                const url = tripSales.length ? buildGoogleMapsTripUrl(ordered) : null;
-                if (url) window.open(url, '_blank');
-              }}>
-              Open in Google Maps
+              onClick={() => openExternalUrl(tripSales.length ? buildTripMapsUrl(ordered) : null)}>
+              Open in {MAPS_APPS.find(a => a.key === getPreferredMapsApp())?.label || 'Google Maps'}
             </Btn>
           </div>
         </div>
@@ -3372,19 +3379,15 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
 // as well as the items gallery / item detail screens.
 function openSaleDirections(s, onNavigateTo) {
   if (onNavigateTo) { onNavigateTo(); return; }
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const app = getPreferredMapsApp();
   // Prefer the precise pin coordinates over the address text — most sources
   // (Craigslist, OfferUp, Facebook) never expose a full street address, only
   // a city/neighborhood, which makes a text search land nowhere near the
   // actual location. We always have an accurate lat/lng for the map pin.
-  if (s.lat != null && s.lng != null) {
-    const dest = `${s.lat},${s.lng}`;
-    window.open(isIOS ? `maps://maps.apple.com/?daddr=${dest}` : `https://www.google.com/maps/dir/?api=1&destination=${dest}`, '_blank');
-    return;
-  }
-  const addr = [s.address, s.neighborhood].filter(Boolean).join(', ');
-  const q = encodeURIComponent(addr);
-  window.open(isIOS ? `maps://maps.apple.com/?q=${q}` : `https://www.google.com/maps/search/?api=1&query=${q}`, '_blank');
+  const dest = s.lat != null && s.lng != null
+    ? { lat: s.lat, lng: s.lng }
+    : { query: [s.address, s.neighborhood].filter(Boolean).join(', ') };
+  openExternalUrl(buildMapsUrl(app, dest));
 }
 
 // ── Share sheet ─────────────────────────────────────────────────────────────────
@@ -3963,10 +3966,10 @@ function ListScreen({ onPublish }) {
         {/* Hero CTA block */}
         <div style={{margin:'0 20px 20px'}}>
           <button type="button" onClick={()=>setStep(1)} style={{
-            width:'100%',borderRadius:'45px',border:'none',cursor:'pointer',
-            background:'#000000',
+            width:'100%',borderRadius:'var(--radius-2xl)',border:'none',cursor:'pointer',
+            background:'var(--brand-grad)',
             padding:'28px 24px',textAlign:'left',
-            boxShadow:'0 12px 40px rgba(0,0,0,.38)',
+            boxShadow:'0 12px 32px rgba(24,24,27,.35)',
             transition:'transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base)',
           }}
             onMouseDown={e=>e.currentTarget.style.transform='scale(.98)'}
@@ -3993,7 +3996,7 @@ function ListScreen({ onPublish }) {
           <div className="rmg-eyebrow" style={{marginBottom:14}}>How it works</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
             {[
-              {icon:'Tag',        color:'#B85E2F', bg:'#FDF2EC', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
+              {icon:'Tag',        color:'#0F766E', bg:'#F0FDFA', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
               {icon:'FileText',   color:'#3F5E3A', bg:'#E1E8D6', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
               {icon:'MapPin',     color:'#2C4A7C', bg:'#DCE4EF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
@@ -4019,7 +4022,7 @@ function ListScreen({ onPublish }) {
   if (step===4 && published) {
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:88,height:88,borderRadius:'50%',background:'linear-gradient(135deg,var(--brand-100),var(--brand-200))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 12px 40px rgba(78,79,42,.25)'}}>
+        <div style={{width:88,height:88,borderRadius:'50%',background:'linear-gradient(135deg,var(--brand-100),var(--brand-200))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 12px 40px rgba(13,148,136,.25)'}}>
           {Icon('CheckCircle',44,{stroke:'var(--accent)'})}
         </div>
         <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>You're live!</h1>
@@ -4067,7 +4070,7 @@ function ListScreen({ onPublish }) {
           const n = i+1, active = n===step, done = n<step;
           return (
             <div key={n} style={{flex:1,display:'flex',flexDirection:'column',gap:5,alignItems:'center'}}>
-              <div style={{width:'100%',height:4,borderRadius:2,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)',boxShadow:active?'0 2px 8px rgba(78,79,42,.4)':'none'}} />
+              <div style={{width:'100%',height:4,borderRadius:2,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)',boxShadow:active?'0 2px 8px rgba(13,148,136,.4)':'none'}} />
               <span style={{fontFamily:'var(--font-sans)',fontSize:10,fontWeight:active?700:500,color:active?'var(--accent)':done?'var(--ink-600)':'var(--text-faint)'}}>{label}</span>
             </div>
           );
@@ -4348,6 +4351,18 @@ const TUTORIAL_SLIDES = [
       </div>
     ),
   },
+  {
+    title:'Create an account, stay in the loop',
+    body:"Get a daily email of nearby sales, plus a push notification the moment one matches something on your Interests list.",
+    visual:(
+      <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
+        <span style={{position:'absolute',width:64,height:64,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out infinite'}} />
+        <span style={{position:'relative',display:'inline-flex',width:64,height:64,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)',animation:'tutTap 1.3s ease-in-out infinite'}}>
+          {Icon('Bell',30,{stroke:'#fff'})}
+        </span>
+      </div>
+    ),
+  },
 ];
 
 function WalkthroughScreen({ onDone, userName }) {
@@ -4412,14 +4427,12 @@ function App() {
     _setAuthUser(user);
   };
   const [activeTypes, setActiveTypes] = useState({});
-  const [openNow, setOpenNow]         = useState(false);
-  const [withinTwoWeeks, setWithinTwoWeeks] = useState(false);
   const [keyword, setKeyword]         = useState('');
   const [detailId, setDetailId] = useState(null);
-  // Every "open this listing" entry point routes through here so the ping
-  // sound plays exactly once, consistently, regardless of which screen
-  // (Explore, Saved, Search, notifications...) the tap came from.
-  const openSaleDetail = (id) => { playPing(); setDetailId(id); };
+  // Every "open this listing" entry point routes through here, regardless
+  // of which screen (Explore, Saved, Search, notifications...) the tap
+  // came from.
+  const openSaleDetail = (id) => setDetailId(id);
   const [itemsView, setItemsView] = useState(null); // null | {mode:'gallery'} | {mode:'item', idx}
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [filtersOpen, setFiltersOpen] = useState(false);
@@ -4430,7 +4443,6 @@ function App() {
     const adding = !prev.includes(id);
     const next = adding ? [...prev, id] : prev.filter(x => x !== id);
     localStorage.setItem('rummage-trip', JSON.stringify(next));
-    playTripBlip(adding);
     return next;
   });
   const clearTrip = () => { setTripIds([]); localStorage.removeItem('rummage-trip'); };
@@ -4539,12 +4551,11 @@ function App() {
 
   // Default window is 2 days before today through 2 days after — wide enough
   // to still catch a sale that started yesterday, but not a stale posting
-  // from weeks ago. "Within 2 weeks" (the Explore toggle) only widens the
-  // future edge of that window, not the past edge.
+  // from weeks ago.
   const PAST_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
-  const futureWindowMs = (withinTwoWeeks ? 14 : 2) * 24 * 60 * 60 * 1000;
+  const FUTURE_WINDOW_MS = 2 * 24 * 60 * 60 * 1000;
   const windowStart = todayStart.getTime() - PAST_WINDOW_MS;
-  const windowEnd   = todayStart.getTime() + futureWindowMs;
+  const windowEnd   = todayStart.getTime() + FUTURE_WINDOW_MS;
 
   const allSales = [...ALL_SALES, ...apiListings, ...userListings]
     .map(s => ({ ...s, saved: !!savedIds[s.id] }))
@@ -4675,8 +4686,6 @@ function App() {
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
             onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
-            openNow={openNow} setOpenNow={setOpenNow}
-            withinTwoWeeks={withinTwoWeeks} setWithinTwoWeeks={setWithinTwoWeeks}
             keyword={keyword} onClearKeyword={()=>setKeyword('')}
             tripIds={tripIds} onToggleTrip={toggleTrip}
             onOpenVintageStores={()=>setVintageStoresOpen(true)} />

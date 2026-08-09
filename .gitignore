@@ -11,3 +11,7 @@ ios/App/Pods/
 ios/App/build/
 ios/App/DerivedData/
 ios/.build/
+
+# App Store Connect assets (screenshots, etc.) — synced via OneDrive for
+# grabbing on the Mac, not something to version in the repo.
+appstore-assets/
