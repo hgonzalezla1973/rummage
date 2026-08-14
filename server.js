@@ -3501,7 +3501,10 @@ function digestCardHtml(l) {
     ? `<img src="${proxyImgUrlForEmail(l.images[0])}" width="100%" height="120" alt="" style="width:100%; height:120px; object-fit:cover; display:block; border-radius:17px 17px 0 0;" />`
     : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,${style.gradFrom},${style.gradTo}); border-radius:17px 17px 0 0;">
                       <tr>
-                        <td height="120" align="center" valign="middle" style="font-family:Arial,sans-serif; font-size:26px; color:${style.iconFg};">${style.icon}</td>
+                        <td height="120" align="center" valign="middle" style="font-family:Arial,sans-serif;">
+                          <div style="font-size:24px; color:${style.iconFg};">${style.icon}</div>
+                          <div style="font-size:11px; font-weight:600; color:${style.iconFg}; margin-top:3px;">No photo provided</div>
+                        </td>
                       </tr>
                     </table>`;
   return `
