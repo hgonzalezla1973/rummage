@@ -311,6 +311,8 @@ app.get(['/app', '/app/'], (_req, res) => res.sendFile(path.join(__dirname, 'ind
 // buried inside the app itself.
 app.get(['/privacy', '/privacy/'], (_req, res) => res.sendFile(path.join(__dirname, 'privacy.html')));
 app.get(['/terms', '/terms/'], (_req, res) => res.sendFile(path.join(__dirname, 'terms.html')));
+app.get(['/help', '/help/'], (_req, res) => res.sendFile(path.join(__dirname, 'help.html')));
+app.get(['/support', '/support/'], (_req, res) => res.sendFile(path.join(__dirname, 'support.html')));
 app.get('/auth/apple/callback', (_req, res) => res.sendFile(path.join(__dirname, 'apple-callback.html')));
 
 // Standalone static page (not the React SPA) documenting SMS opt-in consent
