@@ -1146,6 +1146,15 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
         </div>
       )}
 
+      {/* Photos come straight from the original listing -- we don't vet or
+          host them ourselves, so a quiet caption here sets that expectation
+          right where it matters instead of only in the Terms of Service. */}
+      {hasPhotos && (
+        <div style={{padding:'6px 14px 0',fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-faint)',textAlign:'center'}}>
+          Photos from the original listing
+        </div>
+      )}
+
       {lightboxOpen && hasPhotos && (
         <PhotoLightbox images={slides.filter(isUrl)} startIndex={idx} onClose={()=>setLightboxOpen(false)} />
       )}
