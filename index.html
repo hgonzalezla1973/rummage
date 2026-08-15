@@ -1107,12 +1107,40 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
 
 // 2-column grid card — visual language borrowed from the items gallery screen
 // (square photo, capsule badges floated over it, name + meta line below).
+// A short, stable "random" tilt per card (same id always tilts the same way)
+// so the grid reads like a handful of photos tossed down, not a repeating
+// pattern -- derived from the id itself rather than array index, which
+// would make every card in position 2 tilt identically regardless of sale.
+function polaroidTilt(id) {
+  let h = 0;
+  const s = id || '';
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 1000;
+  return (h / 1000) * 4.4 - 2.2; // -2.2deg .. +2.2deg
+}
+
 function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLabel, neighborhood, images, saved=false, onSave, onClick, inTrip=false, onToggleTrip, lat, lng }) {
   const thumb = images && images.length ? images[0] : null;
+  const tilt = polaroidTilt(id);
+  // Rotation has to be re-applied on every press state (not just set once)
+  // since the shared pressScaleHandlers pattern overwrites style.transform
+  // outright -- a plain scale() there would silently cancel the tilt.
+  const pressHandlers = {
+    onMouseDown:  e => { e.currentTarget.style.transform = `rotate(${tilt}deg) scale(.97)`; },
+    onMouseUp:    e => { e.currentTarget.style.transform = `rotate(${tilt}deg) scale(1)`; },
+    onMouseLeave: e => { e.currentTarget.style.transform = `rotate(${tilt}deg) scale(1)`; },
+    onTouchStart: e => { e.currentTarget.style.transform = `rotate(${tilt}deg) scale(.97)`; },
+    onTouchEnd:   e => { e.currentTarget.style.transform = `rotate(${tilt}deg) scale(1)`; },
+    onTouchCancel:e => { e.currentTarget.style.transform = `rotate(${tilt}deg) scale(1)`; },
+  };
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="xs" {...pressScaleHandlers}
-      style={{ boxShadow: 'var(--shadow-sm)' }}>
-      <div style={{position:'relative',aspectRatio:'4/5'}}>
+    <Card interactive onClick={onClick} padded={false} elevation="xs" {...pressHandlers}
+      style={{
+        background:'#FFFFFF', borderRadius:2, padding:'10px 10px 0',
+        border:'1px solid rgba(24,24,27,.07)',
+        boxShadow:'0 10px 22px rgba(24,24,27,.22), 0 2px 5px rgba(24,24,27,.12)',
+        transform:`rotate(${tilt}deg)`, transition:'transform var(--dur-base) var(--ease-spring)',
+      }}>
+      <div style={{position:'relative',aspectRatio:'1/1',background:'var(--surface-sunken)'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
         <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
         {onToggleTrip && (
@@ -1127,7 +1155,7 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
         )}
         <div style={{position:'absolute',bottom:8,right:8,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
       </div>
-      <div style={{padding:'8px 9px 9px'}}>
+      <div style={{padding:'10px 5px 16px'}}>
         <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,lineHeight:1.25,color:'var(--text-primary)',
           display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',minHeight:'2.5em'}}>{title}</div>
         <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
