@@ -48,7 +48,7 @@
   --secondary:var(--teal-600); --secondary-soft:var(--teal-50); --focus-ring:var(--brand-400);
   --success:var(--green-600); --success-bg:var(--green-bg); --warning:var(--amber-600); --warning-bg:var(--amber-bg);
   --danger:var(--red-600); --danger-bg:var(--red-bg);
-  --pin:var(--brand-400); --pin-saved:var(--coral); --live:#15803D;
+  --pin:var(--brand-400); --pin-saved:var(--coral);
 
   --font-display:'Inter',system-ui,-apple-system,sans-serif;
   --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
@@ -213,99 +213,6 @@ function burstConfetti() {
   setTimeout(() => canvas.remove(), 3200);
 }
 
-// ── Sale timing helpers ───────────────────────────────────────────────────────
-function parseSaleStart(dateLabel, timeLabel) {
-  if (!timeLabel) return null;
-  const tMatch = timeLabel.match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
-  if (!tMatch) return null;
-  let h = parseInt(tMatch[1]);
-  const m = tMatch[2] ? parseInt(tMatch[2]) : 0;
-  const ap = tMatch[3].toLowerCase();
-  if (ap === 'pm' && h !== 12) h += 12;
-  if (ap === 'am' && h === 12) h = 0;
-  const MO = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-  const DY = {sun:0,mon:1,tue:2,wed:3,thu:4,fri:5,sat:6};
-  const now = new Date();
-  const full = dateLabel && dateLabel.match(/\w+,\s+(\w+)\s+(\d+)/);
-  if (full) {
-    const mo = MO[full[1].toLowerCase().slice(0,3)];
-    if (mo !== undefined) {
-      const d = new Date(now.getFullYear(), mo, parseInt(full[2]), h, m, 0);
-      // Only assume "next year" once the sale's LAST day has clearly passed
-      // — checking just the start day would push a still-in-progress
-      // multi-day sale (e.g. viewing day 2 of a "Jul 9 – Jul 11" sale, where
-      // day 1 is already >24h behind "now") a full year into the future.
-      const allHits = [...dateLabel.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})/g)]
-        .filter(hm => MO[hm[1].toLowerCase().slice(0,3)] !== undefined);
-      const lastHit = allHits[allHits.length - 1] || full;
-      const lastMo  = MO[lastHit[1].toLowerCase().slice(0,3)];
-      const rangeEnd = new Date(now.getFullYear(), lastMo, parseInt(lastHit[2]), 23, 59, 59);
-      if (rangeEnd.getTime() < now.getTime() - 24*60*60*1000) d.setFullYear(now.getFullYear() + 1);
-      return d;
-    }
-  }
-  const dm = dateLabel && dateLabel.match(/^(\w{3})/i);
-  if (dm) {
-    const dn = DY[dm[1].toLowerCase()];
-    if (dn !== undefined) {
-      let diff = dn - now.getDay();
-      if (diff < 0) diff += 7;
-      if (diff === 0 && now.getHours() >= h) diff = 7;
-      return new Date(now.getFullYear(), now.getMonth(), now.getDate() + diff, h, m, 0);
-    }
-  }
-  return null;
-}
-
-// Shared start/end resolver for a sale's date range. For multi-day sales
-// (e.g. "Thu, Jul 9 – Sat, Jul 11") the end time must land on the LAST day
-// of the range, not the start day — anchoring it to the start day's date
-// (the original bug here) made every multi-day sale look "ended" as soon as
-// the first day's closing time passed, even on day 2 or 3.
-function parseSaleDateRange(dateLabel, timeLabel) {
-  const start = parseSaleStart(dateLabel, timeLabel);
-  if (!start) return { start: null, end: null };
-
-  const MO = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
-  const allTimes = (timeLabel || '').match(/(\d+)(?::(\d+))?\s*(am|pm)/gi) || [];
-  if (allTimes.length < 2) return { start, end: null };
-
-  const last = allTimes[allTimes.length - 1].match(/(\d+)(?::(\d+))?\s*(am|pm)/i);
-  if (!last) return { start, end: null };
-  let endH = parseInt(last[1]), endM = last[2] ? parseInt(last[2]) : 0;
-  const ap = last[3].toLowerCase();
-  if (ap === 'pm' && endH !== 12) endH += 12;
-  if (ap === 'am' && endH === 12) endH = 0;
-
-  // Find the actual end date — the LAST "Month Day" occurrence in the label
-  // — which may differ from the start date for multi-day sales.
-  const hits = [...(dateLabel || '').matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})/g)]
-    .filter(m => MO[m[1].toLowerCase().slice(0,3)] !== undefined);
-  let end;
-  if (hits.length) {
-    const h = hits[hits.length - 1];
-    const mo = MO[h[1].toLowerCase().slice(0,3)];
-    end = new Date(start.getFullYear(), mo, parseInt(h[2]), endH, endM, 0);
-    // Range spans a year boundary (e.g. "Dec 30 – Jan 2") — the end date
-    // must be next year if it would otherwise land before the start.
-    if (end.getTime() < start.getTime()) end.setFullYear(end.getFullYear() + 1);
-  } else {
-    end = new Date(start); end.setHours(endH, endM, 0, 0);
-    if (end <= start) end.setDate(end.getDate() + 1);
-  }
-  return { start, end };
-}
-
-// Whether a sale is happening right now, computed from its actual date/time
-// rather than a static flag (which would go stale the moment time passes).
-function isSaleLive(dateLabel, timeLabel) {
-  const { start, end } = parseSaleDateRange(dateLabel, timeLabel);
-  if (!start) return false;
-  const now = Date.now();
-  if (now < start.getTime()) return false;
-  return end ? now < end.getTime() : false;
-}
-
 const SORT_MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 // Sortable timestamp for a sale's start date, parsed from its display label
 // (e.g. "Sat, Jul 4 – Sun, Jul 5" → the Jul 4 start). Sales with no
@@ -410,9 +317,7 @@ function Card({ padded=true, interactive, onClick, children, style, elevation, .
 }
 
 function Badge({ tone, children }) {
-  const colors = tone==='live'
-    ? {background:'var(--success-bg)',color:'var(--success)'}
-    : tone==='success'
+  const colors = tone==='success'
     ? {background:'var(--success-bg)',color:'var(--success)'}
     : tone==='accent'
     ? {background:'var(--accent)',color:'#fff'}
@@ -424,7 +329,6 @@ function Badge({ tone, children }) {
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:'var(--text-2xs)',
       letterSpacing:'0.04em', textTransform:'uppercase', ...colors,
     }}>
-      {tone==='live' && <span style={{width:6,height:6,borderRadius:'50%',background:'var(--success)',display:'inline-block'}} />}
       {children}
     </span>
   );
@@ -720,9 +624,6 @@ function FauxMap({ sales, selectedId, onSelect }) {
                 {Icon(CAT[s.type]?.glyph||'Tag', 16, {stroke:'currentColor',sw:2.2})}
               </span>
             </span>
-            {isSaleLive(s.dateLabel, s.timeLabel) && !sel && (
-              <span style={{position:'absolute',top:-2,right:-2,width:9,height:9,borderRadius:'50%',background:'var(--live)',border:'1.5px solid #fff'}} />
-            )}
           </button>
         );
       })}
@@ -887,6 +788,8 @@ function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }
       <img
         src={proxyImgUrl(src)}
         onError={() => setFailed(true)}
+        loading="lazy"
+        decoding="async"
         style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
       />
     </div>
@@ -915,39 +818,6 @@ function HeartBtn({ saved, onSave }) {
       </span>
     </button>
   );
-}
-
-// ── Countdown hook ────────────────────────────────────────────────────────────
-function useCountdown(dateLabel, timeLabel) {
-  const [info, setInfo] = useState({label:'', status:'upcoming'});
-  useEffect(() => {
-    const { start, end } = parseSaleDateRange(dateLabel, timeLabel);
-    if (!start) return;
-    const calc = () => {
-      const now = Date.now(), startMs = start.getTime();
-      const diff = startMs - now;
-      if (diff > 0) {
-        const h = Math.floor(diff/3600000), m = Math.floor((diff%3600000)/60000);
-        const label = h>=48 ? 'Starts in '+(Math.floor(h/24))+'d'
-                    : h>0   ? 'Starts in '+h+'h '+m+'m'
-                             : m>0 ? 'Starts in '+m+'m' : 'Starting soon';
-        setInfo({label, status:'upcoming'});
-      } else if (end && now < end.getTime()) {
-        const rem = end.getTime()-now;
-        const h = Math.floor(rem/3600000), m = Math.floor((rem%3600000)/60000);
-        const label = h>=48 ? 'Ends in '+(Math.floor(h/24))+'d'
-                    : h>0   ? 'Ends in '+h+'h '+m+'m'
-                             : m>0 ? 'Ends in '+m+'m' : 'Ending soon';
-        setInfo({label, status:'live'});
-      } else {
-        setInfo({label:'Ended', status:'ended'});
-      }
-    };
-    calc();
-    const t = setInterval(calc, 60000);
-    return () => clearInterval(t);
-  }, [dateLabel, timeLabel]);
-  return info;
 }
 
 function useViewport() {
@@ -1030,7 +900,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
                 overflow: active ? 'auto' : 'hidden',
                 WebkitOverflowScrolling:'touch',
               }}>
-                <img src={proxyImgUrl(src)} style={{
+                <img src={proxyImgUrl(src)} loading="lazy" decoding="async" style={{
                   width: active ? '220%' : '100%',
                   height: active ? '220%' : '100%',
                   objectFit:'contain',display:'block',
@@ -1174,7 +1044,6 @@ const pressScaleHandlers = {
 };
 
 function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLabel,photoCount,images,blurb='',saved=false,onSave,onClick,layout='full',inTrip=false,onToggleTrip,lat,lng }) {
-  const countdown = useCountdown(dateLabel, timeLabel);
   const thumb = images && images.length ? images[0] : null;
   if (layout==='row') {
     return (
@@ -1225,14 +1094,6 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
         )}
         <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
           <span style={{fontSize:13,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>{distanceMi} mi away</span>
-          {countdown.status==='live' && countdown.label && (
-            <div style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 10px',borderRadius:'var(--radius-pill)',
-              background:'var(--success-bg)',color:'var(--success)',
-              fontSize:11,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-              {Icon('Clock',10,{stroke:'currentColor'})}
-              {countdown.label}
-            </div>
-          )}
           {photoCount!=null && (
             <span style={{display:'inline-flex',alignItems:'center',gap:4,fontSize:11,color:'var(--text-faint)',fontFamily:'var(--font-mono)'}}>
               {Icon('Camera',12,{stroke:'currentColor'})} {photoCount}
@@ -1490,8 +1351,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
 
   const upcoming  = saved.filter(s => { const d=saleEndDate(s); return !d || d >= now; });
   const past      = saved.filter(s => { const d=saleEndDate(s); return d && d < now; });
-  const happening = upcoming.filter(s => isSaleLive(s.dateLabel, s.timeLabel));
-  const shown     = tab==='happening' ? happening : tab==='past' ? past : upcoming;
+  const shown     = tab==='past' ? past : upcoming;
 
   const EmptyState = ({icon, title, body}) => (
     <div style={{textAlign:'center',padding:'48px 28px',background:'var(--surface-card)',borderRadius:'var(--radius-2xl)',boxShadow:'var(--shadow-sm)'}}>
@@ -1511,7 +1371,6 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
           <SegmentedControl
             options={[
               {value:'upcoming', label:`Upcoming${upcoming.length ? ` · ${upcoming.length}` : ''}`},
-              {value:'happening',label:`Now${happening.length ? ` · ${happening.length}` : ''}`},
               {value:'past',     label:`Past${past.length     ? ` · ${past.length}`     : ''}`},
             ]}
             value={tab} onChange={setTab} style={{width:'100%',display:'flex'}} />
@@ -1521,9 +1380,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
         {saved.length===0 ? (
           <EmptyState icon="🔖" title="Nothing saved yet" body="Tap the heart on any sale to save it here for later." />
         ) : shown.length===0 ? (
-          tab==='happening'
-            ? <EmptyState icon="⏳" title="None happening now" body="Check the Upcoming tab for sales starting soon." />
-            : tab==='past'
+          tab==='past'
             ? <EmptyState icon="📦" title="No past sales" body="Sales you've attended will appear here." />
             : <EmptyState icon="🗓️" title="No upcoming saves" body="Heart a sale on the Explore tab to save it." />
         ) : shown.map(s=>(
@@ -3016,7 +2873,6 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
 function FiltersSheet({ onClose, radiusMi, setRadiusMi, count }) {
   const [types, setTypes] = useState({estate:true,moving:true});
   const [when, setWhen] = useState('weekend');
-  const [openNow, setOpenNow] = useState(false);
   const [photos, setPhotos] = useState(true);
   const [verified, setVerified] = useState(false);
   const Toggle = ({label,on,set})=>(
@@ -3054,7 +2910,6 @@ function FiltersSheet({ onClose, radiusMi, setRadiusMi, count }) {
             <DistanceStepper value={radiusMi} onChange={setRadiusMi} />
           </div>
           <div style={{marginTop:8}}>
-            <Toggle label="Open right now" on={openNow} set={setOpenNow} />
             <Toggle label="Has photos" on={photos} set={setPhotos} />
             <Toggle label="Verified hosts only" on={verified} set={setVerified} />
           </div>
@@ -3488,7 +3343,6 @@ function ShareSheet({ sale, onClose }) {
 
 function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems }) {
   const s = sale;
-  const countdown = useCountdown(s.dateLabel, s.timeLabel);
   const openDirections = () => openSaleDirections(s, onNavigateTo);
   const [shareOpen, setShareOpen] = useState(false);
   const { height: vh, isLandscape } = useViewport();
@@ -3509,21 +3363,6 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         <div style={{padding:'16px 18px 0'}}>
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
             <SaleTypeTag type={s.type} />
-            {countdown.status==='live' && <Badge tone="live">Happening now</Badge>}
-            {countdown.status==='live' && countdown.label && (
-              <span style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 9px',borderRadius:'var(--radius-pill)',
-                background:'var(--success-bg)',color:'var(--success)',
-                fontSize:12,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-                {Icon('Clock',12,{stroke:'currentColor'})}
-                {countdown.label}
-              </span>
-            )}
-            {countdown.status==='ended' && (
-              <span style={{display:'inline-flex',alignItems:'center',gap:4,height:22,padding:'0 9px',borderRadius:'var(--radius-pill)',
-                background:'var(--surface-sunken)',color:'var(--text-muted)',fontSize:12,fontWeight:700,fontFamily:'var(--font-mono)'}}>
-                Sale ended
-              </span>
-            )}
           </div>
           <h1 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:28,lineHeight:1.12,letterSpacing:'-0.02em',color:'var(--text-primary)'}}>{s.title}</h1>
           <div style={{display:'flex',flexDirection:'column',gap:12,margin:'18px 0'}}>
@@ -4697,8 +4536,12 @@ function App() {
   // keeps working unchanged in either mode.
   const screens = (
     <>
-        {/* App screens */}
-        {tab==='explore' && !detailSale && (
+        {/* App screens -- each stays mounted while a sale detail is open
+            (rather than unmounting on !detailSale) so its scroll position
+            survives a round trip into the detail screen and back. Safe to
+            leave rendered underneath: DetailScreen is a full opaque overlay
+            (zIndex:60) covering it entirely. */}
+        {tab==='explore' && (
           <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={effectiveZip} apiStatus={apiStatus} coverageMessage={coverageMessage}
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
             onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
@@ -4707,11 +4550,11 @@ function App() {
             tripIds={tripIds} onToggleTrip={toggleTrip}
             onOpenVintageStores={()=>setVintageStoresOpen(true)} />
         )}
-        {tab==='saved' && !detailSale && (
+        {tab==='saved' && (
           <SavedScreen sales={allSales} onOpenSale={openSaleDetail} onToggleSave={toggleSave}
             tripIds={tripIds} onToggleTrip={toggleTrip} />
         )}
-        {tab==='trip' && !detailSale && (
+        {tab==='trip' && (
           <TripPlannerPanel
             allSales={[...allSales, ...vintageStores]} tripIds={tripIds}
             onToggleTrip={toggleTrip} onClearTrip={clearTrip}
@@ -4720,16 +4563,16 @@ function App() {
             asTab={true}
           />
         )}
-        {tab==='search' && !detailSale && (
+        {tab==='search' && (
           <SearchScreen radiusMi={radiusMi} setRadiusMi={setRadiusMi}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             keyword={keyword} setKeyword={setKeyword}
             onSearch={()=>setTab('explore')} />
         )}
-        {tab==='list' && !detailSale && (
+        {tab==='list' && (
           <ListScreen onPublish={listing=>{setUserListings(p=>[...p,listing]);setTab('explore');}} />
         )}
-        {tab==='account' && !detailSale && (
+        {tab==='account' && (
           authUser
             ? <AccountScreen
                 radiusMi={radiusMi} setRadiusMi={setRadiusMi}
