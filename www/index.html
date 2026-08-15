@@ -1359,6 +1359,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
 
 function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip }) {
   const [tab, setTab] = useState('upcoming');
+  const { isLandscape } = useViewport();
   const saved = sales.filter(s=>s.saved);
   const now = new Date();
   const MO = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
@@ -1404,20 +1405,24 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
             value={tab} onChange={setTab} style={{width:'100%',display:'flex'}} />
         </div>
       </div>
-      <div style={{padding:'4px 20px 120px',display:'flex',flexDirection:'column',gap:14}}>
+      <div style={{padding:'4px 20px 120px'}}>
         {saved.length===0 ? (
           <EmptyState icon="🔖" title="Nothing saved yet" body="Tap the heart on any sale to save it here for later." />
         ) : shown.length===0 ? (
           tab==='past'
             ? <EmptyState icon="📦" title="No past sales" body="Sales you've attended will appear here." />
             : <EmptyState icon="🗓️" title="No upcoming saves" body="Heart a sale on the Explore tab to save it." />
-        ) : shown.map(s=>(
-          <SaleCard key={s.id} id={s.id} type={s.type} title={s.title} address={s.address} distanceMi={s.distanceMi}
-            dateLabel={s.dateLabel} timeLabel={s.timeLabel} photoCount={s.photoCount} images={s.images} blurb={s.blurb}
-            lat={s.lat} lng={s.lng}
-            saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)}
-            inTrip={tripIds.includes(s.id)} onToggleTrip={onToggleTrip ? ()=>onToggleTrip(s.id) : undefined} />
-        ))}
+        ) : (
+          <div style={{display:'grid',gridTemplateColumns:isLandscape ? 'repeat(auto-fill,minmax(160px,1fr))' : '1fr 1fr',gap:14}}>
+            {shown.map(s=>(
+              <SaleGridCard key={s.id} id={s.id} type={s.type} title={s.title} distanceMi={s.distanceMi}
+                dateLabel={s.dateLabel} timeLabel={s.timeLabel} neighborhood={s.neighborhood || s.address} images={s.images}
+                lat={s.lat} lng={s.lng}
+                saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)}
+                inTrip={tripIds.includes(s.id)} onToggleTrip={onToggleTrip ? ()=>onToggleTrip(s.id) : undefined} />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
