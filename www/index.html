@@ -4336,7 +4336,11 @@ function App() {
     localStorage.setItem('rummage_vintage_stores', JSON.stringify(merged));
     return merged;
   });
-  const [radiusMi, setRadiusMi] = useState(15);
+  const [radiusMi, _setRadiusMi] = useState(() => {
+    const saved = localStorage.getItem('rummage_radius');
+    return saved ? Number(saved) : 10;
+  });
+  const setRadiusMi = (r) => { localStorage.setItem('rummage_radius', r); _setRadiusMi(r); };
   const [zip, _setZip] = useState(() => localStorage.getItem('rummage_zip') || '90601');
   const setZip = (z) => { localStorage.setItem('rummage_zip', z); _setZip(z); };
   const [savedIds, _setSavedIds] = useState(() => {
