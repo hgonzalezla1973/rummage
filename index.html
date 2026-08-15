@@ -63,7 +63,7 @@
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
   --radius-xs:6px; --radius-sm:8px; --radius-md:12px; --radius-lg:16px;
-  --radius-xl:20px; --radius-2xl:24px; --radius-pill:999px;
+  --radius-xl:20px; --radius-2xl:24px; --radius-pill:999px; --radius-btn:8px;
 
   /* Soft, neutral shadows — no hard borders */
   --shadow-xs:0 1px 2px rgba(24,24,27,.04);
@@ -280,7 +280,7 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
     gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
     fontWeight:700, letterSpacing:'-0.01em', whiteSpace:'nowrap',
     transition:`all var(--dur-fast) var(--ease-out)`,
-    borderRadius:'var(--radius-lg)', width: fullWidth?'100%':'auto',
+    borderRadius:'var(--radius-btn)', width: fullWidth?'100%':'auto',
     flex: fullWidth ? '1 1 0%' : 'initial', minWidth: fullWidth ? 0 : 'auto',
   };
   const sz = size==='lg' ? {height:56,padding:'0 32px',fontSize:17}
@@ -384,7 +384,7 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
   return (
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
-      padding:'9px 18px', borderRadius:'var(--radius-md)',
+      padding:'9px 18px', borderRadius:'var(--radius-btn)',
       border: 'none',
       background: selected ? 'var(--brand-grad)' : 'var(--ink-100)',
       color: selected ? '#fff' : 'var(--ink-700)',
@@ -404,14 +404,14 @@ function SegmentedControl({ options, value, onChange, style, activeBg='#fff', ac
   return (
     <div style={{
       display:'inline-flex', background:'var(--ink-100)',
-      borderRadius:'var(--radius-pill)', padding:4, gap:2, ...style,
+      borderRadius:'calc(var(--radius-btn) + 4px)', padding:4, gap:2, ...style,
     }}>
       {options.map(o => {
         const active = o.value === value;
         return (
           <button key={o.value} type="button" onClick={() => onChange(o.value)} style={{
             flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
-            padding:'8px 18px', borderRadius:'var(--radius-pill)',
+            padding:'8px 18px', borderRadius:'var(--radius-btn)',
             border: active ? activeBorder : 'none',
             background: active ? activeBg : 'transparent',
             color: active ? activeFg : 'var(--ink-500)',
@@ -432,7 +432,7 @@ function IconButton({ icon, shape, variant, size: sz, 'aria-label': label, onCli
   const dim = sz==='sm' ? 34 : 40;
   return (
     <button type="button" onClick={onClick} aria-label={label} style={{
-      width:dim, height:dim, borderRadius: shape==='circle' ? '50%' : 'var(--radius-md)',
+      width:dim, height:dim, borderRadius: shape==='circle' ? '50%' : 'var(--radius-btn)',
       display:'flex', alignItems:'center', justifyContent:'center',
       border: 'none',
       background: variant==='ghost' ? 'transparent' : 'rgba(255,253,249,0.90)',
@@ -499,7 +499,7 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
           const active = p===value;
           return (
             <button key={p} type="button" onClick={()=>set(p)} style={{
-              flex:1, height:40, borderRadius:'var(--radius-pill)',
+              flex:1, height:40, borderRadius:'var(--radius-btn)',
               border:'none',
               background: active ? 'var(--accent)' : 'var(--surface-card)',
               color: active ? '#fff' : 'var(--text-secondary)',
@@ -983,7 +983,7 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
         </div>
         <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(0,0,0,.32) 0%,transparent 30%,transparent 65%,rgba(0,0,0,.18) 100%)',pointerEvents:'none'}} />
         <div style={{position:'absolute',top:'var(--safe-top)',left:14,right:14,display:'flex',justifyContent:'space-between'}}>
-          <button onClick={onBack} aria-label="Back" style={{display:'flex',alignItems:'center',gap:4,background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',borderRadius:'var(--radius-pill)',padding:'7px 14px 7px 10px',cursor:'pointer'}}>
+          <button onClick={onBack} aria-label="Back" style={{display:'flex',alignItems:'center',gap:4,background:'rgba(0,0,0,.55)',backdropFilter:'blur(4px)',border:'none',borderRadius:'var(--radius-btn)',padding:'7px 14px 7px 10px',cursor:'pointer'}}>
             {Icon('ChevronLeft',18,{stroke:'#fff',sw:2.5})}
             <span style={{color:'#fff',fontSize:13,fontWeight:700,fontFamily:'var(--font-sans)'}}>Back</span>
           </button>
@@ -1255,7 +1255,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             <h1 style={{fontSize:36,fontWeight:900,color:'var(--ink-900)',lineHeight:0.98,letterSpacing:'-0.04em',marginTop:0}}>Sales near you</h1>
           </div>
           <div style={{display:'flex',flexDirection:'column',alignItems:'flex-end',gap:4}}>
-            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-pill)',boxShadow:'0 4px 14px rgba(24,24,27,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
+            <button type="button" onClick={onOpenFilters} aria-label="Change search distance" style={{fontSize:14,fontWeight:800,color:'#fff',background:'var(--brand-grad)',padding:'8px 16px',borderRadius:'var(--radius-btn)',boxShadow:'0 4px 14px rgba(24,24,27,.35)',border:'none',cursor:'pointer'}}>{radiusMi} mi</button>
           </div>
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
@@ -1741,11 +1741,11 @@ function AuthScreen({ onAuth }) {
 
       {/* Mode tabs */}
       <div style={{margin:'0 24px 20px'}}>
-        <div style={{display:'flex',background:'var(--surface-sunken)',borderRadius:'var(--radius-lg)',padding:3}}>
+        <div style={{display:'flex',background:'var(--surface-sunken)',borderRadius:'calc(var(--radius-btn) + 3px)',padding:3}}>
           {[{value:'signin',label:'Sign In'},{value:'signup',label:'Create Account'}].map(opt=>(
             <button key={opt.value} type="button"
               onClick={()=>{setMode(opt.value);setErrors({});}}
-              style={{flex:1,height:40,cursor:'pointer',borderRadius:'calc(var(--radius-lg) - 2px)',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,
+              style={{flex:1,height:40,cursor:'pointer',borderRadius:'var(--radius-btn)',fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13,
                 border: mode===opt.value ? '1px solid var(--ink-200)' : 'none',
                 background: mode===opt.value ? 'var(--ink-900)' : 'transparent',
                 color: mode===opt.value ? '#fff' : 'var(--text-muted)',
@@ -1766,7 +1766,7 @@ function AuthScreen({ onAuth }) {
           <>
             <button type="button" onClick={signInWithApple} disabled={appleLoading} style={{
               display:'flex',alignItems:'center',justifyContent:'center',gap:8,height:48,
-              borderRadius:'var(--radius-lg)',border:'none',background:'#000',color:'#fff',
+              borderRadius:'var(--radius-btn)',border:'none',background:'#000',color:'#fff',
               fontFamily:'var(--font-sans)',fontWeight:600,fontSize:15,cursor:'pointer',
               opacity:appleLoading?.6:1,
             }}>
@@ -2571,7 +2571,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           {/* Gradient banner */}
           <div style={{height:56,background:'linear-gradient(135deg,var(--brand-600) 0%,var(--brand-400) 100%)',position:'relative'}}>
             <button type="button" onClick={()=>openSheet('profile')}
-              style={{position:'absolute',top:8,right:12,fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'rgba(255,255,255,.9)',background:'rgba(255,255,255,.18)',border:'none',borderRadius:'var(--radius-pill)',padding:'5px 14px',cursor:'pointer',backdropFilter:'blur(4px)'}}>
+              style={{position:'absolute',top:8,right:12,fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'rgba(255,255,255,.9)',background:'rgba(255,255,255,.18)',border:'none',borderRadius:'var(--radius-btn)',padding:'5px 14px',cursor:'pointer',backdropFilter:'blur(4px)'}}>
               Edit
             </button>
           </div>
@@ -2659,7 +2659,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
                   {/* Actions */}
                   <div style={{display:'flex',gap:6,flexShrink:0}}>
                     <button type="button" onClick={()=>onOpenSale?.(listing.id)}
-                      style={{height:32,padding:'0 12px',borderRadius:'var(--radius-pill)',background:'var(--brand-50,#ede9ff)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--secondary)',whiteSpace:'nowrap'}}>
+                      style={{height:32,padding:'0 12px',borderRadius:'var(--radius-btn)',background:'var(--brand-50,#ede9ff)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--secondary)',whiteSpace:'nowrap'}}>
                       View
                     </button>
                     <button type="button" onClick={()=>setDeleteConfirm(listing.id)}
@@ -3498,7 +3498,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         ) : null}
         <div style={{display:'flex',gap:8}}>
           <button type="button" onClick={openDirections} aria-label="Directions" style={{
-            width:52,height:52,borderRadius:16,flexShrink:0,
+            width:52,height:52,borderRadius:'var(--radius-btn)',flexShrink:0,
             background:'var(--ink-900)',border:'1px solid var(--ink-200)',cursor:'pointer',
             display:'flex',alignItems:'center',justifyContent:'center',
           }}>
