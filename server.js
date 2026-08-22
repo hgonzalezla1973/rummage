@@ -3005,7 +3005,7 @@ app.get('/api/reverse-geocode', async (req, res) => {
 
 // ── Main route ────────────────────────────────────────────────────────────────
 app.get('/api/listings', async (req, res) => {
-  const zip      = String(req.query.zip || '90601').replace(/\D/g, '').slice(0, 5);
+  const zip      = String(req.query.zip || '').replace(/\D/g, '').slice(0, 5);
   const radiusMi = Math.min(50, Math.max(1, parseInt(req.query.radius || '10', 10)));
 
   if (zip.length !== 5) return res.status(400).json({ error: 'Invalid ZIP' });

@@ -273,7 +273,7 @@ const AVATARS = Array.from({length:24}, (_,i) => ({
 const ALL_SALES = [];
 
 // ── Design system components ──────────────────────────────────────────────────
-function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClick, children, style }) {
+function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClick, children, style, disabled }) {
   const base = {
     display:'inline-flex', alignItems:'center', justifyContent:'center',
     gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
@@ -291,7 +291,8 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
           : variant==='surface'  ? {background:'#FFFFFF',color:'var(--ink-900)',boxShadow:'var(--shadow-sm)'}
           : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'0 8px 20px rgba(24,24,27,.30)'};
   return (
-    <button onClick={onClick} style={{...base,...sz,...v,...style}}>
+    <button onClick={onClick} disabled={disabled} style={{...base,...sz,...v,
+      ...(disabled ? {opacity:0.45,cursor:'not-allowed'} : null),...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
     </button>
@@ -1226,6 +1227,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
 
 function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage,
     homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
+    setZip, locating, locationDenied, onRequestLocation,
     activeTypes, setActiveTypes, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
@@ -1243,6 +1245,44 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
       return sortBy === 'date' ? (dateDiff || distDiff) : (distDiff || dateDiff);
     });
   const sel = shown.find(s=>s.id===selected) || null;
+
+  // No resolved ZIP yet (geolocation still pending, denied, or unavailable,
+  // and no saved home ZIP) -- ask explicitly instead of silently querying
+  // any particular place.
+  const [zipDraft, setZipDraft] = useState('');
+  if (!zip) {
+    return (
+      <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
+        <div style={{paddingTop:'var(--safe-top)'}} />
+        <div style={{flex:1,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:6,padding:'0 32px',textAlign:'center'}}>
+          <span style={{color:'var(--text-faint)',marginBottom:10}}>{Icon('MapPin',40,{stroke:'currentColor'})}</span>
+          <h1 style={{fontSize:24,fontWeight:900,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>
+            {locating ? 'Finding you…' : 'Where should we look?'}
+          </h1>
+          <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.5,color:'var(--text-secondary)',margin:'6px 0 22px',maxWidth:280}}>
+            {locating
+              ? "Hang tight while we check your location."
+              : "Turn on location, or enter your ZIP code to find sales near you."}
+          </p>
+          {!locating && (
+            <div style={{width:'100%',maxWidth:320,display:'flex',flexDirection:'column',gap:10}}>
+              <div style={{display:'flex',gap:8}}>
+                <div style={{flex:1}}>
+                  <RmgInput leadingIcon={Icon('MapPin',18)} placeholder="ZIP code" inputMode="numeric"
+                    value={zipDraft} onChange={e=>setZipDraft(e.target.value.replace(/\D/g,'').slice(0,5))} />
+                </div>
+                <Btn variant="primary" disabled={zipDraft.length !== 5} onClick={()=>setZip(zipDraft)}>Go</Btn>
+              </div>
+              {locationDenied && (
+                <Btn variant="ghost" leadingIcon={Icon('Navigation',16)} onClick={onRequestLocation}>Try location again</Btn>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
@@ -2537,7 +2577,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         {/* Search defaults */}
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Search defaults</div>
         <Card padded={false}>
-          <ListRow first icon={Icon('MapPin',18)} label="Home ZIP code" value={zip} trailing={chev} onClick={()=>openSheet('zip')} />
+          <ListRow first icon={Icon('MapPin',18)} label="Home ZIP code" value={zip || 'Not set'} trailing={chev} onClick={()=>openSheet('zip')} />
           <ListRow icon={Icon('Ruler',18)} label="Default radius" value={`${radiusMi} mi`} trailing={chev} onClick={()=>openSheet('radius')} />
           <ListRow icon={Icon('Tag',18)} label="Sale types" value={typesLabel} trailing={chev} onClick={()=>openSheet('types')} />
           <ListRow icon={Icon('Sparkles',18)} label="Interests" value={interestsLabel} trailing={chev} onClick={()=>openSheet('interests')} />
@@ -4284,8 +4324,17 @@ function App() {
     return saved ? Number(saved) : 10;
   });
   const setRadiusMi = (r) => { localStorage.setItem('rummage_radius', r); _setRadiusMi(r); };
-  const [zip, _setZip] = useState(() => localStorage.getItem('rummage_zip') || '90601');
-  const setZip = (z) => { localStorage.setItem('rummage_zip', z); _setZip(z); };
+  // No hardcoded ZIP fallback here on purpose -- a prior version defaulted
+  // to the developer's own home ZIP (90601, Whittier CA) whenever geolocation
+  // was denied/slow on first run, which silently showed strangers California
+  // sales with no indication why. Better to show an honest "where are you"
+  // prompt (see ExploreScreen) until we actually know, via geolocation or
+  // manual entry.
+  const [zip, _setZip] = useState(() => localStorage.getItem('rummage_zip') || null);
+  const setZip = (z) => {
+    if (z) localStorage.setItem('rummage_zip', z); else localStorage.removeItem('rummage_zip');
+    _setZip(z || null);
+  };
   const [savedIds, _setSavedIds] = useState(() => {
     try { return JSON.parse(localStorage.getItem('rummage_saved') || '{}'); } catch { return {}; }
   });
@@ -4313,27 +4362,31 @@ function App() {
   const [detectedZip, setDetectedZip] = useState(null);
   const [detectedCity, setDetectedCity] = useState(null);
   const [useHomeZip, setUseHomeZip] = useState(false); // explicit "no, use my home ZIP" override
-  useEffect(() => {
-    if (!navigator.geolocation) return;
+  const [locating, setLocating] = useState(false);
+  const [locationDenied, setLocationDenied] = useState(false);
+  const requestLocation = () => {
+    if (!navigator.geolocation) { setLocationDenied(true); return; }
+    setLocating(true);
     navigator.geolocation.getCurrentPosition(
       pos => {
         fetch(`${API_BASE}/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
           .then(r => r.json())
           .then(data => {
-            if (!data.zip) return;
-            // First run, no saved home ZIP yet -- use the real detected
-            // location as home instead of leaving the hardcoded fallback
-            // ZIP in place. Once a home ZIP exists, later detections only
-            // drive the "away from home" banner below, not overwrite it.
+            if (!data.zip) { setLocationDenied(true); return; }
+            // No saved home ZIP yet -- use the real detected location as
+            // home. Once a home ZIP exists, later detections only drive the
+            // "away from home" banner below, not overwrite it.
             if (!localStorage.getItem('rummage_zip')) setZip(data.zip);
             else { setDetectedZip(data.zip); setDetectedCity(data.city || null); }
           })
-          .catch(() => {});
+          .catch(() => setLocationDenied(true))
+          .finally(() => setLocating(false));
       },
-      () => {}, // permission denied or unavailable — fall back to home ZIP silently
+      () => { setLocating(false); setLocationDenied(true); }, // permission denied or unavailable
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60 * 1000 }
     );
-  }, []);
+  };
+  useEffect(() => { requestLocation(); }, []);
   const awayFromHome = !!(detectedZip && detectedZip !== zip);
   const effectiveZip = (awayFromHome && !useHomeZip) ? detectedZip : zip;
 
@@ -4365,8 +4418,11 @@ function App() {
 
   // Re-fetch whenever the effective search ZIP or radius changes (debounced
   // 600ms) — also covers the initial load, since effects always run once
-  // on mount.
+  // on mount. Skipped entirely until we actually know a ZIP (geolocation
+  // resolved or the user entered one) -- see ExploreScreen's prompt for the
+  // no-ZIP-yet state.
   useEffect(() => {
+    if (!effectiveZip) return;
     const t = setTimeout(() => fetchApiListings(effectiveZip, radiusMi), 600);
     return () => clearTimeout(t);
   }, [effectiveZip, radiusMi]);
@@ -4519,6 +4575,7 @@ function App() {
         {tab==='explore' && (
           <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={effectiveZip} apiStatus={apiStatus} coverageMessage={coverageMessage}
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
+            setZip={setZip} locating={locating} locationDenied={locationDenied} onRequestLocation={requestLocation}
             onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             keyword={keyword} onClearKeyword={()=>setKeyword('')}
