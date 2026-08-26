@@ -2715,17 +2715,12 @@ async function identifyItemFromImage(base64Image) {
   // once came back "Twitch", presumably on nothing more than a color/layout
   // coincidence. Label/Object detection instead recognize concrete physical
   // categories ("CD", "Publication") and don't share that failure mode.
-  // Folding the category into the *search* term (not the name shown to the
-  // user) means a bad web guess mostly turns up no results ("Twitch
-  // Publication" won't match much, and an empty result is already handled
-  // as "couldn't find pricing") instead of confidently wrong ones, while a
-  // genuinely correct guess already satisfies both terms and is unaffected.
+  // Handed to searchItemPrices as supporting context alongside itemName,
+  // not merged into it here -- see there for why.
   const category = topObject || topLabel;
-  const searchTerm = (category && !itemName.toLowerCase().includes(category.toLowerCase()))
-    ? `${itemName} ${category}` : itemName;
 
-  console.log(`Price Check identification -- webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} topObject=${JSON.stringify(topObject)} -> itemName="${itemName}" searchTerm="${searchTerm}"`);
-  return { itemName, searchTerm };
+  console.log(`Price Check identification -- webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} topObject=${JSON.stringify(topObject)} -> itemName="${itemName}" category="${category}"`);
+  return { itemName, category };
 }
 
 // Resale/secondhand marketplaces, biased toward estate-sale-typical items
@@ -2735,18 +2730,29 @@ async function identifyItemFromImage(base64Image) {
 // used item actually sells for.
 const RESALE_SITES = ['ebay.com', 'etsy.com', 'worthpoint.com', 'rubylane.com'];
 
-async function searchItemPrices(itemName) {
+async function searchItemPrices(itemName, category) {
   const key = process.env.SERPER_API_KEY;
   const siteFilter = RESALE_SITES.map(s => `site:${s}`).join(' OR ');
+  // Quoting itemName forces an exact-phrase match instead of Google loosely
+  // matching its individual words across unrelated pages -- category stays
+  // unquoted supporting context, not folded into the quoted phrase, since
+  // "{name} {category}" is our own construction and won't literally appear
+  // as an adjacent phrase on a real page even when the identification is
+  // otherwise correct.
+  const categoryPart = (category && !itemName.toLowerCase().includes(category.toLowerCase())) ? ` ${category}` : '';
+  const q = `"${itemName}"${categoryPart} used price (${siteFilter})`;
   const res = await fetch('https://google.serper.dev/search', {
     method: 'POST',
     headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: `${itemName} used price (${siteFilter})` }),
+    body: JSON.stringify({ q }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Search API error');
   const sources = [];
-  for (const item of (data.organic || [])) {
+  // Trust Serper's own relevance ranking -- a result ranked 8th or 9th
+  // sharing just a stray word with the query is far more likely to be
+  // noise than a genuine match, so only the top few feed the price range.
+  for (const item of (data.organic || []).slice(0, 5)) {
     const prices = extractPrices(`${item.title} ${item.snippet || ''}`);
     if (prices.length) sources.push({ title: item.title, url: item.link, price: prices[0] });
   }
@@ -2762,8 +2768,8 @@ app.post('/api/price-check', async (req, res) => {
   if (!image) return res.status(400).json({ error: 'No photo provided' });
 
   try {
-    const { itemName, searchTerm } = await identifyItemFromImage(image);
-    const sources = await searchItemPrices(searchTerm);
+    const { itemName, category } = await identifyItemFromImage(image);
+    const sources = await searchItemPrices(itemName, category);
     if (!sources.length) return res.json({ itemName, low: null, high: null, sources: [] });
     const prices = sources.map(s => s.price);
     res.json({ itemName, low: Math.min(...prices), high: Math.max(...prices), sources: sources.slice(0, 8) });
