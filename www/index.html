@@ -2244,38 +2244,51 @@ function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
 }
 
 function PriceCheckScreen({ onBack }) {
-  const [photo, setPhoto]     = useState(null); // data URL, downscaled
-  const [loading, setLoading] = useState(false);
-  const [result, setResult]   = useState(null); // { itemName, low, high, sources }
-  const [error, setError]     = useState(null);
+  const [photo, setPhoto]           = useState(null); // data URL, downscaled
+  const [identifying, setIdentifying] = useState(false);
+  const [category, setCategory]     = useState(null); // supporting context from identify step, passed through to search
+  const [itemName, setItemName]     = useState('');    // editable -- pre-filled from the identify step, user can correct it
+  const [checking, setChecking]     = useState(false);
+  const [result, setResult]         = useState(null); // { itemName, low, high, sources }
+  const [error, setError]           = useState(null);
   const fileInputRef = useRef(null);
 
   const onFilePicked = async (e) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow picking the same file again later
     if (!file) return;
-    setError(null); setResult(null);
+    setError(null); setResult(null); setItemName(''); setCategory(null);
     try {
-      setPhoto(await downscalePhoto(file));
+      const dataUrl = await downscalePhoto(file);
+      setPhoto(dataUrl);
+      setIdentifying(true);
+      const data = await fetch(`${API_BASE}/api/identify-item`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ image: dataUrl }),
+      }).then(r => r.json());
+      setIdentifying(false);
+      if (data.error) { setError(data.error); return; }
+      setItemName(data.itemName); setCategory(data.category || null);
     } catch (err) {
-      setError(err.message);
+      setIdentifying(false);
+      setError(err.message || 'Could not reach the server.');
     }
   };
 
   const checkValue = () => {
-    if (!photo) return;
-    setLoading(true); setError(null); setResult(null);
+    if (!itemName.trim()) return;
+    setChecking(true); setError(null); setResult(null);
     fetch(`${API_BASE}/api/price-check`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image: photo }),
+      body: JSON.stringify({ itemName: itemName.trim(), category }),
     }).then(r => r.json()).then(data => {
-      setLoading(false);
+      setChecking(false);
       if (data.error) { setError(data.error); return; }
       setResult(data);
-    }).catch(() => { setLoading(false); setError('Could not reach the server. Make sure server.js is running.'); });
+    }).catch(() => { setChecking(false); setError('Could not reach the server. Make sure server.js is running.'); });
   };
 
-  const reset = () => { setPhoto(null); setResult(null); setError(null); };
+  const reset = () => { setPhoto(null); setItemName(''); setCategory(null); setResult(null); setError(null); };
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
@@ -2292,7 +2305,7 @@ function PriceCheckScreen({ onBack }) {
             <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',lineHeight:1.5,margin:0}}>
               Snap or upload a photo of an item — Rummage identifies it and estimates a value range from real prices found across the web.
             </p>
-            <input ref={fileInputRef} type="file" accept="image/*" capture="environment" style={{display:'none'}} onChange={onFilePicked} />
+            <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={onFilePicked} />
             <button type="button" onClick={()=>fileInputRef.current?.click()} style={{
               border:'2px dashed var(--border-strong)', borderRadius:'var(--radius-xl)', background:'var(--surface-sunken)',
               padding:'48px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:10, cursor:'pointer',
@@ -2319,11 +2332,26 @@ function PriceCheckScreen({ onBack }) {
           </div>
         )}
 
-        {photo && !result && (
+        {photo && identifying && (
+          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'16px 0'}}>
+            <span style={{display:'inline-flex',animation:'spin 1s linear infinite',color:'var(--accent)'}}>{Icon('Loader2',18,{stroke:'currentColor'})}</span>
+            <span style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)'}}>Identifying item…</span>
+          </div>
+        )}
+
+        {photo && !identifying && itemName && !result && (
+          <div style={{display:'flex',flexDirection:'column',gap:8}}>
+            <div className="rmg-eyebrow">We think this is</div>
+            <RmgInput size="lg" value={itemName} onChange={e=>setItemName(e.target.value)} placeholder="Item name" />
+            <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)'}}>Not quite right? Edit it above before checking the value.</span>
+          </div>
+        )}
+
+        {photo && !identifying && itemName && !result && (
           <Btn variant="primary" size="lg" fullWidth onClick={checkValue}
-            style={{opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
-            leadingIcon={loading?Icon('Loader',18,{stroke:'#fff'}):Icon('Search',18)}>
-            {loading ? 'Analyzing photo…' : 'Check Value'}
+            style={{opacity:checking?.6:1,pointerEvents:checking?'none':'auto'}}
+            leadingIcon={checking?Icon('Loader',18,{stroke:'#fff'}):Icon('Search',18)}>
+            {checking ? 'Checking value…' : 'Check Value'}
           </Btn>
         )}
 

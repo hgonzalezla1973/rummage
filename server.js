@@ -2687,6 +2687,7 @@ async function identifyItemFromImage(base64Image) {
         { type: 'WEB_DETECTION', maxResults: 10 },
         { type: 'LABEL_DETECTION', maxResults: 5 },
         { type: 'OBJECT_LOCALIZATION', maxResults: 5 },
+        { type: 'TEXT_DETECTION' },
       ],
     }],
   };
@@ -2701,12 +2702,22 @@ async function identifyItemFromImage(base64Image) {
   const webEntity = web?.webEntities?.find(e => e.description && e.score > 0.5)?.description;
   const topLabel = annotation?.labelAnnotations?.[0]?.description;
   const topObject = annotation?.localizedObjectAnnotations?.[0]?.name;
+  // Web Detection identifies "what famous thing does this look like",
+  // which for a CD or book tends to land on the artist/brand rather than
+  // the specific title -- printed titles on a CD/book/box are exact and
+  // right there, so read them directly instead of guessing from visual
+  // similarity. Takes the first line with at least 3 letters in a row
+  // (skips barcodes and stray 1-2 character noise), in Vision's reading
+  // order (roughly top-to-bottom), which on cover art is usually the
+  // most prominent printed text.
+  const ocrLines = (annotation?.textAnnotations?.[0]?.description || '').split('\n').map(s => s.trim());
+  const ocrText = ocrLines.find(line => /[a-zA-Z]{3,}/.test(line));
   // webEntity is confidence-scored (score > 0.5, above); bestGuess has no
   // exposed confidence at all and can be a fluent, totally wrong guess when
   // the photo doesn't closely match anything Google has indexed (a plain
   // CD, an unbranded item) -- prefer the scored signal, and only fall back
   // to the unscored one when nothing scored survives.
-  const itemName = webEntity || bestGuess || topLabel || topObject;
+  const itemName = ocrText || webEntity || bestGuess || topLabel || topObject;
   if (!itemName) throw new Error("Couldn't identify this item from the photo -- try a clearer or closer shot.");
 
   // Web Detection (bestGuess/webEntity) works by reverse-image visual
@@ -2719,7 +2730,7 @@ async function identifyItemFromImage(base64Image) {
   // not merged into it here -- see there for why.
   const category = topObject || topLabel;
 
-  console.log(`Price Check identification -- webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} topObject=${JSON.stringify(topObject)} -> itemName="${itemName}" category="${category}"`);
+  console.log(`Price Check identification -- ocrText=${JSON.stringify(ocrText)} webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} topObject=${JSON.stringify(topObject)} -> itemName="${itemName}" category="${category}"`);
   return { itemName, category };
 }
 
@@ -2759,16 +2770,38 @@ async function searchItemPrices(itemName, category) {
   return sources;
 }
 
-// POST /api/price-check  { image: base64 (with or without data: prefix) }
-app.post('/api/price-check', async (req, res) => {
-  if (!process.env.GOOGLE_API_KEY || !process.env.SERPER_API_KEY) {
-    return res.status(503).json({ error: "Price Check isn't set up yet — add GOOGLE_API_KEY and SERPER_API_KEY in the server environment." });
+// POST /api/identify-item  { image: base64 (with or without data: prefix) }
+// Split from /api/price-check so the app can show the guessed name and let
+// the user correct it before spending a Serper query on a search -- auto
+// identification is good but not perfect (a CD's specific title vs. just
+// recognizing the band, for example), and there's no fixing that after the
+// fact once a search already ran on the wrong name.
+app.post('/api/identify-item', async (req, res) => {
+  if (!process.env.GOOGLE_API_KEY) {
+    return res.status(503).json({ error: "Price Check isn't set up yet — add GOOGLE_API_KEY in the server environment." });
   }
   const image = (req.body.image || '').replace(/^data:image\/\w+;base64,/, '');
   if (!image) return res.status(400).json({ error: 'No photo provided' });
 
   try {
     const { itemName, category } = await identifyItemFromImage(image);
+    res.json({ itemName, category });
+  } catch (err) {
+    console.error('Identify item error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /api/price-check  { itemName: string, category?: string }
+app.post('/api/price-check', async (req, res) => {
+  if (!process.env.SERPER_API_KEY) {
+    return res.status(503).json({ error: "Price Check isn't set up yet — add SERPER_API_KEY in the server environment." });
+  }
+  const itemName = (req.body.itemName || '').trim();
+  if (!itemName) return res.status(400).json({ error: 'No item name provided' });
+  const category = req.body.category || null;
+
+  try {
     const sources = await searchItemPrices(itemName, category);
     if (!sources.length) return res.json({ itemName, low: null, high: null, sources: [] });
     const prices = sources.map(s => s.price);
