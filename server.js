@@ -2653,14 +2653,14 @@ async function fetchGoogleListings(zip) {
   return results;
 }
 
-// ── Price Check (Google Vision + Google Custom Search) ─────────────────────
+// ── Price Check (Google Vision + Serper) ────────────────────────────────────
 // Identifies an item from a photo via Vision API's Web Detection (the same
 // reverse-image-search tech behind Google Lens), then runs a real Google
-// search for that item via Custom Search and pulls price mentions out of
-// the result snippets to build a high/low estimate with cited sources.
-// Reuses the same GOOGLE_API_KEY/GOOGLE_CX env vars as fetchGoogleListings
-// above -- one Google Cloud project with both Vision API and a Programmable
-// Search Engine enabled covers both features.
+// search for that item via Serper (google.serper.dev) and pulls price
+// mentions out of the result snippets to build a high/low estimate with
+// cited sources. Google's own Custom Search JSON API is closed to new
+// customers as of 2026, hence the separate provider here -- identification
+// still goes through Vision/GOOGLE_API_KEY, only the price search moved.
 
 const PRICE_RE = /\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/g;
 
@@ -2705,14 +2705,16 @@ async function identifyItemFromImage(base64Image) {
 }
 
 async function searchItemPrices(itemName) {
-  const key = process.env.GOOGLE_API_KEY;
-  const cx  = process.env.GOOGLE_CX;
-  const url = `https://www.googleapis.com/customsearch/v1?key=${key}&cx=${cx}&q=${encodeURIComponent(itemName + ' price')}&num=10`;
-  const res  = await fetch(url);
+  const key = process.env.SERPER_API_KEY;
+  const res = await fetch('https://google.serper.dev/search', {
+    method: 'POST',
+    headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ q: `${itemName} price` }),
+  });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || 'Search API error');
+  if (!res.ok) throw new Error(data.message || 'Search API error');
   const sources = [];
-  for (const item of (data.items || [])) {
+  for (const item of (data.organic || [])) {
     const prices = extractPrices(`${item.title} ${item.snippet || ''}`);
     if (prices.length) sources.push({ title: item.title, url: item.link, price: prices[0] });
   }
@@ -2721,10 +2723,8 @@ async function searchItemPrices(itemName) {
 
 // POST /api/price-check  { image: base64 (with or without data: prefix) }
 app.post('/api/price-check', async (req, res) => {
-  const key = process.env.GOOGLE_API_KEY;
-  const cx  = process.env.GOOGLE_CX;
-  if (!key || !cx) {
-    return res.status(503).json({ error: "Price Check isn't set up yet — add GOOGLE_API_KEY and GOOGLE_CX in the server environment." });
+  if (!process.env.GOOGLE_API_KEY || !process.env.SERPER_API_KEY) {
+    return res.status(503).json({ error: "Price Check isn't set up yet — add GOOGLE_API_KEY and SERPER_API_KEY in the server environment." });
   }
   const image = (req.body.image || '').replace(/^data:image\/\w+;base64,/, '');
   if (!image) return res.status(400).json({ error: 'No photo provided' });
@@ -3893,5 +3893,6 @@ app.listen(PORT, () => {
   console.log(`   Listings: /api/listings?zip=90601&radius=10`);
   console.log(`   Health:   /api/health`);
   console.log(`   Chrome:   ${CHROME_PATH}`);
-  console.log(`   Google:   ${process.env.GOOGLE_API_KEY ? 'configured ✓' : 'not configured (optional)'}\n`);
+  console.log(`   Google:   ${process.env.GOOGLE_API_KEY ? 'configured ✓' : 'not configured (optional)'}`);
+  console.log(`   Serper:   ${process.env.SERPER_API_KEY ? 'configured ✓' : 'not configured (optional -- Price Check needs it)'}\n`);
 });
