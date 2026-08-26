@@ -2704,12 +2704,20 @@ async function identifyItemFromImage(base64Image) {
   return itemName;
 }
 
+// Resale/secondhand marketplaces, biased toward estate-sale-typical items
+// (furniture, antiques, collectibles) rather than general retail -- a plain
+// "{item} price" search mostly surfaces new-retail listings and unrelated
+// products that happen to share a name, neither of which reflects what a
+// used item actually sells for.
+const RESALE_SITES = ['ebay.com', 'etsy.com', 'worthpoint.com', 'rubylane.com'];
+
 async function searchItemPrices(itemName) {
   const key = process.env.SERPER_API_KEY;
+  const siteFilter = RESALE_SITES.map(s => `site:${s}`).join(' OR ');
   const res = await fetch('https://google.serper.dev/search', {
     method: 'POST',
     headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q: `${itemName} price` }),
+    body: JSON.stringify({ q: `${itemName} used price (${siteFilter})` }),
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.message || 'Search API error');
