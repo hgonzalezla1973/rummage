@@ -2699,7 +2699,13 @@ async function identifyItemFromImage(base64Image) {
   const bestGuess = web?.bestGuessLabels?.[0]?.label;
   const webEntity = web?.webEntities?.find(e => e.description && e.score > 0.5)?.description;
   const topLabel = annotation?.labelAnnotations?.[0]?.description;
-  const itemName = bestGuess || webEntity || topLabel;
+  // webEntity is confidence-scored (score > 0.5, above); bestGuess has no
+  // exposed confidence at all and can be a fluent, totally wrong guess when
+  // the photo doesn't closely match anything Google has indexed (a plain
+  // CD, an unbranded item) -- prefer the scored signal, and only fall back
+  // to the unscored one when nothing scored survives.
+  const itemName = webEntity || bestGuess || topLabel;
+  console.log(`Price Check identification -- webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} -> chose "${itemName}"`);
   if (!itemName) throw new Error("Couldn't identify this item from the photo -- try a clearer or closer shot.");
   return itemName;
 }
