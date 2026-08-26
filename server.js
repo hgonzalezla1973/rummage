@@ -2686,6 +2686,7 @@ async function identifyItemFromImage(base64Image) {
       features: [
         { type: 'WEB_DETECTION', maxResults: 10 },
         { type: 'LABEL_DETECTION', maxResults: 5 },
+        { type: 'OBJECT_LOCALIZATION', maxResults: 5 },
       ],
     }],
   };
@@ -2699,15 +2700,32 @@ async function identifyItemFromImage(base64Image) {
   const bestGuess = web?.bestGuessLabels?.[0]?.label;
   const webEntity = web?.webEntities?.find(e => e.description && e.score > 0.5)?.description;
   const topLabel = annotation?.labelAnnotations?.[0]?.description;
+  const topObject = annotation?.localizedObjectAnnotations?.[0]?.name;
   // webEntity is confidence-scored (score > 0.5, above); bestGuess has no
   // exposed confidence at all and can be a fluent, totally wrong guess when
   // the photo doesn't closely match anything Google has indexed (a plain
   // CD, an unbranded item) -- prefer the scored signal, and only fall back
   // to the unscored one when nothing scored survives.
-  const itemName = webEntity || bestGuess || topLabel;
-  console.log(`Price Check identification -- webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} -> chose "${itemName}"`);
+  const itemName = webEntity || bestGuess || topLabel || topObject;
   if (!itemName) throw new Error("Couldn't identify this item from the photo -- try a clearer or closer shot.");
-  return itemName;
+
+  // Web Detection (bestGuess/webEntity) works by reverse-image visual
+  // matching, which can confidently latch onto an unrelated famous
+  // brand/entity that just happens to look visually similar -- a plain CD
+  // once came back "Twitch", presumably on nothing more than a color/layout
+  // coincidence. Label/Object detection instead recognize concrete physical
+  // categories ("CD", "Publication") and don't share that failure mode.
+  // Folding the category into the *search* term (not the name shown to the
+  // user) means a bad web guess mostly turns up no results ("Twitch
+  // Publication" won't match much, and an empty result is already handled
+  // as "couldn't find pricing") instead of confidently wrong ones, while a
+  // genuinely correct guess already satisfies both terms and is unaffected.
+  const category = topObject || topLabel;
+  const searchTerm = (category && !itemName.toLowerCase().includes(category.toLowerCase()))
+    ? `${itemName} ${category}` : itemName;
+
+  console.log(`Price Check identification -- webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} topObject=${JSON.stringify(topObject)} -> itemName="${itemName}" searchTerm="${searchTerm}"`);
+  return { itemName, searchTerm };
 }
 
 // Resale/secondhand marketplaces, biased toward estate-sale-typical items
@@ -2744,8 +2762,8 @@ app.post('/api/price-check', async (req, res) => {
   if (!image) return res.status(400).json({ error: 'No photo provided' });
 
   try {
-    const itemName = await identifyItemFromImage(image);
-    const sources = await searchItemPrices(itemName);
+    const { itemName, searchTerm } = await identifyItemFromImage(image);
+    const sources = await searchItemPrices(searchTerm);
     if (!sources.length) return res.json({ itemName, low: null, high: null, sources: [] });
     const prices = sources.map(s => s.price);
     res.json({ itemName, low: Math.min(...prices), high: Math.max(...prices), sources: sources.slice(0, 8) });
