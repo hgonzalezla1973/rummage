@@ -2702,6 +2702,8 @@ async function identifyItemFromImage(base64Image) {
   const webEntity = web?.webEntities?.find(e => e.description && e.score > 0.5)?.description;
   const topLabel = annotation?.labelAnnotations?.[0]?.description;
   const topObject = annotation?.localizedObjectAnnotations?.[0]?.name;
+  const allLabels = (annotation?.labelAnnotations || []).map(l => l.description);
+  const allObjects = (annotation?.localizedObjectAnnotations || []).map(o => o.name);
   // Web Detection identifies "what famous thing does this look like",
   // which for a CD or book tends to land on the artist/brand rather than
   // the specific title -- printed titles on a CD/book/box are exact and
@@ -2736,9 +2738,20 @@ async function identifyItemFromImage(base64Image) {
   // categories ("CD", "Publication") and don't share that failure mode.
   // Handed to searchItemPrices as supporting context alongside itemName,
   // not merged into it here -- see there for why.
-  const category = topObject || topLabel;
+  //
+  // The single top label/object is frequently too generic to be useful --
+  // a real CD photo's top label came back "Publication", which doesn't
+  // distinguish it from a vinyl pressing of the same album (different
+  // resale value) any better than no category at all. Vision returns up
+  // to 5 labels; scan all of them (objects first -- Object Localization
+  // targets concrete physical types, Label Detection is broader) for a
+  // known physical-media/format word before falling back to whichever
+  // ranked first.
+  const FORMAT_WORDS = ['cd', 'compact disc', 'vinyl', 'record', 'dvd', 'blu-ray', 'cassette', 'book', 'hardcover', 'paperback', 'board game', 'video game'];
+  const specificFormat = [...allObjects, ...allLabels].find(l => FORMAT_WORDS.some(w => l.toLowerCase().includes(w)));
+  const category = specificFormat || topObject || topLabel;
 
-  console.log(`Price Check identification -- ocrText=${JSON.stringify(ocrText)} webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} topLabel=${JSON.stringify(topLabel)} topObject=${JSON.stringify(topObject)} -> itemName="${itemName}" category="${category}"`);
+  console.log(`Price Check identification -- ocrText=${JSON.stringify(ocrText)} webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} allLabels=${JSON.stringify(allLabels)} allObjects=${JSON.stringify(allObjects)} -> itemName="${itemName}" category="${category}"`);
   return { itemName, category };
 }
 
