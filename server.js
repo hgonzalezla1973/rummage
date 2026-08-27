@@ -2685,8 +2685,12 @@ async function identifyItemFromImage(base64Image) {
       image: { content: base64Image },
       features: [
         { type: 'WEB_DETECTION', maxResults: 10 },
-        { type: 'LABEL_DETECTION', maxResults: 5 },
-        { type: 'OBJECT_LOCALIZATION', maxResults: 5 },
+        // 5 wasn't enough on a real test -- Vision's labels for a CD photo
+        // were all generic ("Publication", "Box", "Advertising") with
+        // nothing format-specific in the top 5; raised in case a useful
+        // one (e.g. "Compact disc") exists further down the ranked list.
+        { type: 'LABEL_DETECTION', maxResults: 15 },
+        { type: 'OBJECT_LOCALIZATION', maxResults: 15 },
         { type: 'TEXT_DETECTION' },
       ],
     }],
