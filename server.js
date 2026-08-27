@@ -2706,12 +2706,20 @@ async function identifyItemFromImage(base64Image) {
   // which for a CD or book tends to land on the artist/brand rather than
   // the specific title -- printed titles on a CD/book/box are exact and
   // right there, so read them directly instead of guessing from visual
-  // similarity. Takes the first line with at least 3 letters in a row
+  // similarity. Takes the first two lines with at least 3 letters in a row
   // (skips barcodes and stray 1-2 character noise), in Vision's reading
-  // order (roughly top-to-bottom), which on cover art is usually the
-  // most prominent printed text.
-  const ocrLines = (annotation?.textAnnotations?.[0]?.description || '').split('\n').map(s => s.trim());
-  const ocrText = ocrLines.find(line => /[a-zA-Z]{3,}/.test(line));
+  // order (roughly top-to-bottom) -- one line alone isn't enough: on a CD
+  // spine the band name is typically printed first/largest with the
+  // specific album title right below it (confirmed on a real photo: Vision
+  // correctly read "MINISTRY" / "'TWITCH'" as separate lines, but taking
+  // only the first line searched for the band alone and found unrelated
+  // "Ministry"-named books instead of that specific album). Quote
+  // characters are stripped since they're cover-art styling, not something
+  // a real listing's title would literally match against.
+  const ocrLines = (annotation?.textAnnotations?.[0]?.description || '').split('\n')
+    .map(s => s.trim().replace(/['"''""]/g, ''))
+    .filter(line => /[a-zA-Z]{3,}/.test(line));
+  const ocrText = ocrLines.slice(0, 2).join(' ') || undefined;
   // webEntity is confidence-scored (score > 0.5, above); bestGuess has no
   // exposed confidence at all and can be a fluent, totally wrong guess when
   // the photo doesn't closely match anything Google has indexed (a plain
