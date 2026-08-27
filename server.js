@@ -2747,8 +2747,17 @@ async function identifyItemFromImage(base64Image) {
   // targets concrete physical types, Label Detection is broader) for a
   // known physical-media/format word before falling back to whichever
   // ranked first.
-  const FORMAT_WORDS = ['cd', 'compact disc', 'vinyl', 'record', 'dvd', 'blu-ray', 'cassette', 'book', 'hardcover', 'paperback', 'board game', 'video game'];
-  const specificFormat = [...allObjects, ...allLabels].find(l => FORMAT_WORDS.some(w => l.toLowerCase().includes(w)));
+  // Also scanned against the *full* OCR block, not just the two lines used
+  // for itemName -- physical media routinely prints its format outright
+  // ("COMPACT DISC", near a barcode, on a spine) even when Vision's own
+  // labels stay generic. Word-boundary matching, not a plain substring
+  // check: "record" bare would also match inside "recorded"/"recording",
+  // which show up constantly in the kind of liner-note/credits text OCR
+  // picks up off real packaging.
+  const FORMAT_WORDS = ['compact disc', 'cd', 'vinyl', 'record', 'dvd', 'blu-ray', 'cassette', 'hardcover', 'paperback', 'book', 'board game', 'video game'];
+  const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const formatHaystack = [...allObjects, ...allLabels, annotation?.textAnnotations?.[0]?.description || ''].join(' ');
+  const specificFormat = FORMAT_WORDS.find(w => new RegExp(`\\b${escapeRe(w)}\\b`, 'i').test(formatHaystack));
   const category = specificFormat || topObject || topLabel;
 
   console.log(`Price Check identification -- ocrText=${JSON.stringify(ocrText)} webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} allLabels=${JSON.stringify(allLabels)} allObjects=${JSON.stringify(allObjects)} -> itemName="${itemName}" category="${category}"`);
