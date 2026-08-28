@@ -2953,6 +2953,29 @@ async function getListingsForZip(zip, radiusMi) {
   return fresh;
 }
 
+// Caps how long any single source can hold up the *entire* response.
+// Individual scrapers already have their own internal timeouts, but those
+// compound -- a photo-fetch step alone can run dozens of listings in
+// batches of 8, each batch carrying its own multi-second timeout -- and
+// Promise.allSettled below waits for the single slowest of 10 independent
+// sources no matter how long that takes. A first-ever request for a given
+// ZIP (guaranteed cold cache -- true for any first-time user, and
+// certainly for App Review) was seeing 30-90+ second waits from exactly
+// this, which reads as "the app doesn't work" rather than "it's slow."
+// Racing each source against a ceiling means a straggler just contributes
+// nothing to *this* response instead of blocking everyone else's data.
+const withCeiling = (promise, ms, label) => {
+  promise.catch(() => {}); // avoid an unhandled rejection if this loses the race
+  let timer;
+  const ceiling = new Promise(resolve => {
+    timer = setTimeout(() => {
+      console.warn(`  [ceiling] ${label} exceeded ${ms}ms — returning empty for this request`);
+      resolve([]);
+    }, ms);
+  });
+  return Promise.race([promise, ceiling]).finally(() => clearTimeout(timer));
+};
+
 // Does the actual scrape-all-sources-and-dedupe work, with no caching logic
 // of its own beyond writing its own result back at the end -- the wrapper
 // above is what decides when to call this versus serve from cache.
@@ -2976,8 +2999,10 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
     throw err;
   }
 
-  // Run all scrapers in parallel
-  const timed = (label, p) => { const t0 = Date.now(); return p.then(v => { console.log(`  [timing] ${label}: ${Date.now()-t0}ms`); return v; }); };
+  // Run all scrapers in parallel, each capped by withCeiling (15s) so one
+  // straggler can't hold up the other nine.
+  const CEILING_MS = 15000;
+  const timed = (label, p) => { const t0 = Date.now(); return withCeiling(p, CEILING_MS, label).then(v => { console.log(`  [timing] ${label}: ${Date.now()-t0}ms`); return v; }); };
   const [clListings, ouListings, esListings, fbListings, googleListings,
          esnListings, yssListings, gsfListings, gsalrListings, escListings] = await Promise.allSettled([
     timed('CL', scrapeCraigslist(zip, radiusMi, center.lat, center.lng)),
