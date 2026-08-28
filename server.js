@@ -3153,7 +3153,13 @@ app.get('/api/listings', async (req, res) => {
 
   try {
     const all = await getListingsForZip(zip, radiusMi);
-    res.json({ zip, radiusMi, count: all.length, listings: all });
+    // geocodeZip is cheap here -- fetchListingsFresh already resolved and
+    // cached this exact zip moments ago, so this is a guaranteed cache hit,
+    // not a second real lookup. Sent along so the client can center its map
+    // on the actual searched location instead of falling back to whatever
+    // hardcoded default it might otherwise use.
+    const center = await geocodeZip(zip).catch(() => null);
+    res.json({ zip, radiusMi, count: all.length, listings: all, center });
   } catch (err) {
     if (err.outOfCoverage) {
       return res.json({ zip, radiusMi, count: 0, listings: [], outOfCoverage: true, message: err.message });

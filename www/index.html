@@ -653,9 +653,13 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       touchZoom: interactive, doubleClickZoom: interactive,
       boxZoom: false, keyboard: false,
     });
+    // CARTO's basemaps now require an API key we don't have (was rendering
+    // "API KEY REQUIRED" tiled across every map in the app) -- switched to
+    // plain OpenStreetMap tiles, the same provider TripMap already uses
+    // successfully elsewhere in this file, no key needed.
     L.tileLayer(
-      'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
-      { maxZoom: 19, subdomains: 'abcd' }
+      'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      { maxZoom: 19, subdomains: 'abc' }
     ).addTo(map);
     if (interactive) L.control.zoom({ position: 'bottomright' }).addTo(map);
     // Blue user-location dot at center
@@ -1326,7 +1330,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
   );
 }
 
-function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage,
+function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage, mapCenter,
     homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
     setZip, locating, locationDenied, onRequestLocation,
     activeTypes, setActiveTypes, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
@@ -1451,7 +1455,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
       )}
       {view==='map' ? (
         <div style={{position:'relative',flex:1,overflow:'hidden',zIndex:0,isolation:'isolate'}}>
-          <RealMap sales={shown} selectedId={sel?.id} onSelect={setSelected} />
+          <RealMap sales={shown} selectedId={sel?.id} onSelect={setSelected}
+            centerLat={mapCenter?.lat} centerLng={mapCenter?.lng} />
           <div style={{position:'absolute',right:14,top:14,display:'flex',flexDirection:'column',gap:10}}>
             <IconButton icon={Icon('Locate',20)} shape="circle" aria-label="Locate me" />
             <IconButton icon={Icon('Layers',20)} variant="surface" aria-label="Map layers" />
@@ -4497,6 +4502,7 @@ function App() {
   const [apiListings, setApiListings]   = useState([]);
   const [apiStatus, setApiStatus]       = useState('idle'); // idle | loading | ok | error
   const [coverageMessage, setCoverageMessage] = useState(null);
+  const [mapCenter, setMapCenter] = useState(null); // {lat,lng} of the searched zip, from the API response
   const [scale, setScale] = useState(1);
   const [libsReady, setLibsReady] = useState(false);
   const frameRef = useRef(null);
@@ -4555,6 +4561,7 @@ function App() {
       .then(data => {
         setApiListings(data.listings || []);
         setCoverageMessage(data.outOfCoverage ? data.message : null);
+        setMapCenter(data.center || null);
         setApiStatus('ok');
       })
       .catch(() => setApiStatus('error'));
@@ -4730,7 +4737,7 @@ function App() {
             leave rendered underneath: DetailScreen is a full opaque overlay
             (zIndex:60) covering it entirely. */}
         {tab==='explore' && (
-          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={effectiveZip} apiStatus={apiStatus} coverageMessage={coverageMessage}
+          <ExploreScreen sales={salesInRadius} radiusMi={radiusMi} zip={effectiveZip} apiStatus={apiStatus} coverageMessage={coverageMessage} mapCenter={mapCenter}
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
             setZip={setZip} locating={locating} locationDenied={locationDenied} onRequestLocation={requestLocation}
             onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
