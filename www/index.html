@@ -2719,7 +2719,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
           <ListRow icon={Icon('Ruler',18)} label="Default radius" value={`${radiusMi} mi`} trailing={chev} onClick={()=>openSheet('radius')} />
           <ListRow icon={Icon('Tag',18)} label="Sale types" value={typesLabel} trailing={chev} onClick={()=>openSheet('types')} />
           <ListRow icon={Icon('Sparkles',18)} label="Interests" value={interestsLabel} trailing={chev} onClick={()=>openSheet('interests')} />
-          <ListRow icon={Icon('Navigation',18)} label="Preferred maps app" value={MAPS_APPS.find(a=>a.key===mapsApp)?.label || 'Google Maps'} trailing={chev} onClick={()=>openSheet('mapsApp')} />
+          <ListRow icon={Icon('Navigation',18)} label="Preferred maps app" value={MAPS_APPS.find(a=>a.key===mapsApp)?.label || 'Apple Maps'} trailing={chev} onClick={()=>openSheet('mapsApp')} />
         </Card>
 
         {/* Notifications */}
@@ -3114,8 +3114,14 @@ const MAPS_APPS = [
   { key:'waze',   label:'Waze' },
   { key:'apple',  label:'Apple Maps' },
 ];
+// Defaults to Apple Maps -- it's always present and works natively with no
+// separate app install, unlike Google Maps/Waze, which on a device that
+// doesn't have them installed silently falls back to opening their website
+// in a browser instead of "the native mapping functionality" App Review
+// expects to be reachable out of the box, before a user ever visits the
+// preference in Account settings.
 function getPreferredMapsApp() {
-  try { return localStorage.getItem('rummage_maps_app') || 'google'; } catch (_) { return 'google'; }
+  try { return localStorage.getItem('rummage_maps_app') || 'apple'; } catch (_) { return 'apple'; }
 }
 function setPreferredMapsApp(v) {
   try { localStorage.setItem('rummage_maps_app', v); } catch (_) {}
@@ -3365,7 +3371,7 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
               leadingIcon={Icon('Navigation', 18)}
               style={{ opacity: tripSales.length ? 1 : 0.5 }}
               onClick={() => openExternalUrl(tripSales.length ? buildTripMapsUrl(ordered) : null)}>
-              Open in {MAPS_APPS.find(a => a.key === getPreferredMapsApp())?.label || 'Google Maps'}
+              Open in {MAPS_APPS.find(a => a.key === getPreferredMapsApp())?.label || 'Apple Maps'}
             </Btn>
           </div>
         </div>
