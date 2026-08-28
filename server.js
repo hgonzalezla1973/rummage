@@ -2653,6 +2653,16 @@ async function fetchGoogleListings(zip) {
   return results;
 }
 
+/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review
+   feedback. Re-enable by removing this opening block-comment marker and
+   its matching closing one just before "Vintage store locator" below,
+   then restore the frontend entry point in index.html: the
+   PriceCheckScreen component, its Account -> Tools row, and the
+   page==='pricecheck' route. See memory file price-check-feature for
+   the accuracy work already done and where it was left off (CD-vs-vinyl
+   format disambiguation still unresolved -- Vision has no signal for it
+   on the tested photos).
+
 // ── Price Check (Google Vision + Serper) ────────────────────────────────────
 // Identifies an item from a photo via Vision API's Web Detection (the same
 // reverse-image-search tech behind Google Lens), then runs a real Google
@@ -2845,6 +2855,7 @@ app.post('/api/price-check', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+*/
 
 // ── Vintage store locator (Google Places API) ──────────────────────────────
 // Google has no "thrift_store" / "antique_store" place type, so this leans on
@@ -3998,6 +4009,7 @@ app.listen(PORT, () => {
   console.log(`   Listings: /api/listings?zip=90601&radius=10`);
   console.log(`   Health:   /api/health`);
   console.log(`   Chrome:   ${CHROME_PATH}`);
-  console.log(`   Google:   ${process.env.GOOGLE_API_KEY ? 'configured ✓' : 'not configured (optional)'}`);
-  console.log(`   Serper:   ${process.env.SERPER_API_KEY ? 'configured ✓' : 'not configured (optional -- Price Check needs it)'}\n`);
+  console.log(`   Google:   ${process.env.GOOGLE_API_KEY ? 'configured ✓' : 'not configured (optional)'}\n`);
+  // Price Check (Serper) is disabled -- see the block comment around it in this file.
+  // console.log(`   Serper:   ${process.env.SERPER_API_KEY ? 'configured ✓' : 'not configured (optional -- Price Check needs it)'}\n`);
 });

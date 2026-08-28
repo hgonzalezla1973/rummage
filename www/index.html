@@ -2216,6 +2216,13 @@ function TermsScreen({ onBack }) {
   );
 }
 
+/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review feedback.
+   Re-enable by removing this opening comment marker and its matching
+   closing one just before "Vintage Stores" below, then restore the
+   Account > Tools entry point and the page==='pricecheck' route further
+   down this file. See memory file price-check-feature for the accuracy
+   work already done and where it was left off.
+
 // ── Price Check ───────────────────────────────────────────────────────────────
 // Downscales a photo client-side (long edge capped, re-encoded as JPEG)
 // before it ever reaches the server -- a phone camera photo can be 4-12MB;
@@ -2397,6 +2404,7 @@ function PriceCheckScreen({ onBack }) {
     </div>
   );
 }
+*/
 
 // ── Vintage Stores ────────────────────────────────────────────────────────────
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
@@ -2783,10 +2791,13 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
 
         {/* Vintage Stores access moved to the Explore screen's "Thrift Stores"
             chip, so its Account entry was removed. */}
+        {/* Price Check disabled 2026-08-27 -- see the block comment around
+            PriceCheckScreen for why and how to re-enable.
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Tools</div>
         <Card padded={false}>
           <ListRow first icon={Icon('Camera',18)} label="Price Check" sublabel="Snap a photo, get an estimated value" trailing={chev} onClick={()=>setPage('pricecheck')} />
         </Card>
+        */}
 
         {/* Support */}
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Support</div>
@@ -2999,7 +3010,9 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       {page==='feedback' && <FeedbackScreen onBack={()=>setPage(null)} userEmail={authUser?.email} />}
       {page==='terms'    && <TermsScreen    onBack={()=>setPage(null)} />}
       {page==='privacy'  && <PrivacyScreen  onBack={()=>setPage(null)} />}
+      {/* Price Check disabled 2026-08-27, see PriceCheckScreen's block comment.
       {page==='pricecheck' && <PriceCheckScreen onBack={()=>setPage(null)} />}
+      */}
       {page==='vintagestores' && <VintageStoresScreen onBack={()=>setPage(null)} zip={zip} tripIds={tripIds} onToggleTrip={onToggleTrip} onStoresLoaded={onStoresLoaded} />}
       {digestToast && (
         <div style={{position:'fixed',bottom:100,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',zIndex:100}}>
