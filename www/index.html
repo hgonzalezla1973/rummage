@@ -853,6 +853,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   const clamp = n => Math.max(0, Math.min(total-1, n));
   const zoomed = scale > 1.01;
   const stageRef = useRef(null);
+  const wrapRef = useRef(null);
   const gestureRef = useRef({ lastTapTime: 0 });
 
   useEffect(() => {
@@ -894,6 +895,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   };
 
   const onTouchStart = e => {
+    e.preventDefault();
     const g = gestureRef.current;
     if (e.touches.length === 2) {
       g.pinching = true; g.panning = false;
@@ -922,6 +924,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   };
 
   const onTouchMove = e => {
+    e.preventDefault();
     const g = gestureRef.current;
     if (g.pinching && e.touches.length === 2) {
       const newDist = dist(e.touches[0], e.touches[1]);
@@ -965,6 +968,36 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
     setDragStart(null); setDragDelta(0);
   };
 
+  // Attached natively with {passive:false} instead of as onTouchStart/Move/End
+  // JSX props -- React registers touch listeners as passive by default, which
+  // makes preventDefault() inside them a silent no-op. That's fine on desktop
+  // Chromium (which is all any of this was tested against), but real iOS
+  // WKWebView doesn't fully honor touch-action:none for its own native pinch
+  // gesture either -- without a real preventDefault() actually taking effect,
+  // pinch/pan here did nothing at all on a real device despite working
+  // correctly in every simulated/headless test. handlersRef holds the latest
+  // closures (re-synced every render) so this one-time listener attachment
+  // still sees current scale/tx/ty/etc. instead of stale values from mount.
+  const handlersRef = useRef({});
+  handlersRef.current = { onTouchStart, onTouchMove, onTouchEnd };
+  useEffect(() => {
+    const el = wrapRef.current;
+    if (!el) return;
+    const start = e => handlersRef.current.onTouchStart(e);
+    const move  = e => handlersRef.current.onTouchMove(e);
+    const end   = e => handlersRef.current.onTouchEnd(e);
+    el.addEventListener('touchstart', start, { passive: false });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end, { passive: false });
+    el.addEventListener('touchcancel', end, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', start);
+      el.removeEventListener('touchmove', move);
+      el.removeEventListener('touchend', end);
+      el.removeEventListener('touchcancel', end);
+    };
+  }, []);
+
   return (
     <div style={{position:'absolute',inset:0,zIndex:200,background:'rgba(10,9,7,.97)',display:'flex',flexDirection:'column'}}>
       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'var(--safe-top) 14px 0',flexShrink:0}}>
@@ -980,8 +1013,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
           </button>
         </div>
       </div>
-      <div style={{flex:1,position:'relative',overflow:'hidden',touchAction:'none'}}
-        onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
+      <div ref={wrapRef} style={{flex:1,position:'relative',overflow:'hidden',touchAction:'none'}}>
         <div style={{display:'flex',width:total*100+'%',height:'100%',
           transform:'translateX(calc('+(-idx*(100/total))+'% + '+(zoomed?0:dragDelta/total)+'px))',
           transition:dragStart!=null?'none':'transform .32s var(--ease-out)'}}>
