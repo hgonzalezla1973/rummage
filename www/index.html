@@ -2253,18 +2253,13 @@ function TermsScreen({ onBack }) {
   );
 }
 
-/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review feedback.
-   Re-enable by removing this opening comment marker and its matching
-   closing one just before "Vintage Stores" below, then restore the
-   Account > Tools entry point and the page==='pricecheck' route further
-   down this file. See memory file price-check-feature for the accuracy
-   work already done and where it was left off.
-
-// ── Price Check ───────────────────────────────────────────────────────────────
-// Downscales a photo client-side (long edge capped, re-encoded as JPEG)
-// before it ever reaches the server -- a phone camera photo can be 4-12MB;
-// nothing about identifying an item needs that resolution, and keeping the
-// upload small matters more on mobile data than the quality difference.
+// Downscales a photo client-side (long edge capped, re-encoded as JPEG) --
+// a phone camera photo can be 4-12MB, and keeping the upload small matters
+// on mobile data. Originally written for Price Check but also used by
+// ListScreen's photo picker -- shared, so it stays defined here, outside
+// the Price Check block disabled below, rather than getting disabled along
+// with it (that exact mistake briefly broke ListScreen's photo upload with
+// a ReferenceError after Price Check was first shelved).
 function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -2287,6 +2282,14 @@ function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
   });
 }
 
+/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review feedback.
+   Re-enable by removing this opening comment marker and its matching
+   closing one just before "Vintage Stores" below, then restore the
+   Account > Tools entry point and the page==='pricecheck' route further
+   down this file. See memory file price-check-feature for the accuracy
+   work already done and where it was left off.
+
+// ── Price Check ───────────────────────────────────────────────────────────────
 function PriceCheckScreen({ onBack }) {
   const [photo, setPhoto]           = useState(null); // data URL, downscaled
   const [identifying, setIdentifying] = useState(false);
