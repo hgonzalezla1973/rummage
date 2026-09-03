@@ -3915,6 +3915,7 @@ function ListScreen({ onPublish }) {
   const [photoError, setPhotoError] = useState(null);
   const { isLandscape } = useViewport();
 
+  // Replaces the photo already sitting in slot `idx` (re-picking an existing tile).
   const handleFile = (e, idx) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-picking the same file after an error
@@ -3925,6 +3926,21 @@ function ListScreen({ onPublish }) {
     }).catch(() => {
       // Most likely cause: a HEIC/HEIF photo on a browser that can't decode
       // it client-side (Safari/iOS can; desktop Chrome and Firefox can't).
+      setPhotoError("Couldn't read that photo — if it's a HEIC/HEIF file, try converting it to JPEG first, or use a different photo.");
+    });
+  };
+
+  // Appends a new photo via the trailing "Add photo" tile — the grid has no
+  // fixed slot count, so this just grows the array by one instead of writing
+  // into a preallocated index.
+  const handleAddFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoError(null);
+    downscalePhoto(file).then(dataUrl => {
+      setPhotos(prev => [...prev, dataUrl]);
+    }).catch(() => {
       setPhotoError("Couldn't read that photo — if it's a HEIC/HEIF file, try converting it to JPEG first, or use a different photo.");
     });
   };
@@ -4166,7 +4182,7 @@ function ListScreen({ onPublish }) {
           <div>
             <div className="rmg-eyebrow" style={{marginBottom:10}}>
               Photos
-              <span style={{textTransform:'none',fontWeight:400,letterSpacing:0,fontSize:12,color:'var(--text-faint)',marginLeft:6}}>optional — up to 12</span>
+              <span style={{textTransform:'none',fontWeight:400,letterSpacing:0,fontSize:12,color:'var(--text-faint)',marginLeft:6}}>optional — add as many as you'd like</span>
             </div>
             {photoError && (
               <div style={{display:'flex',alignItems:'flex-start',gap:8,background:'var(--amber-bg)',borderRadius:'var(--radius-lg)',padding:'10px 12px',marginBottom:10}}>
@@ -4174,30 +4190,35 @@ function ListScreen({ onPublish }) {
                 <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--amber-600)',lineHeight:1.4}}>{photoError}</span>
               </div>
             )}
+            {/* No fixed slot count — one tile per photo already added, plus a
+                trailing "Add photo" tile that grows the grid by one each time
+                it's used. Replaces the old hardcoded 12-slot grid. */}
             <div style={{display:'grid',gridTemplateColumns:isLandscape?'repeat(auto-fill,minmax(100px,1fr))':'1fr 1fr 1fr',gap:10}}>
-              {Array.from({length:12},(_,i)=>i).map(idx=>(
+              {photos.map((src, idx)=>(
                 <label key={idx} htmlFor={`rmg-photo-${idx}`} style={{
                   aspectRatio:'4/3',borderRadius:'var(--radius-lg)',overflow:'hidden',
-                  background:photos[idx]?'transparent':'var(--surface-sunken)',
-                  border:`1.5px dashed ${photos[idx]?'transparent':'var(--border-strong)'}`,
+                  background:'transparent',border:'1.5px dashed transparent',
                   display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative',
                 }}>
-                  {photos[idx]
-                    ? <>
-                        <img src={photos[idx]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-                        <span style={{position:'absolute',top:5,right:5,width:20,height:20,borderRadius:'50%',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center'}}
-                          onClick={e=>{e.preventDefault();setPhotos(p=>{const n=[...p];n[idx]=null;return n;});}}>
-                          {Icon('X',11,{stroke:'#fff',sw:2.5})}
-                        </span>
-                      </>
-                    : <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,color:'var(--text-faint)'}}>
-                        {Icon('ImagePlus',26,{stroke:'currentColor'})}
-                        <span style={{fontFamily:'var(--font-sans)',fontSize:11,fontWeight:500}}>{idx===0?'Cover photo':'Add photo'}</span>
-                      </div>
-                  }
+                  <img src={src} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                  <span style={{position:'absolute',top:5,right:5,width:20,height:20,borderRadius:'50%',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center'}}
+                    onClick={e=>{e.preventDefault();setPhotos(p=>p.filter((_,i)=>i!==idx));}}>
+                    {Icon('X',11,{stroke:'#fff',sw:2.5})}
+                  </span>
                   <input id={`rmg-photo-${idx}`} type="file" accept="image/*" style={{display:'none'}} onChange={e=>handleFile(e,idx)} />
                 </label>
               ))}
+              <label htmlFor="rmg-photo-add" style={{
+                aspectRatio:'4/3',borderRadius:'var(--radius-lg)',overflow:'hidden',
+                background:'var(--surface-sunken)',border:'1.5px dashed var(--border-strong)',
+                display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative',
+              }}>
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,color:'var(--text-faint)'}}>
+                  {Icon('ImagePlus',26,{stroke:'currentColor'})}
+                  <span style={{fontFamily:'var(--font-sans)',fontSize:11,fontWeight:500}}>{photos.length===0?'Cover photo':'Add photo'}</span>
+                </div>
+                <input id="rmg-photo-add" type="file" accept="image/*" style={{display:'none'}} onChange={handleAddFile} />
+              </label>
             </div>
           </div>
 
