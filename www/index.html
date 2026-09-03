@@ -863,7 +863,10 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   }, []);
 
   const resetZoom = () => { setScale(1); setTx(0); setTy(0); };
-  useEffect(() => { resetZoom(); }, [idx]);
+  // useLayoutEffect (not useEffect) so this runs before the browser paints the
+  // newly-active photo, not after -- otherwise the new photo can render for one
+  // frame with the previous photo's leftover zoom/pan transform still applied.
+  React.useLayoutEffect(() => { resetZoom(); }, [idx]);
 
   // Keep the zoomed-in image from panning past its own edges.
   const clampPan = (nx, ny, s) => {
@@ -960,7 +963,13 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
       return;
     }
     if (e.touches.length > 0) return;
-    if (g.pinching && scale < MIN_SCALE + 0.05) resetZoom();
+    // Snap fully back to baseline whenever a gesture ends near 1x zoom -- not just
+    // when the gesture's last phase was still a pinch. A common real sequence is
+    // pinch, lift one finger (which hands off to single-finger panning), then lift
+    // the last finger; by then g.pinching is already false, so gating this reset on
+    // it left scale/tx/ty stuck at a barely-zoomed, non-baseline value that could
+    // carry into the next photo swipe instead of resetting cleanly.
+    if (scale < MIN_SCALE + 0.05) resetZoom();
     g.pinching = false; g.panning = false;
     if (dragStart != null && !zoomed && Math.abs(dragDelta) > 60) {
       setIdx(i => clamp(i + (dragDelta<0?1:-1)));
@@ -2253,18 +2262,13 @@ function TermsScreen({ onBack }) {
   );
 }
 
-/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review feedback.
-   Re-enable by removing this opening comment marker and its matching
-   closing one just before "Vintage Stores" below, then restore the
-   Account > Tools entry point and the page==='pricecheck' route further
-   down this file. See memory file price-check-feature for the accuracy
-   work already done and where it was left off.
-
-// ── Price Check ───────────────────────────────────────────────────────────────
-// Downscales a photo client-side (long edge capped, re-encoded as JPEG)
-// before it ever reaches the server -- a phone camera photo can be 4-12MB;
-// nothing about identifying an item needs that resolution, and keeping the
-// upload small matters more on mobile data than the quality difference.
+// Downscales a photo client-side (long edge capped, re-encoded as JPEG) --
+// a phone camera photo can be 4-12MB, and keeping the upload small matters
+// on mobile data. Originally written for Price Check but also used by
+// ListScreen's photo picker -- shared, so it stays defined here, outside
+// the Price Check block disabled below, rather than getting disabled along
+// with it (that exact mistake briefly broke ListScreen's photo upload with
+// a ReferenceError after Price Check was first shelved).
 function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -2287,6 +2291,14 @@ function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
   });
 }
 
+/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review feedback.
+   Re-enable by removing this opening comment marker and its matching
+   closing one just before "Vintage Stores" below, then restore the
+   Account > Tools entry point and the page==='pricecheck' route further
+   down this file. See memory file price-check-feature for the accuracy
+   work already done and where it was left off.
+
+// ── Price Check ───────────────────────────────────────────────────────────────
 function PriceCheckScreen({ onBack }) {
   const [photo, setPhoto]           = useState(null); // data URL, downscaled
   const [identifying, setIdentifying] = useState(false);
@@ -3912,6 +3924,7 @@ function ListScreen({ onPublish }) {
   const [photoError, setPhotoError] = useState(null);
   const { isLandscape } = useViewport();
 
+  // Replaces the photo already sitting in slot `idx` (re-picking an existing tile).
   const handleFile = (e, idx) => {
     const file = e.target.files?.[0];
     e.target.value = ''; // allow re-picking the same file after an error
@@ -3922,6 +3935,21 @@ function ListScreen({ onPublish }) {
     }).catch(() => {
       // Most likely cause: a HEIC/HEIF photo on a browser that can't decode
       // it client-side (Safari/iOS can; desktop Chrome and Firefox can't).
+      setPhotoError("Couldn't read that photo — if it's a HEIC/HEIF file, try converting it to JPEG first, or use a different photo.");
+    });
+  };
+
+  // Appends a new photo via the trailing "Add photo" tile — the grid has no
+  // fixed slot count, so this just grows the array by one instead of writing
+  // into a preallocated index.
+  const handleAddFile = (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setPhotoError(null);
+    downscalePhoto(file).then(dataUrl => {
+      setPhotos(prev => [...prev, dataUrl]);
+    }).catch(() => {
       setPhotoError("Couldn't read that photo — if it's a HEIC/HEIF file, try converting it to JPEG first, or use a different photo.");
     });
   };
@@ -4163,7 +4191,7 @@ function ListScreen({ onPublish }) {
           <div>
             <div className="rmg-eyebrow" style={{marginBottom:10}}>
               Photos
-              <span style={{textTransform:'none',fontWeight:400,letterSpacing:0,fontSize:12,color:'var(--text-faint)',marginLeft:6}}>optional — up to 12</span>
+              <span style={{textTransform:'none',fontWeight:400,letterSpacing:0,fontSize:12,color:'var(--text-faint)',marginLeft:6}}>optional — add as many as you'd like</span>
             </div>
             {photoError && (
               <div style={{display:'flex',alignItems:'flex-start',gap:8,background:'var(--amber-bg)',borderRadius:'var(--radius-lg)',padding:'10px 12px',marginBottom:10}}>
@@ -4171,30 +4199,35 @@ function ListScreen({ onPublish }) {
                 <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--amber-600)',lineHeight:1.4}}>{photoError}</span>
               </div>
             )}
+            {/* No fixed slot count — one tile per photo already added, plus a
+                trailing "Add photo" tile that grows the grid by one each time
+                it's used. Replaces the old hardcoded 12-slot grid. */}
             <div style={{display:'grid',gridTemplateColumns:isLandscape?'repeat(auto-fill,minmax(100px,1fr))':'1fr 1fr 1fr',gap:10}}>
-              {Array.from({length:12},(_,i)=>i).map(idx=>(
+              {photos.map((src, idx)=>(
                 <label key={idx} htmlFor={`rmg-photo-${idx}`} style={{
                   aspectRatio:'4/3',borderRadius:'var(--radius-lg)',overflow:'hidden',
-                  background:photos[idx]?'transparent':'var(--surface-sunken)',
-                  border:`1.5px dashed ${photos[idx]?'transparent':'var(--border-strong)'}`,
+                  background:'transparent',border:'1.5px dashed transparent',
                   display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative',
                 }}>
-                  {photos[idx]
-                    ? <>
-                        <img src={photos[idx]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-                        <span style={{position:'absolute',top:5,right:5,width:20,height:20,borderRadius:'50%',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center'}}
-                          onClick={e=>{e.preventDefault();setPhotos(p=>{const n=[...p];n[idx]=null;return n;});}}>
-                          {Icon('X',11,{stroke:'#fff',sw:2.5})}
-                        </span>
-                      </>
-                    : <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,color:'var(--text-faint)'}}>
-                        {Icon('ImagePlus',26,{stroke:'currentColor'})}
-                        <span style={{fontFamily:'var(--font-sans)',fontSize:11,fontWeight:500}}>{idx===0?'Cover photo':'Add photo'}</span>
-                      </div>
-                  }
+                  <img src={src} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                  <span style={{position:'absolute',top:5,right:5,width:20,height:20,borderRadius:'50%',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center'}}
+                    onClick={e=>{e.preventDefault();setPhotos(p=>p.filter((_,i)=>i!==idx));}}>
+                    {Icon('X',11,{stroke:'#fff',sw:2.5})}
+                  </span>
                   <input id={`rmg-photo-${idx}`} type="file" accept="image/*" style={{display:'none'}} onChange={e=>handleFile(e,idx)} />
                 </label>
               ))}
+              <label htmlFor="rmg-photo-add" style={{
+                aspectRatio:'4/3',borderRadius:'var(--radius-lg)',overflow:'hidden',
+                background:'var(--surface-sunken)',border:'1.5px dashed var(--border-strong)',
+                display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative',
+              }}>
+                <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:6,color:'var(--text-faint)'}}>
+                  {Icon('ImagePlus',26,{stroke:'currentColor'})}
+                  <span style={{fontFamily:'var(--font-sans)',fontSize:11,fontWeight:500}}>{photos.length===0?'Cover photo':'Add photo'}</span>
+                </div>
+                <input id="rmg-photo-add" type="file" accept="image/*" style={{display:'none'}} onChange={handleAddFile} />
+              </label>
             </div>
           </div>
 
