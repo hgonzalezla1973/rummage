@@ -863,7 +863,10 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   }, []);
 
   const resetZoom = () => { setScale(1); setTx(0); setTy(0); };
-  useEffect(() => { resetZoom(); }, [idx]);
+  // useLayoutEffect (not useEffect) so this runs before the browser paints the
+  // newly-active photo, not after -- otherwise the new photo can render for one
+  // frame with the previous photo's leftover zoom/pan transform still applied.
+  React.useLayoutEffect(() => { resetZoom(); }, [idx]);
 
   // Keep the zoomed-in image from panning past its own edges.
   const clampPan = (nx, ny, s) => {
@@ -960,7 +963,13 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
       return;
     }
     if (e.touches.length > 0) return;
-    if (g.pinching && scale < MIN_SCALE + 0.05) resetZoom();
+    // Snap fully back to baseline whenever a gesture ends near 1x zoom -- not just
+    // when the gesture's last phase was still a pinch. A common real sequence is
+    // pinch, lift one finger (which hands off to single-finger panning), then lift
+    // the last finger; by then g.pinching is already false, so gating this reset on
+    // it left scale/tx/ty stuck at a barely-zoomed, non-baseline value that could
+    // carry into the next photo swipe instead of resetting cleanly.
+    if (scale < MIN_SCALE + 0.05) resetZoom();
     g.pinching = false; g.panning = false;
     if (dragStart != null && !zoomed && Math.abs(dragDelta) > 60) {
       setIdx(i => clamp(i + (dragDelta<0?1:-1)));
