@@ -2976,6 +2976,177 @@ const withCeiling = (promise, ms, label) => {
   return Promise.race([promise, ceiling]).finally(() => clearTimeout(timer));
 };
 
+// ── Cross-source de-duplication ────────────────────────────────────────────────
+// The same physical sale routinely comes back from several sources at once —
+// the estate-sale syndication feed alone powers five of our scrapers — and each
+// site words the title its own way, geocodes it a little differently, and
+// carries a different subset of photos and dates. This collapses those copies
+// into one card: it groups listings that are clearly the same real-world sale,
+// then reduces each group to a single record built from the best fields across
+// the group (richest photo set, a real street address, a parsed date, etc.).
+//
+// Every grouping rule also requires physical proximity, so two genuinely
+// different "Garage Sale" listings on opposite sides of the search radius are
+// never merged just for sharing a generic name.
+
+// Words that carry no identifying signal — nearly every sale title has them, so
+// they must not count toward "these two titles describe the same sale."
+const TITLE_STOPWORDS = new Set([
+  'sale','sales','estate','yard','garage','moving','rummage','tag','barn','block',
+  'multi','multifamily','family','huge','big','giant','massive','mega','the','and',
+  'for','with','sat','sun','saturday','sunday','fri','friday','mon','monday','tue',
+  'tues','tuesday','wed','wednesday','thu','thur','thurs','thursday','today',
+  'tomorrow','weekend','week','day','days','this','off','everything','must','all',
+  'new','more','plus','now','open','com','www','http','https','sale!','get','see',
+  'jan','feb','mar','apr','may','jun','jul','aug','sep','sept','oct','nov','dec',
+  'january','february','march','april','june','july','august','september',
+  'october','november','december',
+]);
+
+function titleTokens(title) {
+  return new Set(
+    (title || '')
+      .toLowerCase()
+      .replace(/&#?\w+;/g, ' ')          // stray un-decoded HTML entities
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length >= 3 && !/^\d+$/.test(w) && !TITLE_STOPWORDS.has(w))
+  );
+}
+
+// Sørensen–Dice overlap of two token sets: 0 (nothing shared) … 1 (identical).
+function tokenSimilarity(a, b) {
+  if (!a.size || !b.size) return 0;
+  let shared = 0;
+  for (const t of a) if (b.has(t)) shared++;
+  return (2 * shared) / (a.size + b.size);
+}
+
+// Leading "<house number> <street>" of an address, normalized to a canonical
+// form so "1234 Elm St" and "1234 Elm Street" collide but "1234 Elm Ave"
+// doesn't. Returns '' when the address is only a city/neighborhood — those are
+// far too coarse to treat as a same-sale signal on their own.
+function addressKey(address) {
+  let head = (address || '').split(/,|\bnear\b|\bat\b/i)[0].toLowerCase().trim();
+  if (!/^\d/.test(head)) return '';
+  head = head.replace(/\b(?:apt|apartment|unit|ste|suite|no|#)\s*\.?\s*[\w-]+$/, '').trim();
+  head = head
+    .replace(/\bstreet\b/g, 'st').replace(/\bavenue\b/g, 'ave').replace(/\bboulevard\b/g, 'blvd')
+    .replace(/\bdrive\b/g, 'dr').replace(/\broad\b/g, 'rd').replace(/\blane\b/g, 'ln')
+    .replace(/\bcourt\b/g, 'ct').replace(/\bplace\b/g, 'pl').replace(/\bcircle\b/g, 'cir')
+    .replace(/\bparkway\b/g, 'pkwy').replace(/\bhighway\b/g, 'hwy').replace(/\bterrace\b/g, 'ter')
+    .replace(/\bnorth\b/g, 'n').replace(/\bsouth\b/g, 's').replace(/\beast\b/g, 'e').replace(/\bwest\b/g, 'w');
+  return head.replace(/[^a-z0-9]/g, '');
+}
+
+// Which copy's identity (id + url) a merged card keeps: dedicated sale-listing
+// sites first (stable pages, real addresses), generic marketplaces last.
+const SOURCE_RANK = {
+  estatesales: 1, estatesalesnet: 2, estatesalecom: 3, gsalr: 4,
+  yardsalesearch: 5, garagesalefinder: 6, craigslist: 7, offerup: 8,
+  facebook: 9, google: 10,
+};
+const sourceRank = s => SOURCE_RANK[s] || 99;
+
+function dedupeListings(listings) {
+  const MERGE_RADIUS_ADDR = 3;   // mi — same street address, allowing geocode drift
+  const MERGE_RADIUS_TITLE = 12;  // mi — distinctive title match
+  const MERGE_RADIUS_TIGHT = 1;   // mi — generic/near-identical title match
+  const GROUP_CAP = 8;            // stop title-merging into an already-large group
+
+  const groups = [];              // { members, tokens:Set, addrKey, lat, lng, type }
+  const byId = new Map();         // exact listing id -> its group
+
+  for (const l of listings) {
+    const tokens = titleTokens(l.title);
+    const normTitle = (l.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const aKey = addressKey(l.address);
+    const hasCoords = l.lat != null && l.lng != null;
+
+    let g = l.id ? byId.get(l.id) : null;
+
+    if (!g) {
+      for (const cand of groups) {
+        // (a) same real street address, close enough to be the same spot
+        if (aKey && aKey === cand.addrKey &&
+            (!hasCoords || cand.lat == null ||
+             distanceMiles(l.lat, l.lng, cand.lat, cand.lng) <= MERGE_RADIUS_ADDR)) {
+          g = cand; break;
+        }
+        // (b) same title, near each other, same sale type
+        if (hasCoords && cand.lat != null && cand.members.length < GROUP_CAP && l.type === cand.type) {
+          const dist = distanceMiles(l.lat, l.lng, cand.lat, cand.lng);
+          if (tokens.size && cand.tokens.size) {
+            const sim = tokenSimilarity(tokens, cand.tokens);
+            const [small, big] = tokens.size <= cand.tokens.size
+              ? [tokens, cand.tokens] : [cand.tokens, tokens];
+            const contained = small.size >= 2 && [...small].every(t => big.has(t));
+            const distinctive = tokens.size >= 3 && cand.tokens.size >= 3;
+            if ((distinctive && sim >= 0.55 && dist <= MERGE_RADIUS_TITLE) ||
+                (contained && dist <= MERGE_RADIUS_ADDR) ||
+                (sim >= 0.8 && dist <= MERGE_RADIUS_TIGHT)) {
+              g = cand; break;
+            }
+          } else if (!tokens.size && !cand.tokens.size &&
+                     normTitle && cand.normTitles.has(normTitle) && dist <= MERGE_RADIUS_TIGHT) {
+            // Both titles are fully generic ("Yard Sale" — nothing left after
+            // dropping filler words). Only merge on an identical normalized
+            // title within a very tight radius; anything looser would fold
+            // together the many unrelated "Garage Sale" posts in a dense area.
+            g = cand; break;
+          }
+        }
+      }
+    }
+
+    if (!g) {
+      g = { members: [], tokens: new Set(), normTitles: new Set(), addrKey: '', lat: null, lng: null, type: l.type };
+      groups.push(g);
+    }
+
+    g.members.push(l);
+    if (l.id) byId.set(l.id, g);
+    for (const t of tokens) g.tokens.add(t);
+    if (normTitle) g.normTitles.add(normTitle);
+    if (!g.addrKey && aKey) g.addrKey = aKey;
+    if (g.lat == null && hasCoords) { g.lat = l.lat; g.lng = l.lng; }
+  }
+
+  return groups.map(g => {
+    if (g.members.length === 1) return g.members[0];
+
+    // Deterministic primary (best-trusted source, then smallest id) so a
+    // saved sale keeps the same id run to run regardless of which copies a
+    // given scrape happened to return.
+    const primary = [...g.members].sort((a, b) =>
+      sourceRank(a.source) - sourceRank(b.source) ||
+      String(a.id).localeCompare(String(b.id))
+    )[0];
+    const out = { ...primary };
+
+    const richest = g.members.reduce(
+      (m, x) => (x.images?.length || 0) > (m.images?.length || 0) ? x : m, primary);
+    if (richest.images?.length) { out.images = richest.images; out.photoCount = richest.images.length; }
+
+    const hasStreet = a => a && /\d/.test(a) && a !== 'Nearby';
+    for (const m of g.members) {
+      if (m === primary) continue;
+      if (!hasStreet(out.address) && hasStreet(m.address)) out.address = m.address;
+      else if ((!out.address || out.address === 'Nearby') && m.address) out.address = m.address;
+      if (!out.dateLabel && m.dateLabel) out.dateLabel = m.dateLabel;
+      if (!out.timeLabel && m.timeLabel) out.timeLabel = m.timeLabel;
+      if (!out.price && m.price) out.price = m.price;
+      if ((out.lat == null || out.lng == null) && m.lat != null) { out.lat = m.lat; out.lng = m.lng; out.x = m.x; out.y = m.y; }
+      if ((!out.items || !out.items.length) && m.items?.length) out.items = m.items;
+      if (!out.blurb && m.blurb) out.blurb = m.blurb;
+      if ((!out.neighborhood || out.neighborhood === 'Nearby') && m.neighborhood && m.neighborhood !== 'Nearby') {
+        out.neighborhood = m.neighborhood;
+      }
+    }
+    return out;
+  });
+}
+
 // Does the actual scrape-all-sources-and-dedupe work, with no caching logic
 // of its own beyond writing its own result back at the end -- the wrapper
 // above is what decides when to call this versus serve from cache.
@@ -3033,80 +3204,14 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
     .map(l => ({ ...l, title: decodeHtmlEntities(l.title), address: decodeHtmlEntities(l.address), neighborhood: decodeHtmlEntities(l.neighborhood) }));
 
   // EstateSales.org, EstateSales.net, YardSaleSearch, GarageSaleFinder, and
-  // GSALR often share the same underlying estate-sale syndication feed, so
-  // the exact same physical sale can come back from several of them at once
-  // — but each site geocodes it slightly differently, sometimes a couple
-  // miles apart, so exact-coordinate matching missed a lot of these.
-  //
-  // Two different dedup strategies, because a generic title ("Yard sale",
-  // "Garage sale") legitimately belongs to many different real sales spread
-  // across the whole radius — those must NOT be merged just for being
-  // nearby. A long, distinctive title ("RPV Mid Century Home Trust Sale!")
-  // essentially never coincides by chance, so an exact match within a
-  // generous radius is almost certainly the same sale re-geocoded slightly
-  // differently by each source.
-  const distinctiveGroups = []; // [{ title, lat, lng, listing }]
-  const bucketGroups = new Map();
-  const DISTINCTIVE_MIN_LEN = 16;
-  const DISTINCTIVE_MERGE_RADIUS_MI = 15;
-
-  for (const listing of combined) {
-    const normTitle = (listing.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const isDistinctive = normTitle.length >= DISTINCTIVE_MIN_LEN && listing.lat != null && listing.lng != null;
-
-    if (isDistinctive) {
-      const match = distinctiveGroups.find(g =>
-        g.title === normTitle && distanceMiles(g.lat, g.lng, listing.lat, listing.lng) <= DISTINCTIVE_MERGE_RADIUS_MI
-      );
-      if (match) {
-        if ((listing.images?.length || 0) > (match.listing.images?.length || 0)) match.listing = listing;
-        continue;
-      }
-      distinctiveGroups.push({ title: normTitle, lat: listing.lat, lng: listing.lng, listing });
-      continue;
-    }
-
-    const latKey = listing.lat != null ? listing.lat.toFixed(2) : '?';
-    const lngKey = listing.lng != null ? listing.lng.toFixed(2) : '?';
-    const key = `${normTitle.slice(0, 30)}|${latKey},${lngKey}`;
-    const existing = bucketGroups.get(key);
-    if (!existing || (listing.images?.length || 0) > (existing.images?.length || 0)) {
-      bucketGroups.set(key, listing);
-    }
-  }
-  const titleDeduped = [...distinctiveGroups.map(g => g.listing), ...bucketGroups.values()];
-
-  // Same physical sale can still slip through with two different marketing
-  // taglines per source ("BIG La Mirada Estate Sale" vs "Sunday 50% Off! ...
-  // Big La Mirada Estate Sale") — titles differ too much for the checks
-  // above, but a real street address (a number + street name, not just a
-  // bare city) is a much stronger signal of the same sale nearby.
-  const STREET_ADDR_RE = /^\s*\d+[\s,]/; // starts with a street number
-  const ADDRESS_MERGE_RADIUS_MI = 3;
-  const addressGroups = []; // [{ addr, lat, lng, listing }]
-  const all = [];
-  for (const listing of titleDeduped) {
-    // Sources append different suffixes after the street address ("near Elm
-    // St" vs ", City Name"), so only compare the leading number+street-name
-    // segment rather than the whole string.
-    const addrHead = (listing.address || '').split(/,|\bnear\b/i)[0];
-    const addr = addrHead.toLowerCase().replace(/[^a-z0-9]/g, '');
-    const hasStreetAddr = STREET_ADDR_RE.test(listing.address || '') && listing.lat != null && listing.lng != null;
-
-    if (hasStreetAddr) {
-      const match = addressGroups.find(g =>
-        g.addr === addr && distanceMiles(g.lat, g.lng, listing.lat, listing.lng) <= ADDRESS_MERGE_RADIUS_MI
-      );
-      if (match) {
-        if ((listing.images?.length || 0) > (match.listing.images?.length || 0)) match.listing = listing;
-        continue;
-      }
-      addressGroups.push({ addr, lat: listing.lat, lng: listing.lng, listing });
-      continue;
-    }
-    all.push(listing);
-  }
-  all.push(...addressGroups.map(g => g.listing));
+  // GSALR often share the same underlying estate-sale syndication feed, so the
+  // exact same physical sale comes back from several of them at once — each
+  // with its own title wording, its own slightly-off geocode, and a different
+  // subset of photos/dates. Craigslist cross-posts and our two EstateSales
+  // code paths add still more copies. dedupeListings collapses all of that to
+  // one card, keeping the richest fields across the duplicates. See the helper
+  // for how it decides two listings are the same sale.
+  const all = dedupeListings(combined);
   console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length}`);
 
   toCache(cacheKey, all);
@@ -3874,10 +3979,10 @@ app.get('/api/digest-preview', async (req, res) => {
 // notified about," independent of `id` -- YardSaleSearch/GarageSaleFinder/
 // GSALR fall back to a position-dependent id (`${lat}-${lng}-${results.length}`)
 // when their source has no real numeric id, so the same sale can get a
-// different id string between scrape runs. Reuses the exact normalized-title
-// + rounded-lat/lng technique the existing cross-source dedup pass already
-// uses successfully for the same underlying problem (see the dedup block
-// around "distinctiveGroups"/"bucketGroups" above).
+// different id string between scrape runs. Uses a coarse normalized-title +
+// rounded-lat/lng key — deliberately simpler and looser than the cross-source
+// dedupeListings pass above, since here a false match only suppresses one
+// push notification rather than hiding a listing.
 function noveltyKey(listing) {
   const normTitle = (listing.title || '').toLowerCase().replace(/[^a-z0-9]/g, '');
   const latKey = listing.lat != null ? listing.lat.toFixed(2) : '?';
