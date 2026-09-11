@@ -637,17 +637,29 @@ const TYPE_COLOR_HEX = {
   estate:'#2C4A7C', yard:'#3F5E3A', moving:'#8A5A12',
 };
 
-function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-118.0328, zoom=13, interactive=true }) {
+function RealMap({ sales, selectedId, onSelect, centerLat, centerLng, zoom=13, interactive=true }) {
   const containerRef = useRef(null);
   const mapRef       = useRef(null);
   const markersRef   = useRef({});
+  // centerLat/centerLng come from the real geocoded search location (or a
+  // specific sale's coords) -- when they're not known yet (still loading,
+  // or geocoding failed), there's no honest "here" to show. A hardcoded
+  // lat/lng used to fill in here, which silently planted the blue
+  // "you are here" dot on the developer's own hometown for every user this
+  // happened to -- same mistake as the ZIP fallback removed elsewhere in
+  // this file, just harder to notice since it's a map instead of a ZIP.
+  const hasCenter = Number.isFinite(centerLat) && Number.isFinite(centerLng);
 
   // Init map once on mount
   useEffect(() => {
     const L = window.L;
     if (!L || !containerRef.current || mapRef.current) return;
     const map = L.map(containerRef.current, {
-      center: [centerLat, centerLng], zoom,
+      // No known center yet -- open on a wide, neutral view instead of
+      // implying a specific location; fitBounds (below) takes over the
+      // instant real sale pins or a real center show up.
+      center: hasCenter ? [centerLat, centerLng] : [39.8283, -98.5795],
+      zoom: hasCenter ? zoom : 3,
       zoomControl: false, attributionControl: false,
       scrollWheelZoom: interactive, dragging: interactive,
       touchZoom: interactive, doubleClickZoom: interactive,
@@ -662,11 +674,9 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       { maxZoom: 19, subdomains: 'abc' }
     ).addTo(map);
     if (interactive) L.control.zoom({ position: 'bottomright' }).addTo(map);
-    // Blue user-location dot at center
-    L.circleMarker([centerLat, centerLng], {
-      radius: 7, fillColor: '#3B82F6', fillOpacity: 1,
-      color: '#fff', weight: 2.5,
-    }).addTo(map);
+    // Blue user-location dot is added by the effect below (it also has to
+    // handle the center arriving after mount, so both cases live in one
+    // place instead of two).
     mapRef.current = map;
     return () => { map.remove(); mapRef.current = null; };
   }, []);
@@ -715,10 +725,30 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       // Nothing selected — fit the view so every pin is visible at once,
       // instead of opening at a fixed zoom/center that can leave most of a
       // wide-radius search off-screen.
-      const bounds = L.latLngBounds([...points, [centerLat, centerLng]]);
+      const bounds = L.latLngBounds(hasCenter ? [...points, [centerLat, centerLng]] : points);
       map.fitBounds(bounds, { padding: [48, 48], maxZoom: 15 });
     }
   }, [sales, selectedId]);
+
+  // Blue "you are here" dot, added/moved whenever a real center is known.
+  // Handled here rather than in the mount effect above because on the
+  // Explore map the real center often resolves a moment after mount
+  // (geocoding the search ZIP is async) -- this reacts to it arriving late
+  // instead of leaving the dot missing for the rest of the map's lifetime.
+  const dotRef = useRef(null);
+  useEffect(() => {
+    const L = window.L;
+    const map = mapRef.current;
+    if (!L || !map || !hasCenter) return;
+    if (dotRef.current) dotRef.current.setLatLng([centerLat, centerLng]);
+    else {
+      dotRef.current = L.circleMarker([centerLat, centerLng], {
+        radius: 7, fillColor: '#3B82F6', fillOpacity: 1,
+        color: '#fff', weight: 2.5,
+      }).addTo(map);
+      if (!sales.some(s => s.lat != null && s.lng != null)) map.setView([centerLat, centerLng], zoom);
+    }
+  }, [centerLat, centerLng]);
 
   if (!window.L) return <FauxMap sales={sales} selectedId={selectedId} onSelect={onSelect} />;
   return <div ref={containerRef} style={{position:'absolute',inset:0}} />;
@@ -3274,7 +3304,7 @@ function TripMap({ stops, userLoc, routeCoords, height = 260, interactive = true
     });
 
     if (bounds.length > 0) map.fitBounds(bounds, { padding: [32, 32], maxZoom: 15 });
-    else map.setView([33.979, -118.032], 12);
+    else map.setView([39.8283, -98.5795], 3); // nothing to show yet -- neutral view, not a real place
   }, [stops, userLoc, routeCoords]);
 
   return <div ref={divRef} style={{ width: '100%', height, borderRadius: 'var(--radius-xl)', overflow: 'hidden' }} />;
@@ -3607,7 +3637,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         </div>
         <div style={{margin:'0 18px',height:130,borderRadius:'var(--radius-xl)',overflow:'hidden',position:'relative',zIndex:0,isolation:'isolate',boxShadow:'var(--shadow-sm)'}}>
           <RealMap sales={s.lat ? [s] : []} selectedId={s.id} onSelect={()=>{}}
-            centerLat={s.lat || 33.9792} centerLng={s.lng || -118.0328}
+            centerLat={s.lat} centerLng={s.lng}
             zoom={15} interactive={false} />
         </div>
         <div style={{padding:'20px 18px 6px'}}>
