@@ -205,6 +205,16 @@ app.post('/api/feedback', async (req, res) => {
 app.get('/api/img', async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).send('Missing url');
+  // Optional w/h -- used by the email digest (see proxyImgUrlForEmail) to
+  // pre-crop photos server-side to the exact box the email template
+  // displays them in. CSS object-fit does this for free in the app/browser,
+  // but Outlook's desktop renderer (the Word engine, not a real browser)
+  // ignores object-fit and just stretches whatever image it gets to fill
+  // the <img>'s width/height attributes -- so a portrait photo forced into
+  // a short wide box comes out squashed. Cropping to the same ratio here
+  // means that stretch becomes a uniform scale, no distortion.
+  const w = Math.min(1200, parseInt(req.query.w, 10) || 0);
+  const h = Math.min(1200, parseInt(req.query.h, 10) || 0);
 
   let parsed;
   try { parsed = new URL(url); } catch { return res.status(400).send('Invalid url'); }
@@ -234,7 +244,14 @@ app.get('/api/img', async (req, res) => {
     // fine in a regular browser). Converting to JPEG here fixes it for
     // every client uniformly, not just iOS.
     let outCt = ct;
-    if (ct.includes('webp') || /\.webp(\?|$)/i.test(url)) {
+    if (w && h) {
+      try {
+        buf = await sharp(buf).resize(w, h, { fit: 'cover' }).jpeg({ quality: 82 }).toBuffer();
+        outCt = 'image/jpeg';
+      } catch (err) {
+        console.warn('Image resize failed, serving unresized:', err.message);
+      }
+    } else if (ct.includes('webp') || /\.webp(\?|$)/i.test(url)) {
       try {
         buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
         outCt = 'image/jpeg';
@@ -3598,8 +3615,11 @@ function proxyImgUrlForEmail(url) {
         h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
         h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
         h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
-        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com'))
-      return `${PUBLIC_BASE_URL}/api/img?url=${encodeURIComponent(url)}`;
+        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com') ||
+        h === 'offerup.com' || h.endsWith('.offerup.com') || h === 'offerupcdn.com' || h.endsWith('.offerupcdn.com'))
+      // 536x240 = 2x the card's actual display box (~268x120), same ratio --
+      // see the w/h comment on /api/img for why matching the ratio matters.
+      return `${PUBLIC_BASE_URL}/api/img?url=${encodeURIComponent(url)}&w=536&h=240`;
   } catch (_) {}
   return url;
 }
