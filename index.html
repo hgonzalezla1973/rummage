@@ -350,18 +350,20 @@ function Badge({ tone, children }) {
   );
 }
 
-// A small solid circle floating on the photo — just the type glyph in
-// white, no label, no per-type color coding (one accent, one meaning:
-// "this is a sale"). Same top-left position every card used before.
+// Plain mono uppercase text -- no icon glyph, no badge shape, no per-type
+// color coding. Was a small icon-in-a-square overlaid on the photo; that
+// read fine as a black square but didn't actually need to be an icon (the
+// browse row and detail screen already say "Yard sale" etc. in this exact
+// style elsewhere). Meant for inline text-flow use, not overlaid directly
+// on a photo -- text has no legible background against arbitrary photos.
 function SaleTypeTag({ type, size }) {
-  const dim = size==='xs' ? 24 : size==='sm' ? 28 : 34;
+  const fontSize = size==='xs' ? 10 : size==='sm' ? 11 : 12;
   return (
-    <span aria-label={CAT[type]?.label || type} style={{
-      display:'inline-flex', alignItems:'center', justifyContent:'center',
-      width:dim, height:dim, borderRadius:0, flexShrink:0,
-      background:'var(--ink-900)',
+    <span style={{
+      fontFamily:'var(--font-mono)', fontWeight:600, fontSize,
+      letterSpacing:'0.06em', textTransform:'uppercase', color:'var(--text-muted)',
     }}>
-      {Icon(CAT[type]?.glyph || 'Tag', size==='xs' ? 12 : size==='sm' ? 14 : 17, {stroke:'#fff',sw:2.2})}
+      {CAT[type]?.label || type}
     </span>
   );
 }
@@ -857,7 +859,7 @@ function HeartBtn({ saved, onSave }) {
         display:'inline-flex',
         animation: tick > 0 ? 'heart-pop .55s cubic-bezier(.34,1.56,.64,1) both' : 'none',
       }}>
-        {Icon('Heart',18,saved?{fill:'#14B8A6',stroke:'#0F766E'}:{stroke:'var(--ink-500)'})}
+        {Icon('Heart',18,saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{stroke:'var(--ink-500)'})}
       </span>
     </button>
   );
@@ -1245,7 +1247,6 @@ function SaleCard({ id, type='estate',title,address,distanceMi,dateLabel,timeLab
     <Card interactive onClick={onClick} padded={false} elevation="md" {...pressScaleHandlers}>
       <div style={{position:'relative',overflow:'hidden'}}>
         <SaleImg src={thumb} height={168} type={type} blurb={blurb} title={title} lat={lat} lng={lng} id={id} />
-        <div style={{position:'absolute',top:12,left:12,zIndex:1000}}><SaleTypeTag type={type} /></div>
         {onToggleTrip && (
           <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
             position:'absolute',top:12,right:12,zIndex:1000,
@@ -1295,7 +1296,6 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
       }}>
       <div style={{position:'relative',aspectRatio:'1/1',background:'var(--surface-sunken)'}}>
         <SaleImg src={thumb} height="100%" width="100%" type={type} title={title} lat={lat} lng={lng} id={id} />
-        <div style={{position:'absolute',top:8,left:8,zIndex:1000}}><SaleTypeTag type={type} size="sm" /></div>
         {onToggleTrip && (
           <button type="button" onClick={e=>{e.stopPropagation();onToggleTrip();}} aria-label={inTrip?'Remove from trip':'Add to trip'} style={{
             position:'absolute',top:8,right:8,zIndex:1000,
@@ -1320,6 +1320,7 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
         )}
       </div>
       <div style={{padding:'10px 5px 16px'}}>
+        <div style={{marginBottom:3}}><SaleTypeTag type={type} size="sm" /></div>
         <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:14,lineHeight:1.25,color:'var(--text-primary)',
           display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden',minHeight:'2.5em'}}>{title}</div>
         <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:3,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>
@@ -2835,7 +2836,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         ) : (
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {userListings.map(listing => (
-              <div key={listing.id} style={{background:'var(--surface-card)',borderRadius:'var(--radius-xl)',boxShadow:'var(--shadow-sm)',overflow:'hidden'}}>
+              <div key={listing.id} style={{background:'var(--surface-card)',borderRadius:'var(--radius-xl)',border:'1px solid var(--border-default)',overflow:'hidden'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px'}}>
                   {/* Thumbnail */}
                   <div style={{width:56,height:56,borderRadius:'var(--radius-lg)',overflow:'hidden',flexShrink:0,background:'var(--surface-sunken)'}}>
@@ -4148,9 +4149,9 @@ function ListScreen({ onPublish }) {
                   {Icon('Image',32,{stroke:'#8C8578',sw:1})}
                 </div>
             }
-            <div style={{position:'absolute',top:10,left:10}}><SaleTypeTag type={published.type} /></div>
           </div>
           <div style={{padding:'12px 14px 14px'}}>
+            <div style={{marginBottom:3}}><SaleTypeTag type={published.type} size="sm" /></div>
             <div style={{fontWeight:800,fontSize:16,color:'var(--ink-900)',marginBottom:4}}>{published.title}</div>
             <div style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)'}}>{published.address}</div>
             <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:2}}>{published.dateLabel} · {published.timeLabel}</div>
@@ -4359,7 +4360,6 @@ function ListScreen({ onPublish }) {
                         {Icon('Image',36,{stroke:'#8C8578',sw:1})}
                       </div>
                   }
-                  <div style={{position:'absolute',top:10,left:10}}><SaleTypeTag type={saleType} /></div>
                   {previewPhotos.length>1 && (
                     <>
                       <button type="button" onClick={()=>setPreviewIdx(p=>(p-1+previewPhotos.length)%previewPhotos.length)}
@@ -4379,6 +4379,7 @@ function ListScreen({ onPublish }) {
               );
             })()}
             <div style={{padding:'14px 16px 18px'}}>
+              <div style={{marginBottom:4}}><SaleTypeTag type={saleType} size="sm" /></div>
               <div style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)',marginBottom:5}}>{title}</div>
               <div style={{display:'flex',alignItems:'center',gap:6,fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',marginBottom:3}}>
                 {Icon('MapPin',13,{stroke:'var(--accent)'})} {addr}, {zip}
