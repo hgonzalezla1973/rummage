@@ -659,21 +659,6 @@ const TYPE_COLOR_HEX = {
   estate:'#121210', yard:'#121210', moving:'#121210',
 };
 
-// Sale type is now told apart by shape, not color -- estate is a square,
-// yard a diamond, moving a triangle. Each is defined as explicit polygon
-// points within a 0..size viewBox (never a CSS rotation on the container),
-// so nothing overflows the icon's own bounding box or gets clipped, and
-// every shape's bottom vertex/edge lands at (size/2, size) -- the same
-// point iconAnchor targets, so all three "point at" the coordinate the
-// same way a pin would.
-const TYPE_SHAPE = { estate:'square', yard:'diamond', moving:'triangle' };
-function markerShapePoints(shape, size) {
-  const s = size;
-  if (shape === 'square')   return `2,2 ${s-2},2 ${s-2},${s-2} 2,${s-2}`;
-  if (shape === 'triangle') return `2,2 ${s-2},2 ${s/2},${s-2}`;
-  return `${s/2},2 ${s-2},${s/2} ${s/2},${s-2} 2,${s/2}`; // diamond
-}
-
 function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-118.0328, zoom=13, interactive=true }) {
   const containerRef = useRef(null);
   const mapRef       = useRef(null);
@@ -723,16 +708,15 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       points.push([s.lat, s.lng]);
       const sel   = s.id === selectedId;
       const color = TYPE_COLOR_HEX[s.type] || '#121210';
-      const shape = TYPE_SHAPE[s.type] || 'diamond';
-      const size  = sel ? 38 : 28;
+      const size  = sel ? 34 : 24;
       const icon  = L.divIcon({
         className: '',
         html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-          <polygon points="${markerShapePoints(shape, size)}"
-            fill="${sel ? color : '#fff'}" stroke="${color}" stroke-width="2.5" stroke-linejoin="round" />
+          <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}"
+            fill="${sel ? color : '#fff'}" stroke="${color}" stroke-width="2.5" />
         </svg>`,
         iconSize:   [size, size],
-        iconAnchor: [size / 2, size],
+        iconAnchor: [size / 2, size / 2],
       });
       const marker = L.marker([s.lat, s.lng], { icon, zIndexOffset: sel ? 1000 : 0 })
         .addTo(map)
