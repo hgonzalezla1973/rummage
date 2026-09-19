@@ -1,5 +1,9 @@
 {
   "appId": "com.rummagedeals.app",
   "appName": "Rummage",
-  "webDir": "www"
+  "webDir": "www",
+  "server": {
+    "url": "https://rummagedeals.com/app",
+    "cleartext": false
+  }
 }
