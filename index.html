@@ -275,10 +275,6 @@ function normalizeItem(it, i, saleId) {
   };
 }
 
-const AVATARS = Array.from({length:24}, (_,i) => ({
-  id:`p${i+1}`, emoji:`/assets/avatars/person_${i+1}.png`, label:`Avatar ${i+1}`,
-}));
-
 // No mock data — all listings come from the live API
 const ALL_SALES = [];
 
@@ -1744,7 +1740,6 @@ function AuthScreen({ onAuth }) {
   // point to, without switching the app back to phone-based verification
   // before Twilio's side is actually approved.
   const [phone, setPhone] = useState('');
-  const [selAvatar, setSelAvatar] = useState(AVATARS[0].id);
   const [showPw, setShowPw]         = useState(false);
   const [errors, setErrors]         = useState({});
   const [loading, setLoading]       = useState(false);
@@ -1790,7 +1785,7 @@ function AuthScreen({ onAuth }) {
       setLoading(true);
       setTimeout(() => {
         setLoading(false);
-        onAuth({ name: fullName.trim() || 'Rummager', email: email.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
+        onAuth({ name: fullName.trim() || 'Rummager', email: email.trim(), avatar: null });
       }, 600);
       return;
     }
@@ -1834,7 +1829,7 @@ function AuthScreen({ onAuth }) {
       setLoading(false);
       if (res.error) { setCodeError(res.error); setCodeDigits(['','','','','','']); setTimeout(()=>codeRefs[0].current?.focus(),0); return; }
       burstConfetti();
-      onAuth({ name: fullName.trim(), email: email.trim(), avatar: AVATARS.find(a=>a.id===selAvatar)?.emoji || null });
+      onAuth({ name: fullName.trim(), email: email.trim(), avatar: null });
     }).catch(() => { setLoading(false); setCodeError('Could not verify — is the backend server running?'); });
   };
 
@@ -1926,30 +1921,6 @@ function AuthScreen({ onAuth }) {
       </div>
 
       <div style={{padding:'0 24px 100px',display:'flex',flexDirection:'column',gap:14}}>
-
-        {/* Avatar picker — sign up only */}
-        {mode==='signup' && (
-          <div>
-            <div className="rmg-eyebrow" style={{marginBottom:10}}>Pick your avatar</div>
-            <div style={{display:'flex',gap:8,overflowX:'auto',paddingBottom:6,scrollbarWidth:'none'}}>
-              {AVATARS.map(av => {
-                const on = selAvatar===av.id;
-                return (
-                  <button key={av.id} type="button" onClick={()=>setSelAvatar(av.id)} aria-label={av.label} style={{
-                    flexShrink:0,width:52,height:52,borderRadius:'50%',overflow:'hidden',
-                    border:'2.5px solid '+(on?'var(--accent)':'transparent'),
-                    background:on?'var(--brand-50)':'var(--surface-sunken)',
-                    padding:0,fontSize:26,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',
-                    boxShadow:on?'var(--shadow-focus)':'none',
-                    transition:'all var(--dur-base) var(--ease-spring)',
-                  }}>
-                    <img src={av.emoji} alt={av.label} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        )}
 
         {mode==='signup' && (
           <Field label="Full name" value={fullName} onChange={v=>{setFullName(v);setErrors(p=>({...p,fullName:''}));}}
@@ -2753,17 +2724,14 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
 
         {/* Profile card */}
         <Card padded={false}>
-          {/* Gradient banner */}
-          <div style={{height:56,background:'linear-gradient(135deg,var(--brand-600) 0%,var(--brand-400) 100%)',position:'relative'}}>
+          {/* Banner */}
+          <div style={{height:56,background:'var(--ink-900)',position:'relative'}}>
             <button type="button" onClick={()=>openSheet('profile')}
               style={{position:'absolute',top:8,right:12,fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'rgba(255,255,255,.9)',background:'rgba(255,255,255,.18)',border:'none',borderRadius:'var(--radius-btn)',padding:'5px 14px',cursor:'pointer',backdropFilter:'blur(4px)'}}>
               Edit
             </button>
           </div>
-          <div style={{padding:'0 16px 16px'}}>
-            <div style={{marginTop:-28,marginBottom:10,display:'inline-block',borderRadius:'50%',border:'3px solid var(--surface-card)',overflow:'hidden',position:'relative',zIndex:1}}>
-              <Avatar name={name} size={56} emoji={avatar} />
-            </div>
+          <div style={{padding:'16px 16px'}}>
             <div style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:20,color:'var(--text-primary)'}}>{name}</div>
             <div style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text-muted)',marginTop:2}}>{Icon('MapPin',13,{stroke:'var(--accent)'})} {zip}</div>
             {/* Stats row */}
@@ -2927,52 +2895,6 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       {/* Edit profile sheet */}
       {sheet==='profile' && (
         <EditSheet title="Edit profile" onSave={saveSheet} onCancel={()=>setSheet(null)}>
-          {/* Current avatar preview */}
-          <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
-            <div style={{position:'relative'}}>
-              <Avatar name={draft.name||'?'} size={80} emoji={draft.avatar||null} />
-              {draft.avatar && (
-                <button type="button" onClick={()=>setDraft(d=>({...d,avatar:null}))}
-                  style={{position:'absolute',top:-4,right:-4,width:22,height:22,borderRadius:'50%',background:'var(--ink-900)',border:'2px solid var(--paper)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
-                  {Icon('X',11,{stroke:'#fff'})}
-                </button>
-              )}
-            </div>
-            <p style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',margin:0}}>
-              {draft.avatar ? 'Tap × to use your initials instead' : 'Choose an avatar below or use your initials'}
-            </p>
-          </div>
-
-          {/* Avatar grid */}
-          <div>
-            <div className="rmg-eyebrow" style={{marginBottom:10}}>Pick an avatar</div>
-            <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:10}}>
-              {AVATARS.map(av => {
-                const sel = draft.avatar === av.emoji;
-                return (
-                  <button key={av.id} type="button" onClick={()=>setDraft(d=>({...d,avatar:av.emoji}))}
-                    title={av.label}
-                    style={{
-                      display:'flex',flexDirection:'column',alignItems:'center',gap:4,
-                      background:'none',border:'none',cursor:'pointer',padding:'6px 2px',
-                      borderRadius:'var(--radius-md)',
-                      outline: sel ? '2.5px solid var(--accent)' : '2.5px solid transparent',
-                      transition:'outline var(--dur-fast)',
-                    }}>
-                    <span style={{
-                      width:48,height:48,borderRadius:'50%',overflow:'hidden',
-                      background: sel ? 'var(--accent-soft)' : 'var(--surface-sunken)',
-                      display:'flex',alignItems:'center',justifyContent:'center',
-                      fontSize:26,lineHeight:1,
-                      border: sel ? '2px solid var(--accent)' : '2px solid var(--border-default)',
-                      transition:'all var(--dur-fast)',
-                    }}><img src={av.emoji} alt={av.label} style={{width:'100%',height:'100%',objectFit:'cover'}} /></span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
           {/* Name field */}
           <div>
             <label style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--ink-900)',display:'block',marginBottom:6}}>Display name</label>
