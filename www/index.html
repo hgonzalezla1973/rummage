@@ -1545,14 +1545,32 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
               <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0}}>{coverageMessage || 'Try adjusting your filters or expanding your search radius.'}</p>
             </div>
           ) : (
-          <div style={{display:'grid',gridTemplateColumns:isLandscape ? 'repeat(auto-fill,minmax(160px,1fr))' : '1fr 1fr',gap:14}}>
+          <div>
             {shown.map(s=>(
-              <SaleGridCard key={s.id} id={s.id} type={s.type} title={s.title} distanceMi={s.distanceMi}
-                dateLabel={s.dateLabel} timeLabel={s.timeLabel} neighborhood={s.neighborhood} images={s.images}
-                lat={s.lat} lng={s.lng}
-                saved={s.saved} onSave={()=>onToggleSave(s.id)} onClick={()=>onOpenSale(s.id)}
-                inTrip={tripIds.includes(s.id)} onToggleTrip={onToggleTrip ? ()=>onToggleTrip(s.id) : undefined}
-                onViewOnMap={()=>{ setSelected(s.id); setView('map'); }} />
+              <div key={s.id} onClick={()=>onOpenSale(s.id)} style={{
+                display:'flex', gap:14, padding:'14px 0', borderTop:'1px solid var(--border-default)',
+                cursor:'pointer',
+              }}>
+                <div style={{flex:'0 0 72px', width:72, height:72, border:'1px solid var(--ink-900)', overflow:'hidden', background:'var(--surface-sunken)'}}>
+                  <SaleImg src={s.images?.[0]} height="100%" width="100%" type={s.type} title={s.title} lat={s.lat} lng={s.lng} id={s.id} />
+                </div>
+                <div style={{flex:1, minWidth:0}}>
+                  <div style={{fontFamily:'var(--font-mono)',fontSize:11,letterSpacing:'0.06em',textTransform:'uppercase',color:'var(--text-muted)',marginBottom:4}}>
+                    {CAT[s.type]?.label}
+                  </div>
+                  <div style={{fontWeight:700,fontSize:15,color:'var(--ink-900)',lineHeight:1.3,marginBottom:4,
+                    display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{s.title}</div>
+                  <div style={{display:'flex',flexWrap:'wrap',gap:'0 8px',fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)'}}>
+                    <span>{s.distanceMi} mi</span>
+                    {s.neighborhood && <><span style={{color:'var(--ink-300)'}}>·</span><span>{s.neighborhood}</span></>}
+                    {s.dateLabel && <><span style={{color:'var(--ink-300)'}}>·</span><span>{s.dateLabel}{s.timeLabel?` · ${s.timeLabel}`:''}</span></>}
+                  </div>
+                </div>
+                <button type="button" onClick={e=>{e.stopPropagation();onToggleSave(s.id);}} aria-label={s.saved?'Remove from saved':'Save'}
+                  style={{flexShrink:0,alignSelf:'flex-start',background:'none',border:'none',cursor:'pointer',padding:4}}>
+                  {Icon('Heart',18,s.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{stroke:'var(--ink-400)'})}
+                </button>
+              </div>
             ))}
           </div>
           )}
