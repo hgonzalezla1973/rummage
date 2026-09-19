@@ -4045,7 +4045,6 @@ function ListScreen({ onPublish }) {
             width:'100%',borderRadius:'var(--radius-2xl)',border:'none',cursor:'pointer',
             background:'var(--brand-grad)',
             padding:'28px 24px',textAlign:'left',
-            boxShadow:'0 12px 32px rgba(24,24,27,.35)',
             transition:'transform var(--dur-base) var(--ease-spring), box-shadow var(--dur-base)',
           }}
             onMouseDown={e=>e.currentTarget.style.transform='scale(.98)'}
@@ -4071,20 +4070,24 @@ function ListScreen({ onPublish }) {
         <div style={{padding:'0 20px calc(120px + var(--safe-bottom))'}}>
           <div className="rmg-eyebrow" style={{marginBottom:14}}>How it works</div>
           <div style={{display:'flex',flexDirection:'column',gap:12}}>
+            {/* One neutral icon treatment for all three steps -- was a
+                different hardcoded color+background per row (teal, green,
+                blue), reading as a generic template feature list rather
+                than this app's own single-accent language. */}
             {[
-              {icon:'Tag',        color:'#0F766E', bg:'#F0FDFA', step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
-              {icon:'FileText',   color:'#3F5E3A', bg:'#E1E8D6', step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
-              {icon:'MapPin',     color:'#2C4A7C', bg:'#DCE4EF', step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
+              {icon:'Tag',        step:'1', title:'Pick your sale type',   body:'Yard, estate, or moving — you choose.'},
+              {icon:'FileText',   step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
+              {icon:'MapPin',     step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
-              <div key={row.step} style={{display:'flex',alignItems:'flex-start',gap:14,padding:'16px 18px',background:'var(--surface-card)',borderRadius:'var(--radius-xl)',boxShadow:'var(--shadow-sm)'}}>
-                <div style={{width:42,height:42,borderRadius:'var(--radius-lg)',background:row.bg,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  {Icon(row.icon,20,{stroke:row.color})}
+              <div key={row.step} style={{display:'flex',alignItems:'flex-start',gap:14,padding:'16px 18px',background:'var(--surface-card)',borderRadius:'var(--radius-xl)',border:'1px solid var(--border-default)'}}>
+                <div style={{width:42,height:42,borderRadius:'var(--radius-lg)',background:'var(--surface-sunken)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
+                  {Icon(row.icon,20,{stroke:'var(--ink-900)'})}
                 </div>
                 <div style={{minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:14,color:'var(--ink-900)',marginBottom:2}}>{row.title}</div>
                   <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.4}}>{row.body}</div>
                 </div>
-                <div style={{width:22,height:22,borderRadius:'50%',background:'var(--brand-100)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontFamily:'var(--font-mono)',fontWeight:800,fontSize:11,color:'var(--secondary)'}}>
+                <div style={{width:22,height:22,borderRadius:0,background:'var(--brand-100)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0,fontFamily:'var(--font-mono)',fontWeight:800,fontSize:11,color:'var(--secondary)'}}>
                   {row.step}
                 </div>
               </div>
@@ -4098,7 +4101,7 @@ function ListScreen({ onPublish }) {
   if (step===4 && published) {
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:88,height:88,borderRadius:'50%',background:'linear-gradient(135deg,var(--brand-100),var(--brand-200))',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24,boxShadow:'0 12px 40px rgba(13,148,136,.25)'}}>
+        <div style={{width:88,height:88,borderRadius:0,background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24}}>
           {Icon('CheckCircle',44,{stroke:'var(--accent)'})}
         </div>
         <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>You're live!</h1>
@@ -4146,7 +4149,7 @@ function ListScreen({ onPublish }) {
           const n = i+1, active = n===step, done = n<step;
           return (
             <div key={n} style={{flex:1,display:'flex',flexDirection:'column',gap:5,alignItems:'center'}}>
-              <div style={{width:'100%',height:4,borderRadius:2,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)',boxShadow:active?'0 2px 8px rgba(13,148,136,.4)':'none'}} />
+              <div style={{width:'100%',height:4,borderRadius:0,background:done||active?'var(--accent)':'var(--ink-100)',transition:'background var(--dur-base)'}} />
               <span style={{fontFamily:'var(--font-sans)',fontSize:10,fontWeight:active?700:500,color:active?'var(--accent)':done?'var(--ink-600)':'var(--text-faint)'}}>{label}</span>
             </div>
           );
@@ -4159,28 +4162,31 @@ function ListScreen({ onPublish }) {
           <div>
             <div className="rmg-eyebrow" style={{marginBottom:12}}>Sale type</div>
             <div style={{display:'grid',gridTemplateColumns:isLandscape?'1fr 1fr 1fr':'1fr 1fr',gap:10}}>
+              {/* Same neutral treatment for all three types -- was a
+                  different hardcoded bg/fg color per type plus a matching
+                  colored glow when selected; now one flat unselected
+                  style and one solid-black selected style, everywhere. */}
               {[
-                {key:'estate',bg:'#DCE4EF',fg:'#2C4A7C',emoji:'🛋️',desc:'Full household'},
-                {key:'yard',  bg:'#E1E8D6',fg:'#3F5E3A',emoji:'⛺', desc:'Driveway or yard'},
-                {key:'moving',bg:'#F1E0B8',fg:'#8A5A12',emoji:'📦', desc:'Everything must go'},
+                {key:'estate',emoji:'🛋️',desc:'Full household'},
+                {key:'yard',  emoji:'⛺', desc:'Driveway or yard'},
+                {key:'moving',emoji:'📦', desc:'Everything must go'},
               ].map(tc => {
                 const on = saleType===tc.key;
                 return (
                   <button key={tc.key} type="button" onClick={()=>setSaleType(tc.key)} style={{
                     position:'relative',display:'flex',flexDirection:'column',alignItems:'flex-start',
                     padding:'16px 14px 14px',gap:6,
-                    background: on ? tc.fg : tc.bg,
-                    border:'3px solid ' + (on ? tc.fg : 'transparent'),
+                    background: on ? 'var(--ink-900)' : 'var(--surface-sunken)',
+                    border:'1px solid ' + (on ? 'var(--ink-900)' : 'var(--border-default)'),
                     borderRadius:'var(--radius-xl)',cursor:'pointer',textAlign:'left',
                     transition:'all var(--dur-base) var(--ease-spring)',
-                    boxShadow: on ? '0 8px 24px ' + tc.fg + '55' : 'none',
                   }}>
                     <span style={{fontSize:30,lineHeight:1}}>{tc.emoji}</span>
-                    <div style={{fontWeight:800,fontSize:14,lineHeight:1.2,color:on?'#fff':tc.fg}}>{CAT[tc.key].label}</div>
-                    <div style={{fontFamily:'var(--font-sans)',fontSize:11,color:on?'rgba(255,255,255,.75)':tc.fg+'99',lineHeight:1.3}}>{tc.desc}</div>
+                    <div style={{fontWeight:800,fontSize:14,lineHeight:1.2,color:on?'#fff':'var(--ink-900)'}}>{CAT[tc.key].label}</div>
+                    <div style={{fontFamily:'var(--font-sans)',fontSize:11,color:on?'rgba(255,255,255,.75)':'var(--text-muted)',lineHeight:1.3}}>{tc.desc}</div>
                     <span style={{
-                      position:'absolute',top:10,right:10,width:20,height:20,borderRadius:'50%',
-                      border:'2px solid ' + (on ? 'rgba(255,255,255,.6)' : tc.fg + '55'),
+                      position:'absolute',top:10,right:10,width:20,height:20,borderRadius:0,
+                      border:'2px solid ' + (on ? 'rgba(255,255,255,.6)' : 'var(--border-strong)'),
                       background:on?'rgba(255,255,255,.25)':'transparent',
                       display:'flex',alignItems:'center',justifyContent:'center',
                     }}>
