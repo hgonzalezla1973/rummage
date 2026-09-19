@@ -284,6 +284,26 @@ app.get(['/help', '/help/'], (_req, res) => res.sendFile(path.join(__dirname, 'h
 app.get(['/support', '/support/'], (_req, res) => res.sendFile(path.join(__dirname, 'support.html')));
 app.get('/auth/apple/callback', (_req, res) => res.sendFile(path.join(__dirname, 'apple-callback.html')));
 
+// Universal Links: tells iOS which URLs on this domain should open the app
+// directly instead of Safari (e.g. the digest email's "View sale" links,
+// currently plain https:// links that always open in a browser even with
+// the app installed). Must be served as JSON with no redirect -- iOS fetches
+// this over HTTPS at install time and caches it. Needs a matching
+// com.apple.developer.associated-domains entitlement in the iOS app AND the
+// Associated Domains capability registered for the App ID before this does
+// anything; hosting it here is necessary but not sufficient on its own.
+const APPLE_APP_SITE_ASSOCIATION = {
+  applinks: {
+    apps: [],
+    details: [
+      { appID: 'S6XPG2444R.com.rummagedeals.app', paths: ['/app', '/app/*'] },
+    ],
+  },
+};
+app.get(['/.well-known/apple-app-site-association', '/apple-app-site-association'], (_req, res) => {
+  res.set('Content-Type', 'application/json').json(APPLE_APP_SITE_ASSOCIATION);
+});
+
 // Standalone static page (not the React SPA) documenting SMS opt-in consent
 // -- required as "Opt-In Policy Proof" for Twilio Toll-Free Verification.
 // Needs to be a real, directly-loadable URL a carrier reviewer can open
