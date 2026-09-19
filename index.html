@@ -708,12 +708,12 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       points.push([s.lat, s.lng]);
       const sel   = s.id === selectedId;
       const color = TYPE_COLOR_HEX[s.type] || '#121210';
-      const size  = sel ? 34 : 24;
+      const size  = sel ? 22 : 14;
       const icon  = L.divIcon({
         className: '',
         html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-          <circle cx="${size/2}" cy="${size/2}" r="${size/2-2}"
-            fill="${sel ? color : '#fff'}" stroke="${color}" stroke-width="2.5" />
+          <circle cx="${size/2}" cy="${size/2}" r="${size/2-1.5}"
+            fill="${sel ? color : '#fff'}" stroke="${color}" stroke-width="2" />
         </svg>`,
         iconSize:   [size, size],
         iconAnchor: [size / 2, size / 2],
