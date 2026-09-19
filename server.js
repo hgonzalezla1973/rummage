@@ -572,11 +572,16 @@ function isoDateLabel(startISO, endISO) {
 
 // Static map thumbnail via Geoapify (free tier: 3,000/day, no credit card)
 // Set GEOAPIFY_KEY in .env — get one at https://myprojects.geoapify.com
+//
+// No marker: the map is already centered on lat/lng, so the pin was purely
+// decorative -- and Geoapify's "material" pin renders baked into the raster
+// at a size that swallows most of a 400x260 crop, looking like a broken
+// oversized blob rather than a location hint. Center-of-frame already
+// conveys the same thing without that failure mode.
 function mapThumbUrl(lat, lng) {
   const key = process.env.GEOAPIFY_KEY;
   if (!key || !lat || !lng) return null;
-  const marker = `lonlat:${lng},${lat};type:material;color:%230d9488;size:medium`;
-  return `https://maps.geoapify.com/v1/staticmap?style=osm-bright-smooth&width=400&height=260&center=lonlat:${lng},${lat}&zoom=15&marker=${marker}&apiKey=${key}`;
+  return `https://maps.geoapify.com/v1/staticmap?style=osm-bright-smooth&width=400&height=260&center=lonlat:${lng},${lat}&zoom=15&apiKey=${key}`;
 }
 
 function detectType(text = '') {
