@@ -773,7 +773,12 @@ function PhotoPlaceholder({ height, type = 'yard', blurb, title }) {
 function MapPlaceholder({ height, width, lat, lng, type='yard', id='ph', zoom=15 }) {
   return (
     <div style={{position:'relative', zIndex:0, isolation:'isolate', height, width: width || '100%', flexShrink:0, overflow:'hidden', background:'var(--surface-sunken)'}}>
-      <RealMap sales={[{ id, lat, lng, type }]} selectedId={id} onSelect={()=>{}}
+      {/* selectedId intentionally left unset -- passing the sale's own id here
+          made RealMap treat this single marker as "selected", which bumps it
+          to 38px and fills it solid with the type color instead of the small
+          white/outlined pin used everywhere else, reading as an oversized
+          color blob instead of a location hint. */}
+      <RealMap sales={[{ id, lat, lng, type }]} onSelect={()=>{}}
         centerLat={lat} centerLng={lng} zoom={zoom} interactive={false} />
     </div>
   );
