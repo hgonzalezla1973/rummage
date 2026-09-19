@@ -652,11 +652,10 @@ function FauxMap({ sales, selectedId, onSelect }) {
 
 
 // ── Leaflet real map ──────────────────────────────────────────────────────────
-// One neutral marker color regardless of sale type -- matches the rest of
-// the app no longer color-coding categories (was a distinct hardcoded hex
-// per type here, bypassing the token system entirely).
+// Same green pin color regardless of sale type (a Google-Maps-style green,
+// not category color-coding -- every sale reads the same).
 const TYPE_COLOR_HEX = {
-  estate:'#121210', yard:'#121210', moving:'#121210',
+  estate:'#0F9D58', yard:'#0F9D58', moving:'#0F9D58',
 };
 
 function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-118.0328, zoom=13, interactive=true }) {
@@ -708,12 +707,12 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       points.push([s.lat, s.lng]);
       const sel   = s.id === selectedId;
       const color = TYPE_COLOR_HEX[s.type] || '#121210';
-      const size  = sel ? 22 : 14;
+      const size  = sel ? 16 : 10;
       const icon  = L.divIcon({
         className: '',
         html: `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-          <circle cx="${size/2}" cy="${size/2}" r="${size/2-1.5}"
-            fill="${sel ? color : '#fff'}" stroke="${color}" stroke-width="2" />
+          <circle cx="${size/2}" cy="${size/2}" r="${size/2-1.25}"
+            fill="${sel ? color : '#fff'}" stroke="${color}" stroke-width="1.5" />
         </svg>`,
         iconSize:   [size, size],
         iconAnchor: [size / 2, size / 2],
