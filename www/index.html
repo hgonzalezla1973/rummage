@@ -1167,7 +1167,7 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
         <div ref={thumbsRef} style={{display:'flex',gap:4,overflowX:'auto',padding:'6px 8px',background:'var(--surface-app)',scrollbarWidth:'none',WebkitOverflowScrolling:'touch'}}>
           {slides.map((slide, i) => (
             <button key={i} onClick={()=>setIdx(i)} style={{
-              flexShrink:0, width:62, height:62, borderRadius:8, overflow:'hidden', padding:0, border:'none',
+              flexShrink:0, width:62, height:62, borderRadius:0, overflow:'hidden', padding:0, border:'none',
               outline: i===idx ? '2.5px solid var(--accent)' : '2.5px solid transparent',
               opacity: i===idx ? 1 : 0.62, cursor:'pointer', transition:'opacity .18s,outline .18s',
             }}>
