@@ -250,6 +250,13 @@ const FILTER_TYPES = [
   {key:'moving',label:'Moving'},
 ];
 
+// Applied to every real sale photo -- both scraped from the source listing
+// and freshly uploaded when posting one -- since most are quick phone
+// snapshots (garages, driveways) that run flat and a little dark. A small,
+// consistent lift rather than a heavy "filter" look: richer color, a touch
+// more contrast, a slight brightness lift.
+const PHOTO_FILTER = 'saturate(1.12) contrast(1.08) brightness(1.02)';
+
 // Must match server.js's ITEM_KEYWORDS tag strings exactly (case-sensitive)
 // -- these are matched directly against a listing's `items` array server-side
 // for interest-tag push notifications, not just used for display here.
@@ -813,7 +820,7 @@ function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }
         onError={() => setFailed(true)}
         loading="lazy"
         decoding="async"
-        style={{ width:'100%', height:'100%', objectFit:'cover', display:'block' }}
+        style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', filter:PHOTO_FILTER }}
       />
     </div>
   );
@@ -1864,8 +1871,12 @@ function AuthScreen({ onAuth }) {
         </div>
         {codeError && <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'#DC2626',marginBottom:12}}>{codeError}</div>}
 
+        {/* flex:'none' overrides Btn's own flex:1 (meant for filling a row
+            next to a sibling button) -- inside this screen's vertical
+            centered column it would otherwise stretch to fill all the
+            leftover height instead of sizing to its own content. */}
         <Btn variant="primary" size="lg" fullWidth onClick={verifyCode}
-          style={{marginBottom:14,opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
+          style={{marginBottom:14,flex:'none',opacity:loading?.6:1,pointerEvents:loading?'none':'auto'}}
           leadingIcon={loading?Icon('Loader',18,{stroke:'#fff'}):null}>
           {loading ? 'Verifying…' : 'Verify Email'}
         </Btn>
@@ -3409,7 +3420,12 @@ function ShareSheet({ sale, onClose }) {
   const [toast, setToast] = useState(null);
   const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 2500); };
 
-  const url = sale?.url || window.location.href;
+  // sale.url is the scraped SOURCE listing (Craigslist/OfferUp/etc.) -- those
+  // expire or get deleted constantly (especially Craigslist), so a shared
+  // link built from it routinely goes dead within days and never pointed
+  // back at Rummage anyway. Share the same stable /app?sale=<id> deep link
+  // the daily digest email already uses instead.
+  const url = sale?.id ? `https://rummagedeals.com/app?sale=${encodeURIComponent(sale.id)}` : window.location.href;
   const metaLine = [sale?.dateLabel, sale?.timeLabel, sale?.address || sale?.neighborhood].filter(Boolean).join(' · ');
   const shareText = sale?.title ? `${sale.title} — ${metaLine}` : metaLine;
 
@@ -3641,7 +3657,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
 function ItemThumb({ src, size, fallbackIcon, stroke='currentColor', sw=1.5 }) {
   const [failed, setFailed] = useState(false);
   if (!src || failed) return Icon(fallbackIcon, size, {stroke, sw});
-  return <img src={src} onError={()=>setFailed(true)} style={{width:'100%',height:'100%',objectFit:'cover'}} />;
+  return <img src={src} onError={()=>setFailed(true)} style={{width:'100%',height:'100%',objectFit:'cover',filter:PHOTO_FILTER}} />;
 }
 
 // ── Items gallery screen ───────────────────────────────────────────────────────
@@ -4062,7 +4078,9 @@ function ListScreen({ onPublish }) {
             <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)',marginTop:2}}>{published.dateLabel} · {published.timeLabel}</div>
           </div>
         </Card>
-        <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Map',18)} onClick={()=>{setStep(0);setTitle('');setAddr('');setZip('');setStartDate('');setEndDate('');setHrs('');setDesc('');setContact('');setPhotos([]);setTouched({});setPublished(null);}}>
+        {/* flex:'none' -- see the same override on the verify-email screen's
+            button for why (this is the same vertical-centered-column shape). */}
+        <Btn variant="primary" size="lg" fullWidth style={{flex:'none'}} leadingIcon={Icon('Map',18)} onClick={()=>{setStep(0);setTitle('');setAddr('');setZip('');setStartDate('');setEndDate('');setHrs('');setDesc('');setContact('');setPhotos([]);setTouched({});setPublished(null);}}>
           Back to Map
         </Btn>
       </div>
@@ -4157,7 +4175,7 @@ function ListScreen({ onPublish }) {
                   background:'transparent',border:'1.5px dashed transparent',
                   display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative',
                 }}>
-                  <img src={src} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                  <img src={src} style={{width:'100%',height:'100%',objectFit:'cover',filter:PHOTO_FILTER}} />
                   <span style={{position:'absolute',top:5,right:5,width:20,height:20,borderRadius:'50%',background:'rgba(0,0,0,.55)',display:'flex',alignItems:'center',justifyContent:'center'}}
                     onClick={e=>{e.preventDefault();setPhotos(p=>p.filter((_,i)=>i!==idx));}}>
                     {Icon('X',11,{stroke:'#fff',sw:2.5})}
@@ -4260,7 +4278,7 @@ function ListScreen({ onPublish }) {
               return (
                 <div style={{height:190,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
                   {previewPhotos.length
-                    ? <img src={previewPhotos[i]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
+                    ? <img src={previewPhotos[i]} style={{width:'100%',height:'100%',objectFit:'cover',filter:PHOTO_FILTER}} />
                     : <div style={{height:'100%',background:'#EFEAE0',display:'flex',alignItems:'center',justifyContent:'center'}}>
                         {Icon('Image',36,{stroke:'#8C8578',sw:1})}
                       </div>
