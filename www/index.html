@@ -1628,7 +1628,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
   );
 
   return (
-    <div style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)'}}>
+    <div style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)',display:'flex',flexDirection:'column'}}>
       <div style={{paddingTop:'var(--safe-top)'}} />
       <div style={{padding:'8px 20px 14px'}}>
         <div className="rmg-eyebrow" style={{marginBottom:4}}>{saved.length} {saved.length===1?'sale':'sales'} saved</div>
@@ -1642,7 +1642,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
             value={tab} onChange={setTab} style={{width:'100%',display:'flex'}} />
         </div>
       </div>
-      <div style={{padding:'4px 20px 120px'}}>
+      <div className="rmg-on-light" style={{padding:'14px 20px 120px',background:'#E8E3D6',flex:1}}>
         {saved.length===0 ? (
           <EmptyState icon="🔖" title="Nothing saved yet" body="Tap the heart on any sale to save it here for later." />
         ) : shown.length===0 ? (
