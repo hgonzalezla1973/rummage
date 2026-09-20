@@ -20,7 +20,7 @@
      retune only. Every color below is still read through the same
      --semantic-alias tokens the whole app already used, so retuning here
      is enough to recolor the app without touching components. */
-  --paper:#685B53; --paper-2:#5A4E47; --surface:#FFFBEF; --surface-tint:#FFFFFF;
+  --paper:#FFEDB7; --paper-2:#F5E1A0; --surface:#FFFBEF; --surface-tint:#FFFFFF;
 
   /* Paper grain: a faint feTurbulence speckle layered under --surface-app
      (the full-screen background alias) so the cream reads as textured
@@ -28,20 +28,9 @@
      --surface so the texture doesn't fight legibility up close. */
   --paper-texture:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 
-  /* Neutral ink — most call sites read this ramp directly as text/border
-     color, so (with --paper now a mid-dark warm gray) it runs light-to-dark:
-     --ink-900 is the lightest/most prominent tone, for legibility straight
-     on the canvas. A handful of call sites instead want a fixed near-black
-     fill regardless of surface (a solid button, a banner, a toast) — those
-     use the literal --ink-on-dark-900 rather than this ramp. Anything that
-     keeps an explicit white/cream surface (a card, an input) opts back into
-     dark ink via the .rmg-on-light class further down, which locally
-     redefines this whole ramp (plus --line) back to the original dark
-     values for its subtree. */
-  --ink-900:#F7F0DE; --ink-800:#EEE0C2; --ink-700:#E3D3A8; --ink-600:#D5C093;
-  --ink-500:#BFA97E; --ink-400:#A6926E; --ink-300:#8F7C60; --ink-200:#7A6B58; --ink-100:#5A4E43;
-  --line:#7A6B58;
-  --ink-on-dark-900:#2B3A39;
+  /* Neutral ink — dark slate-teal, not true gray/black */
+  --ink-900:#2B3A39; --ink-800:#34423F; --ink-700:#4A524B; --ink-600:#685B53;
+  --ink-500:#8C8074; --ink-400:#AFA392; --ink-300:#D3C6A4; --ink-200:#E7DAB0; --ink-100:#F5E9BF; --line:#E7DAB0;
 
   /* Primary — one rust accent, spent only on "live now" and the primary
      action. (Still named --brand-* so every existing call site just picks
@@ -98,7 +87,7 @@
   --shadow-sm:none;
   --shadow-md:none;
   --shadow-lg:none;
-  --shadow-sheet:0 -1px 0 var(--border-default);
+  --shadow-sheet:0 -1px 0 var(--ink-900);
   --shadow-pin:none;
   --shadow-focus:0 0 0 3px var(--brand-100);
 
@@ -107,16 +96,6 @@
   --ease-out:cubic-bezier(.22,1,.36,1); --ease-spring:cubic-bezier(.34,1.56,.64,1);
 }
 *,*::before,*::after{box-sizing:border-box}
-/* Opts a subtree back into dark-on-light text/borders — for cards, inputs,
-   and sheets that keep an explicit white/cream background rather than the
-   (now dark) app canvas. See the ink-ramp comment in :root above. */
-.rmg-on-light{
-  --ink-900:#2B3A39; --ink-800:#34423F; --ink-700:#4A524B; --ink-600:#685B53;
-  --ink-500:#8C8074; --ink-400:#AFA392; --ink-300:#D3C6A4; --ink-200:#E7DAB0; --ink-100:#F5E9BF;
-  --line:#E7DAB0;
-  --text-primary:#2B3A39; --text-secondary:#685B53; --text-muted:#8C8074; --text-faint:#AFA392;
-  --border-default:#E7DAB0; --border-strong:#2B3A39;
-}
 html,body{margin:0;height:100%;background:var(--surface-app);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);color:var(--text-primary)}
 h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.03em;line-height:1.02;margin:0}
@@ -330,12 +309,12 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
   // needed. The one light-on-light variant ("surface") gets a real border
   // instead, same reasoning as Card.
   const v = variant==='primary'  ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'none'}
-          : variant==='secondary'? {background:'var(--ink-on-dark-900)',color:'#FFFFFF',boxShadow:'none'}
+          : variant==='secondary'? {background:'var(--ink-900)',color:'#FFFFFF',boxShadow:'none'}
           : variant==='ghost'    ? {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'none'}
           : variant==='surface'  ? {background:'#FFFFFF',color:'var(--ink-900)',boxShadow:'none',border:'1px solid var(--border-default)'}
           : {background:'var(--brand-grad)',color:'#FFFFFF',boxShadow:'none'};
   return (
-    <button onClick={onClick} disabled={disabled} className="rmg-on-light" style={{...base,...sz,...v,
+    <button onClick={onClick} disabled={disabled} style={{...base,...sz,...v,
       ...(disabled ? {opacity:0.45,cursor:'not-allowed'} : null),...style}}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -346,7 +325,7 @@ function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClic
 function Card({ padded=true, interactive, onClick, children, style, elevation, ...rest }) {
   const shadow = elevation==='lg' ? 'var(--shadow-lg)' : elevation==='md' ? 'var(--shadow-md)' : 'var(--shadow-sm)';
   return (
-    <div onClick={onClick} className="rmg-on-light" style={{
+    <div onClick={onClick} style={{
       // Shadows are flattened to none across the app now -- a real border
       // takes over as the only separation from the page background,
       // instead of cards silently losing all definition.
@@ -479,7 +458,7 @@ function SegmentedControl({ options, value, onChange, style, activeBg='#fff', ac
 function IconButton({ icon, shape, variant, size: sz, 'aria-label': label, onClick }) {
   const dim = sz==='sm' ? 34 : 40;
   return (
-    <button type="button" onClick={onClick} aria-label={label} className={variant==='ghost' ? undefined : 'rmg-on-light'} style={{
+    <button type="button" onClick={onClick} aria-label={label} style={{
       // shape="circle" used to force 50% here -- straight edges now, so
       // every icon button (back, share, save, locate) reads the same
       // token-driven corner as everything else, regardless of the prop.
@@ -500,7 +479,7 @@ function IconButton({ icon, shape, variant, size: sz, 'aria-label': label, onCli
 function RmgInput({ size: sz, leadingIcon, trailingIcon, placeholder, value, onChange, type='text', inputMode }) {
   const h = sz==='lg' ? 50 : 42;
   return (
-    <div className="rmg-on-light" style={{position:'relative',display:'flex',alignItems:'center',width:'100%'}}>
+    <div style={{position:'relative',display:'flex',alignItems:'center',width:'100%'}}>
       {leadingIcon && (
         <span style={{position:'absolute',left:14,display:'inline-flex',color:'var(--text-muted)',pointerEvents:'none',zIndex:1}}>
           {leadingIcon}
@@ -549,7 +528,7 @@ function DistanceStepper({ value=5, onChange, min=1, max=100, presets=[5,10,25,5
         {presets.map(p => {
           const active = p===value;
           return (
-            <button key={p} type="button" onClick={()=>set(p)} className="rmg-on-light" style={{
+            <button key={p} type="button" onClick={()=>set(p)} style={{
               flex:1, height:40, borderRadius:'var(--radius-btn)',
               border: active ? 'none' : '1px solid var(--border-default)',
               background: active ? 'var(--accent)' : 'var(--surface-card)',
@@ -603,7 +582,7 @@ function ListRow({ first, icon, label, sublabel, value, trailing, onClick, dange
 
 function TabBar({ items, active, onChange }) {
   return (
-    <nav className="rmg-on-light" style={{
+    <nav style={{
       display:'flex', alignItems:'stretch', width:'100%',
       background:'rgba(246,246,246,0.97)', backdropFilter:'blur(24px) saturate(1.6)',
       borderTop:'1px solid var(--line)', paddingBottom:'calc(20px + var(--safe-bottom))',
@@ -862,7 +841,7 @@ function HeartBtn({ saved, onSave }) {
     onSave?.();
   };
   return (
-    <button type="button" onClick={handle} className="rmg-on-light" style={{
+    <button type="button" onClick={handle} style={{
       width:36,height:36,borderRadius:0,border:'none',
       background:'rgba(255,253,248,0.9)',backdropFilter:'blur(8px)',
       display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer',
@@ -1321,7 +1300,7 @@ function SaleGridCard({ id, type='estate', title, distanceMi, dateLabel, timeLab
         )}
         <div style={{position:'absolute',bottom:8,right:8,zIndex:1000}}><HeartBtn saved={saved} onSave={onSave} /></div>
         {onViewOnMap && lat != null && lng != null && (
-          <button type="button" onClick={e=>{e.stopPropagation();onViewOnMap();}} aria-label="Show on map" className="rmg-on-light" style={{
+          <button type="button" onClick={e=>{e.stopPropagation();onViewOnMap();}} aria-label="Show on map" style={{
             position:'absolute',bottom:8,left:8,zIndex:1000,
             width:30,height:30,borderRadius:0,border:'none',
             background:'rgba(255,253,248,0.9)',backdropFilter:'blur(8px)',
@@ -1463,7 +1442,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--secondary)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
@@ -1494,7 +1473,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             </FilterChip>
           ))}
           {onOpenVintageStores && (
-            <button type="button" onClick={onOpenVintageStores} className="rmg-on-light" style={{
+            <button type="button" onClick={onOpenVintageStores} style={{
               display:'inline-flex', alignItems:'center', gap:5,
               padding:'9px 18px', borderRadius:'var(--radius-md)',
               border:'1px solid var(--border-default)',
@@ -1521,7 +1500,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
       )}
       {apiStatus==='loading' && (
-        <div className="rmg-on-light" style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#FFFFFF',color:'var(--ink-900)',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'var(--shadow-sm)'}}>
+        <div style={{flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center',gap:8,background:'#FFFFFF',color:'var(--ink-900)',padding:'10px 16px',margin:'10px 16px 0',borderRadius:'var(--radius-pill)',boxShadow:'var(--shadow-sm)'}}>
           <span style={{display:'inline-flex',animation:'spin 1s linear infinite',color:'var(--accent)'}}>{Icon('Loader2',16,{stroke:'currentColor'})}</span>
           <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:13}}>Gathering all sales!</span>
         </div>
@@ -1544,7 +1523,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           )}
         </div>
       ) : (
-        <div className="rmg-on-light" style={{flex:1,overflowY:'auto',padding:'14px 16px calc(120px + var(--safe-bottom))',background:'#E8E3D6'}}>
+        <div style={{flex:1,overflowY:'auto',padding:'14px 16px calc(120px + var(--safe-bottom))'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:15,color:'var(--text-primary)'}}>{shown.length} {shown.length===1?'sale':'sales'} nearby</span>
             <button type="button" onClick={()=>setSortBy(s=>s==='date'?'distance':'date')} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:0,fontFamily:'inherit'}}>
@@ -1620,7 +1599,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
   const shown     = tab==='past' ? past : upcoming;
 
   const EmptyState = ({icon, title, body}) => (
-    <div className="rmg-on-light" style={{textAlign:'center',padding:'48px 28px',background:'var(--surface-card)',borderRadius:'var(--radius-2xl)',boxShadow:'var(--shadow-sm)'}}>
+    <div style={{textAlign:'center',padding:'48px 28px',background:'var(--surface-card)',borderRadius:'var(--radius-2xl)',boxShadow:'var(--shadow-sm)'}}>
       <div style={{fontSize:44,marginBottom:12}}>{icon}</div>
       <p style={{fontWeight:800,fontSize:20,color:'var(--ink-900)',margin:'0 0 8px',letterSpacing:'-0.02em'}}>{title}</p>
       <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:0,lineHeight:1.6}}>{body}</p>
@@ -1628,7 +1607,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
   );
 
   return (
-    <div style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)',display:'flex',flexDirection:'column'}}>
+    <div style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)'}}>
       <div style={{paddingTop:'var(--safe-top)'}} />
       <div style={{padding:'8px 20px 14px'}}>
         <div className="rmg-eyebrow" style={{marginBottom:4}}>{saved.length} {saved.length===1?'sale':'sales'} saved</div>
@@ -1642,7 +1621,7 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
             value={tab} onChange={setTab} style={{width:'100%',display:'flex'}} />
         </div>
       </div>
-      <div className="rmg-on-light" style={{padding:'14px 20px 120px',background:'#E8E3D6',flex:1}}>
+      <div style={{padding:'4px 20px 120px'}}>
         {saved.length===0 ? (
           <EmptyState icon="🔖" title="Nothing saved yet" body="Tap the heart on any sale to save it here for later." />
         ) : shown.length===0 ? (
@@ -1739,7 +1718,7 @@ function EditSheet({ title, onSave, onCancel, children }) {
 // ── Auth field ────────────────────────────────────────────────────────────────
 function Field({ label, value, onChange, type='text', placeholder, error, trailing }) {
   return (
-    <div className="rmg-on-light">
+    <div>
       <label style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--ink-900)',display:'block',marginBottom:6}}>{label}</label>
       <div style={{position:'relative'}}>
         <input
@@ -1872,7 +1851,7 @@ function AuthScreen({ onAuth }) {
     const isDevMode = authStep === 'verify-dev';
     return (
       <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',background:'var(--surface-app)',padding:'32px 24px',textAlign:'center'}}>
-        <div style={{width:72,height:72,borderRadius:0,background:'var(--ink-on-dark-900)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20}}>
+        <div style={{width:72,height:72,borderRadius:0,background:'var(--ink-900)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:20}}>
           {Icon('Mail',34,{stroke:'#fff',sw:1.75})}
         </div>
         <h1 style={{fontSize:26,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 8px'}}>Check your email</h1>
@@ -1884,7 +1863,7 @@ function AuthScreen({ onAuth }) {
         </p>
 
         {/* 6-digit code input */}
-        <div className="rmg-on-light" style={{display:'flex',gap:8,marginBottom:12}} onPaste={onCodePaste}>
+        <div style={{display:'flex',gap:8,marginBottom:12}} onPaste={onCodePaste}>
           {codeDigits.map((d,i) => (
             <input key={i} ref={codeRefs[i]} type="text" inputMode="numeric" maxLength={1} value={d}
               onChange={e=>onDigit(i,e.target.value)} onKeyDown={e=>onCodeKey(i,e)}
@@ -2032,7 +2011,7 @@ function HelpScreen({ onBack }) {
   const [open, setOpen] = useState(null);
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Help & FAQ</h1>
@@ -2045,7 +2024,7 @@ function HelpScreen({ onBack }) {
         {FAQ_ITEMS.map((item, i) => {
           const isOpen = open === i;
           return (
-            <button key={i} type="button" onClick={() => setOpen(isOpen ? null : i)} className="rmg-on-light" style={{
+            <button key={i} type="button" onClick={() => setOpen(isOpen ? null : i)} style={{
               display:'flex',flexDirection:'column',gap:0,width:'100%',textAlign:'left',
               background:'var(--surface-card)',borderRadius:'var(--radius-xl)',
               border:'none',cursor:'pointer',overflow:'hidden',
@@ -2123,7 +2102,7 @@ function FeedbackScreen({ onBack, userEmail }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Send Feedback</h1>
@@ -2141,7 +2120,7 @@ function FeedbackScreen({ onBack, userEmail }) {
             {FEEDBACK_CATS.map(c => {
               const on = cat === c.key;
               return (
-                <button key={c.key} type="button" onClick={() => setCat(c.key)} className="rmg-on-light" style={{
+                <button key={c.key} type="button" onClick={() => setCat(c.key)} style={{
                   display:'flex',alignItems:'center',gap:10,padding:'14px 16px',
                   background: on ? 'var(--accent)' : 'var(--surface-card)',
                   borderRadius:'var(--radius-xl)',
@@ -2167,7 +2146,6 @@ function FeedbackScreen({ onBack, userEmail }) {
             onChange={e => setMessage(e.target.value)}
             placeholder="Tell us what's on your mind…"
             rows={6}
-            className="rmg-on-light"
             style={{
               width:'100%',padding:'14px 16px',fontFamily:'var(--font-sans)',fontSize:15,
               color:'var(--text-primary)',background:'var(--surface-card)',
@@ -2202,7 +2180,7 @@ function PrivacyScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Privacy Policy</h1>
@@ -2252,7 +2230,7 @@ function TermsScreen({ onBack }) {
   );
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Terms of Service</h1>
@@ -2379,7 +2357,7 @@ function PriceCheckScreen({ onBack }) {
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Price Check</h1>
@@ -2549,7 +2527,7 @@ function VintageStoresScreen({ onBack, zip, tripIds=[], onToggleTrip, onStoresLo
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)'}}>
         <div style={{display:'flex',alignItems:'center',gap:12,padding:'10px 16px 14px'}}>
           <IconButton icon={Icon('ChevronLeft',22)} shape="circle" aria-label="Back" onClick={onBack} />
           <h1 style={{fontSize:20,fontWeight:800,letterSpacing:'-0.02em',color:'var(--ink-900)',margin:0}}>Vintage Stores</h1>
@@ -2827,7 +2805,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
         ) : (
           <div style={{display:'flex',flexDirection:'column',gap:10}}>
             {userListings.map(listing => (
-              <div key={listing.id} className="rmg-on-light" style={{background:'var(--surface-card)',borderRadius:'var(--radius-xl)',border:'1px solid var(--border-default)',overflow:'hidden'}}>
+              <div key={listing.id} style={{background:'var(--surface-card)',borderRadius:'var(--radius-xl)',border:'1px solid var(--border-default)',overflow:'hidden'}}>
                 <div style={{display:'flex',alignItems:'center',gap:12,padding:'12px 14px'}}>
                   {/* Thumbnail */}
                   <div style={{width:56,height:56,borderRadius:'var(--radius-lg)',overflow:'hidden',flexShrink:0,background:'var(--surface-sunken)'}}>
@@ -2911,7 +2889,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       {deleteConfirm && (
         <div style={{position:'absolute',inset:0,zIndex:80,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
           <div onClick={()=>setDeleteConfirm(null)} style={{position:'absolute',inset:0,background:'rgba(28,25,23,.42)',backdropFilter:'blur(2px)'}} />
-          <div className="rmg-on-light" style={{position:'relative',background:'var(--surface-card)',borderRadius:'var(--radius-xl) var(--radius-xl) 0 0',padding:'24px 20px 36px',boxShadow:'var(--shadow-sheet)'}}>
+          <div style={{position:'relative',background:'var(--surface-card)',borderRadius:'var(--radius-xl) var(--radius-xl) 0 0',padding:'24px 20px 36px',boxShadow:'var(--shadow-sheet)'}}>
             <div style={{textAlign:'center',marginBottom:20}}>
               <div style={{width:52,height:52,borderRadius:'50%',background:'#FEF2F2',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 12px'}}>
                 {Icon('Trash2',24,{stroke:'#EF4444'})}
@@ -3046,7 +3024,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       */}
       {page==='vintagestores' && <VintageStoresScreen onBack={()=>setPage(null)} zip={zip} tripIds={tripIds} onToggleTrip={onToggleTrip} onStoresLoaded={onStoresLoaded} />}
       {digestToast && (
-        <div style={{position:'fixed',bottom:100,left:16,right:16,background:'var(--ink-on-dark-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',zIndex:100}}>
+        <div style={{position:'fixed',bottom:100,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',zIndex:100}}>
           {digestToast}
         </div>
       )}
@@ -3068,7 +3046,7 @@ function FiltersSheet({ onClose, radiusMi, setRadiusMi, count }) {
   return (
     <div style={{position:'absolute',inset:0,zIndex:50,display:'flex',flexDirection:'column',justifyContent:'flex-end'}}>
       <div onClick={onClose} style={{position:'absolute',inset:0,background:'rgba(28,25,23,.42)',backdropFilter:'blur(2px)'}} />
-      <div className="rmg-on-light" style={{position:'relative',background:'var(--surface-card)',borderRadius:'var(--radius-xl) var(--radius-xl) 0 0',boxShadow:'var(--shadow-sheet)',maxHeight:'90%',display:'flex',flexDirection:'column'}}>
+      <div style={{position:'relative',background:'var(--surface-card)',borderRadius:'var(--radius-xl) var(--radius-xl) 0 0',boxShadow:'var(--shadow-sheet)',maxHeight:'90%',display:'flex',flexDirection:'column'}}>
         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'14px 16px 10px'}}>
           <div style={{width:40}} />
           <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:20,color:'var(--text-primary)'}}>Filters</h2>
@@ -3528,7 +3506,7 @@ function ShareSheet({ sale, onClose }) {
         )}
       </div>
       {toast && (
-        <div style={{position:'absolute',bottom:110,left:16,right:16,background:'var(--ink-on-dark-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',animation:'slideUp .3s var(--ease-out)',zIndex:10000}}>
+        <div style={{position:'absolute',bottom:110,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',animation:'slideUp .3s var(--ease-out)',zIndex:10000}}>
           {toast}
         </div>
       )}
@@ -3623,7 +3601,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
                 {s.items.map((it,i)=>{
                   const label = typeof it==='string' ? it : it.name;
                   return (
-                    <span key={typeof it==='string'?it:(it.id||i)} className="rmg-on-light" style={{fontFamily:'var(--font-sans)',fontWeight:500,fontSize:13,color:'var(--text-secondary)',background:'var(--surface-card)',boxShadow:'var(--shadow-xs)',padding:'7px 14px',borderRadius:'var(--radius-pill)'}}>{label}</span>
+                    <span key={typeof it==='string'?it:(it.id||i)} style={{fontFamily:'var(--font-sans)',fontWeight:500,fontSize:13,color:'var(--text-secondary)',background:'var(--surface-card)',boxShadow:'var(--shadow-xs)',padding:'7px 14px',borderRadius:'var(--radius-pill)'}}>{label}</span>
                   );
                 })}
               </div>
@@ -3646,7 +3624,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         )}
         <div style={{height:80}} />
       </div>
-      <div className="rmg-on-light" style={{padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
+      <div style={{padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',display:'flex',flexDirection:'column',gap:10}}>
         {s.contact ? (
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('MessageCircle',18)}
             onClick={()=>{
@@ -3661,7 +3639,7 @@ function DetailScreen({ sale, onBack, onToggleSave, inTrip=false, onToggleTrip, 
         <div style={{display:'flex',gap:8}}>
           <button type="button" onClick={openDirections} aria-label="Directions" style={{
             width:52,height:52,borderRadius:'var(--radius-btn)',flexShrink:0,
-            background:'var(--ink-on-dark-900)',border:'1px solid var(--ink-200)',cursor:'pointer',
+            background:'var(--ink-900)',border:'1px solid var(--ink-200)',cursor:'pointer',
             display:'flex',alignItems:'center',justifyContent:'center',
           }}>
             {Icon('Navigation',20,{stroke:'#fff'})}
@@ -3698,7 +3676,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 10px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <div style={{flex:1,minWidth:0}}>
@@ -3721,7 +3699,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
       <div style={{flex:1,overflowY:'auto',padding:'14px 16px 16px'}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
           {shown.map(it => (
-            <button key={it.id} type="button" onClick={()=>onOpenItem(items.indexOf(it))} className="rmg-on-light"
+            <button key={it.id} type="button" onClick={()=>onOpenItem(items.indexOf(it))}
               style={{textAlign:'left',background:'var(--surface-card)',border:'1px solid var(--border-default)',borderRadius:'var(--radius-lg)',overflow:'hidden',boxShadow:'var(--shadow-xs)',cursor:'pointer',padding:0}}>
               <div style={{aspectRatio:'1',background:'linear-gradient(135deg,var(--brand-50),var(--paper-2))',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--ink-300)',position:'relative',filter:it.sold?'grayscale(.6)':'none',opacity:it.sold?.72:1}}>
                 {<ItemThumb src={it.image} size={26} fallbackIcon="Image" />}
@@ -3748,7 +3726,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
         </div>
         <p style={{textAlign:'center',fontSize:12,color:'var(--text-muted)',margin:'16px auto 0',maxWidth:250}}>Photos are a preview. Everything's cash &amp; carry, first come first served.</p>
       </div>
-      <div className="rmg-on-light" style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(246,246,246,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
+      <div style={{flexShrink:0,padding:'12px 16px 28px',background:'rgba(246,246,246,.94)',backdropFilter:'blur(16px)',borderTop:'1px solid var(--border-default)',display:'flex',alignItems:'center',gap:12}}>
         <div style={{flex:1,minWidth:0}}>
           <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)'}}>{sale.dateLabel}</div>
           <div style={{fontFamily:'var(--font-mono)',fontSize:12,color:'var(--text-muted)'}}>{sale.distanceMi} mi{sale.neighborhood?` · ${sale.neighborhood}`:''}</div>
@@ -3810,7 +3788,7 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem }) {
         </div>
         <div style={{padding:'20px 18px 8px'}}>
           <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:17,color:'var(--text-primary)',marginBottom:10}}>Part of this sale</h2>
-          <button type="button" onClick={onOpenSale} className="rmg-on-light" style={{width:'100%',textAlign:'left',display:'flex',alignItems:'center',gap:12,padding:12,background:'var(--surface-card)',border:'1px solid var(--border-default)',borderRadius:'var(--radius-lg)',boxShadow:'var(--shadow-xs)',cursor:'pointer'}}>
+          <button type="button" onClick={onOpenSale} style={{width:'100%',textAlign:'left',display:'flex',alignItems:'center',gap:12,padding:12,background:'var(--surface-card)',border:'1px solid var(--border-default)',borderRadius:'var(--radius-lg)',boxShadow:'var(--shadow-xs)',cursor:'pointer'}}>
             <span style={{width:44,height:44,borderRadius:'var(--radius-md)',flexShrink:0,background:'var(--brand-50)',color:'var(--accent)',display:'flex',alignItems:'center',justifyContent:'center'}}>{Icon(CAT[sale.type]?.glyph||'Tag',20)}</span>
             <div style={{flex:1,minWidth:0}}>
               <div style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:15,color:'var(--text-primary)',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}}>{sale.title}</div>
@@ -3835,7 +3813,7 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem }) {
           </div>
         )}
       </div>
-      <div className="rmg-on-light" style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
+      <div style={{display:'flex',gap:10,padding:'12px 16px 28px',background:'rgba(246,246,246,.95)',backdropFilter:'blur(16px)',borderTop:'1.5px solid var(--border-default)',flexShrink:0}}>
         <div style={{flex:1}}>
           <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation',18)}
             onClick={()=>openSaleDirections(sale)}>Get directions</Btn>
@@ -3851,7 +3829,7 @@ function NotificationsScreen({ notifications, onBack, onOpenSale }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div className="rmg-on-light" style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
+      <div style={{paddingTop:'var(--safe-top)',flexShrink:0,background:'rgba(246,246,246,.92)',backdropFilter:'blur(16px)',borderBottom:'1px solid var(--border-default)'}}>
         <div style={{display:'flex',alignItems:'center',gap:8,padding:'6px 12px 12px'}}>
           <IconButton icon={Icon('ChevronLeft',20)} variant="ghost" aria-label="Back" onClick={onBack} />
           <span style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:20,color:'var(--text-primary)'}}>Notifications</span>
@@ -4062,9 +4040,9 @@ function ListScreen({ onPublish }) {
               {icon:'FileText',   step:'2', title:'Add the details',       body:'Address, dates, hours, photos, and how shoppers can reach you.'},
               {icon:'MapPin',     step:'3', title:'Go live on the map',    body:'Your pin drops instantly. Local shoppers see it right away.'},
             ].map(row => (
-              <div key={row.step} className="rmg-on-light" style={{display:'flex',alignItems:'flex-start',gap:14,padding:'16px 18px',background:'var(--surface-card)',borderRadius:'var(--radius-xl)',border:'1px solid var(--border-default)'}}>
+              <div key={row.step} style={{display:'flex',alignItems:'flex-start',gap:14,padding:'16px 18px',background:'var(--surface-card)',borderRadius:'var(--radius-xl)',border:'1px solid var(--border-default)'}}>
                 <div style={{width:42,height:42,borderRadius:'var(--radius-lg)',background:'var(--surface-sunken)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}>
-                  {Icon(row.icon,20,{stroke:'#F7F0DE'})}
+                  {Icon(row.icon,20,{stroke:'var(--ink-900)'})}
                 </div>
                 <div style={{minWidth:0}}>
                   <div style={{fontWeight:700,fontSize:14,color:'var(--ink-900)',marginBottom:2}}>{row.title}</div>
@@ -4265,12 +4243,12 @@ function ListScreen({ onPublish }) {
               <Label required>Start date</Label>
               <input type="date" value={startDate} onChange={e=>setStartDate(e.target.value)}
                 onBlur={()=>setTouched(t=>({...t,startDate:true}))}
-                className="rmg-on-light" style={{...inputStyle,...errStyle('startDate')}} />
+                style={{...inputStyle,...errStyle('startDate')}} />
               <ErrMsg field="startDate" />
             </div>
             <div>
               <Label>End date</Label>
-              <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} className="rmg-on-light" style={inputStyle} />
+              <input type="date" value={endDate} onChange={e=>setEndDate(e.target.value)} style={inputStyle} />
             </div>
           </div>
           <div>
@@ -4288,7 +4266,7 @@ function ListScreen({ onPublish }) {
             <Label>Description</Label>
             <textarea placeholder="What's for sale? Furniture, clothing, tools, collectibles…"
               value={desc} onChange={e=>setDesc(e.target.value)}
-              className="rmg-on-light" style={{...inputStyle,height:'auto',minHeight:100,padding:'12px 14px',resize:'vertical',lineHeight:1.5}} />
+              style={{...inputStyle,height:'auto',minHeight:100,padding:'12px 14px',resize:'vertical',lineHeight:1.5}} />
           </div>
           <div style={{display:'flex',gap:10,marginTop:4}}>
             <Btn variant="secondary" size="lg" onClick={()=>setStep(1)}>Back</Btn>
@@ -4315,11 +4293,11 @@ function ListScreen({ onPublish }) {
                   {previewPhotos.length>1 && (
                     <>
                       <button type="button" onClick={()=>setPreviewIdx(p=>(p-1+previewPhotos.length)%previewPhotos.length)}
-                        className="rmg-on-light" style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',width:30,height:30,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)'}}>
+                        style={{position:'absolute',left:8,top:'50%',transform:'translateY(-50%)',width:30,height:30,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)'}}>
                         {Icon('ChevronLeft',16,{stroke:'var(--ink-900)'})}
                       </button>
                       <button type="button" onClick={()=>setPreviewIdx(p=>(p+1)%previewPhotos.length)}
-                        className="rmg-on-light" style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',width:30,height:30,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)'}}>
+                        style={{position:'absolute',right:8,top:'50%',transform:'translateY(-50%)',width:30,height:30,borderRadius:'50%',background:'rgba(255,255,255,.88)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)'}}>
                         {Icon('ChevronRight',16,{stroke:'var(--ink-900)'})}
                       </button>
                       <div style={{position:'absolute',bottom:10,right:10,background:'rgba(28,25,23,.65)',borderRadius:'var(--radius-pill)',padding:'3px 10px',fontFamily:'var(--font-mono)',fontSize:11,color:'#fff',fontWeight:600}}>
@@ -4389,7 +4367,7 @@ const TUTORIAL_SLIDES = [
     body:'Photos, hours, what to expect, and one-tap directions — everything you need before you head out.',
     visual:(
       <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <div className="rmg-on-light" style={{width:88,height:64,borderRadius:'var(--radius-lg)',background:'var(--surface-card)',boxShadow:'var(--shadow-md)',border:'1px solid var(--border-default)'}} />
+        <div style={{width:88,height:64,borderRadius:'var(--radius-lg)',background:'var(--surface-card)',boxShadow:'var(--shadow-md)',border:'1px solid var(--border-default)'}} />
         <span style={{position:'absolute',display:'inline-flex',width:34,height:34,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)',animation:'tutTap 1.3s ease-in-out infinite'}}>
           {Icon('Hand',17,{stroke:'#fff'})}
         </span>
