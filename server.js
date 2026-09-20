@@ -911,7 +911,7 @@ async function fetchListingImages(listings, concurrency = 8) {
             if (m) addr = m[1].trim();
           }
 
-          return { images: imgs.slice(0, 8), address: addr }; // max 8 images per listing
+          return { images: imgs, address: addr }; // no cap -- show every photo the listing has
         });
 
         imageMap.set(listing.url, { images, address });
@@ -997,7 +997,7 @@ async function fetchEstateSalesImages(listings, concurrency = 8) {
             }
           }
 
-          if (imgs.length >= 3) return { images: imgs.slice(0, 12), address };
+          if (imgs.length >= 3) return { images: imgs, address };
 
           // 3. Fallback: img tags — check data-src for lazy-loaded images too
           for (const img of document.querySelectorAll('img')) {
@@ -1011,10 +1011,9 @@ async function fetchEstateSalesImages(listings, concurrency = 8) {
             if ((w && w < 120) || (h && h < 120)) continue;
             const key = src.split('?')[0];
             if (!seen.has(key)) { seen.add(key); imgs.push(src); }
-            if (imgs.length >= 12) break;
           }
 
-          return { images: imgs.slice(0, 12), address };
+          return { images: imgs, address };
         }, GOOD_DOMAINS, BAD_DOMAINS);
 
         const filteredImgs = images.filter(u => !u.includes('nophoto') && !u.includes('placeholder') && !u.includes('spacer') && !u.includes('/track/'));
@@ -1381,7 +1380,7 @@ async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 8) {
           ? photos.map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url).filter(Boolean)
           : [];
         detailMap.set(listing.url, {
-          images: urls.slice(0, 10),
+          images: urls,
           description: listingData.description || '',
         });
       } catch (_) {
@@ -1999,7 +1998,7 @@ async function fetchEstateSalesNetPhotos(listings, concurrency = 8) {
         const urls = pictures
           .map(p => p?.images?.[0]?.url || p?.url)
           .filter(Boolean);
-        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+        if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
       }
@@ -2109,7 +2108,7 @@ async function fetchYardSaleSearchPhotos(listings, concurrency = 8) {
           const full = m[0].replace(/-t\.(jpg|webp)$/, '.$1');
           if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
-        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+        if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
       }
@@ -2243,7 +2242,7 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
           const full = m[0].replace(/-t\.webp$/, '.webp');
           if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
-        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+        if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
       }
