@@ -407,14 +407,16 @@ function Avatar({ name='?', size=44, emoji=null }) {
   );
 }
 
-function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) {
+function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children,
+  activeBg='var(--brand-grad)', activeColor='#fff',
+  inactiveBg='var(--ink-100)', inactiveBorder='none', inactiveColor='var(--ink-700)' }) {
   return (
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
       padding:'9px 18px', borderRadius:'var(--radius-btn)',
-      border: 'none',
-      background: selected ? 'var(--brand-grad)' : 'var(--ink-100)',
-      color: selected ? '#fff' : 'var(--ink-700)',
+      border: selected ? 'none' : inactiveBorder,
+      background: selected ? activeBg : inactiveBg,
+      color: selected ? activeColor : inactiveColor,
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
@@ -427,10 +429,11 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children }) 
   );
 }
 
-function SegmentedControl({ options, value, onChange, style, activeBg='#fff', activeFg='var(--ink-900)', activeBorder='none' }) {
+function SegmentedControl({ options, value, onChange, style, activeBg='#fff', activeFg='var(--ink-900)', activeBorder='none',
+  inactiveBg='transparent', inactiveBorder='none', inactiveFg='var(--ink-500)', wrapperBg='var(--ink-100)' }) {
   return (
     <div style={{
-      display:'inline-flex', background:'var(--ink-100)',
+      display:'inline-flex', background:wrapperBg,
       borderRadius:'calc(var(--radius-btn) + 4px)', padding:4, gap:2, ...style,
     }}>
       {options.map(o => {
@@ -439,9 +442,9 @@ function SegmentedControl({ options, value, onChange, style, activeBg='#fff', ac
           <button key={o.value} type="button" onClick={() => onChange(o.value)} style={{
             flex:1, display:'flex', alignItems:'center', justifyContent:'center', gap:5,
             padding:'8px 18px', borderRadius:'var(--radius-btn)',
-            border: active ? activeBorder : 'none',
-            background: active ? activeBg : 'transparent',
-            color: active ? activeFg : 'var(--ink-500)',
+            border: active ? activeBorder : inactiveBorder,
+            background: active ? activeBg : inactiveBg,
+            color: active ? activeFg : inactiveFg,
             fontFamily:'var(--font-sans)', fontWeight: active ? 700 : 500, fontSize:14,
             boxShadow: active ? 'var(--shadow-sm)' : 'none',
             cursor:'pointer', transition:'all var(--dur-base) var(--ease-spring)',
@@ -1442,7 +1445,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'#93B689',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--secondary)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
@@ -1456,19 +1459,24 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
-            activeBg="var(--brand-grad)" activeFg="#fff" activeBorder="none" />
+            activeBg="#611407" activeFg="#fff" activeBorder="none"
+            inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveFg="#611407" wrapperBg="transparent" />
         </div>
-        <div className="rmg-eyebrow" style={{padding:'0 16px 6px'}}>Categories</div>
+        <div className="rmg-eyebrow" style={{padding:'0 16px 6px',color:'#fff'}}>Categories</div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
-          <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
+          <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}
+            activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">Filters</FilterChip>
           {keyword && (
-            <FilterChip selected trailingIcon={Icon('X',13)} onClick={onClearKeyword}>
+            <FilterChip selected trailingIcon={Icon('X',13)} onClick={onClearKeyword}
+              activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">
               "{keyword}"
             </FilterChip>
           )}
-          <FilterChip selected={selectedTypes.length === 0} onClick={()=>setActiveTypes({})}>All</FilterChip>
+          <FilterChip selected={selectedTypes.length === 0} onClick={()=>setActiveTypes({})}
+            activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">All</FilterChip>
           {FILTER_TYPES.map(t=>(
-            <FilterChip key={t.key} selected={selectedTypes.includes(t.key)} onClick={()=>setActiveTypes(p=>({...p,[t.key]:!p[t.key]}))}>
+            <FilterChip key={t.key} selected={selectedTypes.includes(t.key)} onClick={()=>setActiveTypes(p=>({...p,[t.key]:!p[t.key]}))}
+              activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">
               {t.label}
             </FilterChip>
           ))}
@@ -4373,10 +4381,10 @@ const TUTORIAL_SLIDES = [
     body:'Explore shows every yard, estate, and moving sale nearby — switch between Map and List to browse however you like.',
     visual:(
       <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <span style={{position:'absolute',width:64,height:64,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out infinite'}} />
-        <span style={{position:'absolute',width:64,height:64,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out 0.9s infinite'}} />
+        <span style={{position:'absolute',width:96,height:96,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out infinite'}} />
+        <span style={{position:'absolute',width:96,height:96,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out 0.9s infinite'}} />
         <span style={{position:'relative',display:'inline-flex',animation:'tutBounce 1.8s ease-in-out infinite'}}>
-          {Icon('MapPin',48,{fill:'var(--accent)',stroke:'#fff',sw:1.5})}
+          {Icon('MapPin',72,{fill:'var(--accent)',stroke:'#fff',sw:1.5})}
         </span>
       </div>
     ),
@@ -4386,9 +4394,8 @@ const TUTORIAL_SLIDES = [
     body:'Photos, hours, what to expect, and one-tap directions — everything you need before you head out.',
     visual:(
       <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <div style={{width:88,height:64,borderRadius:'var(--radius-lg)',background:'var(--surface-card)',boxShadow:'var(--shadow-md)',border:'1px solid var(--border-default)'}} />
-        <span style={{position:'absolute',display:'inline-flex',width:34,height:34,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)',animation:'tutTap 1.3s ease-in-out infinite'}}>
-          {Icon('Hand',17,{stroke:'#fff'})}
+        <span style={{position:'relative',display:'inline-flex',width:51,height:51,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-sm)',animation:'tutTap 1.3s ease-in-out infinite'}}>
+          {Icon('Hand',26,{stroke:'#fff'})}
         </span>
       </div>
     ),
@@ -4404,7 +4411,7 @@ const TUTORIAL_SLIDES = [
           <circle cx="94" cy="12" r="5" fill="var(--accent)" />
         </svg>
         <span style={{position:'absolute',top:0,right:8,display:'inline-flex',animation:'heart-pop 1.6s ease-in-out infinite'}}>
-          {Icon('Heart',22,{fill:'var(--coral)',stroke:'var(--coral)'})}
+          {Icon('Heart',33,{fill:'var(--coral)',stroke:'var(--coral)'})}
         </span>
       </div>
     ),
@@ -4425,9 +4432,9 @@ const TUTORIAL_SLIDES = [
     body:"Get a daily email of nearby sales, plus a push notification the moment one matches something on your Interests list.",
     visual:(
       <div style={{position:'relative',width:120,height:120,display:'flex',alignItems:'center',justifyContent:'center'}}>
-        <span style={{position:'absolute',width:64,height:64,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out infinite'}} />
-        <span style={{position:'relative',display:'inline-flex',width:64,height:64,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)',animation:'tutTap 1.3s ease-in-out infinite'}}>
-          {Icon('Bell',30,{stroke:'#fff'})}
+        <span style={{position:'absolute',width:96,height:96,borderRadius:'50%',border:'2px solid var(--accent)',animation:'tutPulseRing 1.8s ease-out infinite'}} />
+        <span style={{position:'relative',display:'inline-flex',width:96,height:96,borderRadius:'50%',background:'var(--accent)',alignItems:'center',justifyContent:'center',boxShadow:'var(--shadow-md)',animation:'tutTap 1.3s ease-in-out infinite'}}>
+          {Icon('Bell',45,{stroke:'#fff'})}
         </span>
       </div>
     ),
