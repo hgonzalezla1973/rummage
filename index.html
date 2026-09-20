@@ -12,30 +12,37 @@
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* Clean, basic, straight edges (redesign pass): warm-neutral paper/ink,
-     one deliberate accent (a serious brick-red, used only for "happening
-     now" and the primary action — never for category color-coding), zero
-     corner radius, and shadows flattened to hairline borders throughout.
-     Every color/radius/shadow below is still read through the same
+  /* "Thrift Find" palette (pulled from a vintage-boombox reference photo):
+     warm cream paper, a dark slate-teal ink, rust as the one primary action
+     accent (CTAs, "happening now", focus/links), and a second teal accent
+     held in reserve for price/emphasis. Straight edges and hairline-shadow
+     elevation from the prior redesign pass are unchanged — this is a color
+     retune only. Every color below is still read through the same
      --semantic-alias tokens the whole app already used, so retuning here
-     is enough to recolor/resquare the app without touching components. */
-  --paper:#FAF9F7; --paper-2:#F2F0EA; --surface:#FCFBF9; --surface-tint:#FFFFFF;
+     is enough to recolor the app without touching components. */
+  --paper:#FFEDB7; --paper-2:#F5E1A0; --surface:#FFFBEF; --surface-tint:#FFFFFF;
 
-  /* Neutral ink — warm-neutral, not true gray */
-  --ink-900:#121210; --ink-800:#221F1A; --ink-700:#3A3833; --ink-600:#544F47;
-  --ink-500:#68655F; --ink-400:#8C8578; --ink-300:#C7C2B6; --ink-200:#DEDBD3; --ink-100:#EFEAE0; --line:#DEDBD3;
+  /* Paper grain: a faint feTurbulence speckle layered under --surface-app
+     (the full-screen background alias) so the cream reads as textured
+     paper rather than a flat fill. Cards/sheets stay on plain --paper /
+     --surface so the texture doesn't fight legibility up close. */
+  --paper-texture:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
 
-  /* Primary — one utility red, spent only on "live now" and the primary
+  /* Neutral ink — dark slate-teal, not true gray/black */
+  --ink-900:#2B3A39; --ink-800:#34423F; --ink-700:#4A524B; --ink-600:#685B53;
+  --ink-500:#8C8074; --ink-400:#AFA392; --ink-300:#D3C6A4; --ink-200:#E7DAB0; --ink-100:#F5E9BF; --line:#E7DAB0;
+
+  /* Primary — one rust accent, spent only on "live now" and the primary
      action. (Still named --brand-* so every existing call site just picks
      up the new color without edits.) */
-  --brand-50:#FBEAE7; --brand-100:#F3C9C1; --brand-200:#E39D8F; --brand-300:#CD6B57;
-  --brand-400:#B4291D; --brand-500:#9C2318; --brand-600:#861E15; --brand-700:#6E1911; --brand-800:#54130D;
-  --brand-grad:#121210;
+  --brand-50:#FBEAE1; --brand-100:#F3CCB9; --brand-200:#E8A487; --brand-300:#DC7C57;
+  --brand-400:#D0542D; --brand-500:#B8451F; --brand-600:#9C3A19; --brand-700:#7E2E14; --brand-800:#602311;
+  --brand-grad:#2B3A39;
 
-  --tape-50:#F2F0EA; --tape-100:#EFEAE0; --tape-300:#DEDBD3; --tape-500:#FCFBF9; --tape-600:#DEDBD3; --tape-700:#68655F;
-  --teal-50:#FBEAE7; --teal-100:#F3C9C1; --teal-300:#CD6B57; --teal-500:#B4291D; --teal-600:#B4291D; --teal-700:#861E15;
+  --tape-50:#F5E1A0; --tape-100:#F5E9BF; --tape-300:#E7DAB0; --tape-500:#FFFBEF; --tape-600:#E7DAB0; --tape-700:#8C8074;
+  --teal-50:#EAF7F1; --teal-100:#D4EFE6; --teal-300:#8AD3BC; --teal-500:#4ABA94; --teal-600:#3C9C7B; --teal-700:#2E7A61;
   --green-600:#2F5233; --green-bg:#E4EAE1; --amber-600:#8A6A0D; --amber-bg:#FBF0DC; --red-600:#DC2626; --red-bg:#FEE2E2;
-  --coral:#B4291D; --coral-bg:#FBEAE7;
+  --coral:#D0542D; --coral-bg:#FBEAE1;
 
   /* Sale type: plain text labels now, not colored pills -- these three
      stay defined (a couple of call sites still read them for icon tint on
@@ -47,7 +54,7 @@
   /* Semantic aliases */
   --text-primary:var(--ink-900); --text-secondary:var(--ink-600); --text-muted:var(--ink-500); --text-faint:var(--ink-400);
   --text-inverse:#FFFFFF; --text-accent:var(--brand-400); --text-link:var(--brand-400);
-  --surface-app:var(--paper); --surface-card:var(--surface); --surface-sunken:var(--paper-2); --surface-raised:var(--surface-tint);
+  --surface-app:var(--paper-texture) repeat left top/240px 240px, var(--paper); --surface-card:var(--surface); --surface-sunken:var(--paper-2); --surface-raised:var(--surface-tint);
   --border-default:var(--line); --border-strong:var(--ink-900); --border-accent:var(--brand-200);
   --accent:var(--brand-400); --accent-hover:var(--brand-500); --accent-press:var(--brand-700);
   --accent-soft:var(--brand-50); --accent-soft-bd:var(--brand-200);
@@ -89,7 +96,7 @@
   --ease-out:cubic-bezier(.22,1,.36,1); --ease-spring:cubic-bezier(.34,1.56,.64,1);
 }
 *,*::before,*::after{box-sizing:border-box}
-html,body{margin:0;height:100%;background:var(--paper);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+html,body{margin:0;height:100%;background:var(--surface-app);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);color:var(--text-primary)}
 h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.03em;line-height:1.02;margin:0}
 button{font-family:inherit;cursor:pointer}
@@ -709,7 +716,7 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       if (s.lat == null || s.lng == null) return;
       points.push([s.lat, s.lng]);
       const sel   = s.id === selectedId;
-      const color = TYPE_COLOR_HEX[s.type] || '#121210';
+      const color = TYPE_COLOR_HEX[s.type] || '#2B3A39';
       const size  = sel ? 16 : 10;
       const icon  = L.divIcon({
         className: '',
@@ -762,10 +769,10 @@ function proxyImgUrl(url) {
 
 // Type-specific placeholder — looks intentional, not broken
 const PLACEHOLDER_STYLES = {
-  estate:  { bg: '#EFEAE0', icon: 'Home',  color: '#544F47' },
-  yard:    { bg: '#EFEAE0', icon: 'Tag',   color: '#544F47' },
-  moving:  { bg: '#EFEAE0', icon: 'Truck', color: '#544F47' },
-  auction: { bg: '#EFEAE0', icon: 'Gavel', color: '#544F47' },
+  estate:  { bg: '#F5E9BF', icon: 'Home',  color: '#685B53' },
+  yard:    { bg: '#F5E9BF', icon: 'Tag',   color: '#685B53' },
+  moving:  { bg: '#F5E9BF', icon: 'Truck', color: '#685B53' },
+  auction: { bg: '#F5E9BF', icon: 'Gavel', color: '#685B53' },
 };
 function PhotoPlaceholder({ height, type = 'yard', blurb, title }) {
   const s = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
@@ -1085,9 +1092,9 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
 
 function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, onShare }) {
   const GRADS = {
-    estate:['#EFEAE0','#EFEAE0','#EFEAE0'],
-    yard:  ['#EFEAE0','#EFEAE0','#EFEAE0'],
-    moving:['#EFEAE0','#EFEAE0','#EFEAE0'],
+    estate:['#F5E9BF','#F5E9BF','#F5E9BF'],
+    yard:  ['#F5E9BF','#F5E9BF','#F5E9BF'],
+    moving:['#F5E9BF','#F5E9BF','#F5E9BF'],
   };
   const hasCoords = sale?.lat != null && sale?.lng != null;
   const slides = (images && images.length) ? images : (hasCoords ? ['__MAP__'] : (GRADS[type]||GRADS.estate));
@@ -1334,8 +1341,8 @@ const LANDING_ILLUSTRATION = (
     <circle cx="155" cy="65" r="22" fill="none" stroke="#8A6A0D" strokeWidth="2.5"/>
     <circle cx="155" cy="65" r="16" fill="#F8E8B0" opacity="0.5"/>
     <path d="M155 53L160 65L155 77L150 65Z" fill="#8A6A0D"/>
-    <circle cx="180" cy="55" r="16" fill="none" stroke="#B4291D" strokeWidth="2.5"/>
-    <line x1="193" y1="68" x2="205" y2="80" stroke="#B4291D" strokeWidth="2.5" strokeLinecap="round"/>
+    <circle cx="180" cy="55" r="16" fill="none" stroke="#D0542D" strokeWidth="2.5"/>
+    <line x1="193" y1="68" x2="205" y2="80" stroke="#D0542D" strokeWidth="2.5" strokeLinecap="round"/>
     <path d="M55 140 Q55 126 68 126 L88 126 Q101 126 101 140 L101 155 Q101 163 88 163 L68 163 Q55 163 55 155Z" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <ellipse cx="46" cy="145" rx="9" ry="7" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <rect x="101" y="138" width="5" height="18" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" rx="2"/>
@@ -1357,7 +1364,7 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
       <div style={{position:'relative',flex:1,overflow:'hidden'}}>
         <FauxMap sales={sales.slice(0,5)} selectedId="s1" onSelect={()=>{}} />
-        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.6) 58%,var(--surface-app) 100%)'}} />
+        <div style={{position:'absolute',inset:0,background:'linear-gradient(180deg,rgba(255,255,255,.05) 0%,rgba(255,255,255,.6) 58%,var(--paper) 100%)'}} />
         <div style={{position:'absolute',top:'calc(var(--safe-top) + 24px)',left:0,right:0,display:'flex',justifyContent:'center'}}>
           <RummageLogo markSize={40} textSize={19} />
         </div>
@@ -4066,8 +4073,8 @@ function ListScreen({ onPublish }) {
           <div style={{height:120,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
             {published.images?.[0]
               ? <img src={published.images[0]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-              : <div style={{height:'100%',background:'#EFEAE0',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  {Icon('Image',32,{stroke:'#8C8578',sw:1})}
+              : <div style={{height:'100%',background:'#F5E9BF',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {Icon('Image',32,{stroke:'#AFA392',sw:1})}
                 </div>
             }
           </div>
@@ -4279,8 +4286,8 @@ function ListScreen({ onPublish }) {
                 <div style={{height:190,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
                   {previewPhotos.length
                     ? <img src={previewPhotos[i]} style={{width:'100%',height:'100%',objectFit:'cover',filter:PHOTO_FILTER}} />
-                    : <div style={{height:'100%',background:'#EFEAE0',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        {Icon('Image',36,{stroke:'#8C8578',sw:1})}
+                    : <div style={{height:'100%',background:'#F5E9BF',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {Icon('Image',36,{stroke:'#AFA392',sw:1})}
                       </div>
                   }
                   {previewPhotos.length>1 && (
