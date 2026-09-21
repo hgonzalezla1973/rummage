@@ -7,42 +7,36 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Instrument+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* "Thrift Find" palette (pulled from a vintage-boombox reference photo):
-     warm cream paper, a dark slate-teal ink, rust as the one primary action
-     accent (CTAs, "happening now", focus/links), and a second teal accent
-     held in reserve for price/emphasis. Straight edges and hairline-shadow
-     elevation from the prior redesign pass are unchanged — this is a color
-     retune only. Every color below is still read through the same
-     --semantic-alias tokens the whole app already used, so retuning here
-     is enough to recolor the app without touching components. */
-  --paper:#93B689; --paper-2:#85AC79; --surface:#FFFBEF; --surface-tint:#FFFFFF;
+  /* "Clean SaaS Monochrome" (from a referenced product-UI style-guide pin):
+     warm off-white surface, a black/warm-gray neutral scale, and a single
+     deep-teal action accent (CTAs, focus/links, "live now") -- real rounded
+     corners and soft elevation shadows instead of the previous straight-
+     edges/hairline-border system. Every color below is still read through
+     the same --semantic-alias tokens the whole app already used, so
+     retuning here is enough to recolor/reshape the app without touching
+     components. */
+  --paper:#F7F5F0; --paper-2:#EFEBE2; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
-  /* Paper grain: a faint feTurbulence speckle layered under --surface-app
-     (the full-screen background alias) so the cream reads as textured
-     paper rather than a flat fill. Cards/sheets stay on plain --paper /
-     --surface so the texture doesn't fight legibility up close. */
-  --paper-texture:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='matrix' values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.05 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  /* Neutral ink — warm-tinted black/gray scale (not true cool gray) */
+  --ink-900:#1C1B17; --ink-800:#2C2A24; --ink-700:#4A473F; --ink-600:#675F52;
+  --ink-500:#8A8579; --ink-400:#A39D8F; --ink-300:#C7C3B9; --ink-200:#DEDACE; --ink-100:#E8E5DE; --line:#E8E5DE;
 
-  /* Neutral ink — dark slate-teal, not true gray/black */
-  --ink-900:#2B3A39; --ink-800:#34423F; --ink-700:#4A524B; --ink-600:#685B53;
-  --ink-500:#8C8074; --ink-400:#AFA392; --ink-300:#D3C6A4; --ink-200:#E7DAB0; --ink-100:#F5E9BF; --line:#E7DAB0;
+  /* Primary — one deep-teal accent, spent only on "live now" and the
+     primary action. (Still named --brand-* so every existing call site
+     just picks up the new color without edits.) */
+  --brand-50:#E4EFEE; --brand-100:#B8D3D2; --brand-200:#7AACAA; --brand-300:#3D8482;
+  --brand-400:#146664; --brand-500:#0F504E; --brand-600:#0C403E; --brand-700:#093230; --brand-800:#072624;
+  --brand-grad:#146664;
 
-  /* Primary — one rust accent, spent only on "live now" and the primary
-     action. (Still named --brand-* so every existing call site just picks
-     up the new color without edits.) */
-  --brand-50:#FBEAE1; --brand-100:#F3CCB9; --brand-200:#E8A487; --brand-300:#DC7C57;
-  --brand-400:#D0542D; --brand-500:#B8451F; --brand-600:#9C3A19; --brand-700:#7E2E14; --brand-800:#602311;
-  --brand-grad:#2B3A39;
-
-  --tape-50:#85AC79; --tape-100:#F5E9BF; --tape-300:#E7DAB0; --tape-500:#FFFBEF; --tape-600:#E7DAB0; --tape-700:#8C8074;
-  --teal-50:#EAF7F1; --teal-100:#D4EFE6; --teal-300:#8AD3BC; --teal-500:#4ABA94; --teal-600:#3C9C7B; --teal-700:#2E7A61;
-  --green-600:#2F5233; --green-bg:#E4EAE1; --amber-600:#8A6A0D; --amber-bg:#FBF0DC; --red-600:#DC2626; --red-bg:#FEE2E2;
-  --coral:#D0542D; --coral-bg:#FBEAE1;
+  --tape-50:#EFEBE2; --tape-100:#E8E5DE; --tape-300:#DEDACE; --tape-500:#FFFFFF; --tape-600:#DEDACE; --tape-700:#8A8579;
+  --teal-50:#E4EFEE; --teal-100:#B8D3D2; --teal-300:#7AACAA; --teal-500:#146664; --teal-600:#0F504E; --teal-700:#093230;
+  --green-600:#1E8E5A; --green-bg:#E3F5EC; --amber-600:#9A7B0A; --amber-bg:#FDF3D6; --red-600:#D6392F; --red-bg:#FBE4E2;
+  --coral:#C2453B; --coral-bg:#FBE4E2;
 
   /* Sale type: plain text labels now, not colored pills -- these three
      stay defined (a couple of call sites still read them for icon tint on
@@ -54,7 +48,7 @@
   /* Semantic aliases */
   --text-primary:var(--ink-900); --text-secondary:var(--ink-600); --text-muted:var(--ink-500); --text-faint:var(--ink-400);
   --text-inverse:#FFFFFF; --text-accent:var(--brand-400); --text-link:var(--brand-400);
-  --surface-app:var(--paper-texture) repeat left top/240px 240px, var(--paper); --surface-card:var(--surface); --surface-sunken:var(--paper-2); --surface-raised:var(--surface-tint);
+  --surface-app:var(--paper); --surface-card:var(--surface); --surface-sunken:var(--paper-2); --surface-raised:var(--surface-tint);
   --border-default:var(--line); --border-strong:var(--ink-900); --border-accent:var(--brand-200);
   --accent:var(--brand-400); --accent-hover:var(--brand-500); --accent-press:var(--brand-700);
   --accent-soft:var(--brand-50); --accent-soft-bd:var(--brand-200);
@@ -63,9 +57,9 @@
   --danger:var(--red-600); --danger-bg:var(--red-bg);
   --pin:var(--ink-900); --pin-saved:var(--coral);
 
-  --font-display:'Instrument Sans',system-ui,-apple-system,sans-serif;
-  --font-sans:'Instrument Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --font-mono:'IBM Plex Mono',ui-monospace,'SF Mono',Menlo,monospace;
+  --font-display:'Inter',system-ui,-apple-system,sans-serif;
+  --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'Inter',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
   --text-lg:20px; --text-xl:24px; --text-2xl:30px; --text-3xl:38px; --text-4xl:48px;
@@ -75,20 +69,17 @@
 
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  /* Straight edges: every corner radius is 0. Kept as tokens (not removed)
-     so every existing borderRadius:'var(--radius-*)' call site still
-     resolves -- to just nothing, instead of needing a per-site edit. */
-  --radius-xs:0px; --radius-sm:0px; --radius-md:0px; --radius-lg:0px;
-  --radius-xl:0px; --radius-2xl:0px; --radius-pill:0px; --radius-btn:0px;
+  /* Real rounded corners, replacing the previous straight-edges system. */
+  --radius-xs:6px; --radius-sm:8px; --radius-md:10px; --radius-lg:12px;
+  --radius-xl:16px; --radius-2xl:20px; --radius-pill:999px; --radius-btn:999px;
 
-  /* Elevation is now a hairline border, not a shadow -- these stay defined
-     (many components add shadow and border together) but read as "off". */
-  --shadow-xs:none;
-  --shadow-sm:none;
-  --shadow-md:none;
-  --shadow-lg:none;
-  --shadow-sheet:0 -1px 0 var(--ink-900);
-  --shadow-pin:none;
+  /* Soft elevation shadows, replacing the previous flattened-to-none set. */
+  --shadow-xs:0 1px 2px rgba(28,27,23,.04);
+  --shadow-sm:0 1px 3px rgba(28,27,23,.06), 0 1px 2px rgba(28,27,23,.04);
+  --shadow-md:0 4px 12px rgba(28,27,23,.08);
+  --shadow-lg:0 12px 32px rgba(28,27,23,.14);
+  --shadow-sheet:0 -4px 16px rgba(28,27,23,.10);
+  --shadow-pin:0 2px 6px rgba(28,27,23,.18);
   --shadow-focus:0 0 0 3px var(--brand-100);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
@@ -719,7 +710,7 @@ function RealMap({ sales, selectedId, onSelect, centerLat=33.9792, centerLng=-11
       if (s.lat == null || s.lng == null) return;
       points.push([s.lat, s.lng]);
       const sel   = s.id === selectedId;
-      const color = TYPE_COLOR_HEX[s.type] || '#2B3A39';
+      const color = TYPE_COLOR_HEX[s.type] || '#1C1B17';
       const size  = sel ? 16 : 10;
       const icon  = L.divIcon({
         className: '',
@@ -772,10 +763,10 @@ function proxyImgUrl(url) {
 
 // Type-specific placeholder — looks intentional, not broken
 const PLACEHOLDER_STYLES = {
-  estate:  { bg: '#F5E9BF', icon: 'Home',  color: '#685B53' },
-  yard:    { bg: '#F5E9BF', icon: 'Tag',   color: '#685B53' },
-  moving:  { bg: '#F5E9BF', icon: 'Truck', color: '#685B53' },
-  auction: { bg: '#F5E9BF', icon: 'Gavel', color: '#685B53' },
+  estate:  { bg: '#E8E5DE', icon: 'Home',  color: '#675F52' },
+  yard:    { bg: '#E8E5DE', icon: 'Tag',   color: '#675F52' },
+  moving:  { bg: '#E8E5DE', icon: 'Truck', color: '#675F52' },
+  auction: { bg: '#E8E5DE', icon: 'Gavel', color: '#675F52' },
 };
 function PhotoPlaceholder({ height, type = 'yard', blurb, title }) {
   const s = PLACEHOLDER_STYLES[type] || PLACEHOLDER_STYLES.yard;
@@ -1095,9 +1086,9 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
 
 function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, onShare }) {
   const GRADS = {
-    estate:['#F5E9BF','#F5E9BF','#F5E9BF'],
-    yard:  ['#F5E9BF','#F5E9BF','#F5E9BF'],
-    moving:['#F5E9BF','#F5E9BF','#F5E9BF'],
+    estate:['#E8E5DE','#E8E5DE','#E8E5DE'],
+    yard:  ['#E8E5DE','#E8E5DE','#E8E5DE'],
+    moving:['#E8E5DE','#E8E5DE','#E8E5DE'],
   };
   const hasCoords = sale?.lat != null && sale?.lng != null;
   const slides = (images && images.length) ? images : (hasCoords ? ['__MAP__'] : (GRADS[type]||GRADS.estate));
@@ -1344,8 +1335,8 @@ const LANDING_ILLUSTRATION = (
     <circle cx="155" cy="65" r="22" fill="none" stroke="#8A6A0D" strokeWidth="2.5"/>
     <circle cx="155" cy="65" r="16" fill="#F8E8B0" opacity="0.5"/>
     <path d="M155 53L160 65L155 77L150 65Z" fill="#8A6A0D"/>
-    <circle cx="180" cy="55" r="16" fill="none" stroke="#D0542D" strokeWidth="2.5"/>
-    <line x1="193" y1="68" x2="205" y2="80" stroke="#D0542D" strokeWidth="2.5" strokeLinecap="round"/>
+    <circle cx="180" cy="55" r="16" fill="none" stroke="#146664" strokeWidth="2.5"/>
+    <line x1="193" y1="68" x2="205" y2="80" stroke="#146664" strokeWidth="2.5" strokeLinecap="round"/>
     <path d="M55 140 Q55 126 68 126 L88 126 Q101 126 101 140 L101 155 Q101 163 88 163 L68 163 Q55 163 55 155Z" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <ellipse cx="46" cy="145" rx="9" ry="7" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5"/>
     <rect x="101" y="138" width="5" height="18" fill="#DC2626" stroke="#991B1B" strokeWidth="1.5" rx="2"/>
@@ -1445,7 +1436,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)'}}>
-      <div style={{paddingTop:'var(--safe-top)',background:'#93B689',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
+      <div style={{paddingTop:'var(--safe-top)',background:'rgba(246,246,246,0.96)',backdropFilter:'blur(24px)',borderBottom:'1px solid var(--line)',zIndex:10}}>
         <div style={{display:'flex',alignItems:'center',gap:10,padding:'6px 16px 12px'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{display:'flex',alignItems:'center',gap:5,fontSize:12,fontWeight:700,color:'var(--secondary)',letterSpacing:'.04em',textTransform:'uppercase',marginBottom:2}}>
@@ -1459,24 +1450,19 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
         </div>
         <div style={{display:'flex',justifyContent:'center',paddingBottom:12}}>
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
-            activeBg="#611407" activeFg="#fff" activeBorder="none"
-            inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveFg="#611407" wrapperBg="transparent" />
+            activeBg="var(--brand-grad)" activeFg="#fff" activeBorder="none" />
         </div>
-        <div className="rmg-eyebrow" style={{padding:'0 16px 6px',color:'#fff'}}>Categories</div>
+        <div className="rmg-eyebrow" style={{padding:'0 16px 6px'}}>Categories</div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
-          <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}
-            activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">Filters</FilterChip>
+          <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
           {keyword && (
-            <FilterChip selected trailingIcon={Icon('X',13)} onClick={onClearKeyword}
-              activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">
+            <FilterChip selected trailingIcon={Icon('X',13)} onClick={onClearKeyword}>
               "{keyword}"
             </FilterChip>
           )}
-          <FilterChip selected={selectedTypes.length === 0} onClick={()=>setActiveTypes({})}
-            activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">All</FilterChip>
+          <FilterChip selected={selectedTypes.length === 0} onClick={()=>setActiveTypes({})}>All</FilterChip>
           {FILTER_TYPES.map(t=>(
-            <FilterChip key={t.key} selected={selectedTypes.includes(t.key)} onClick={()=>setActiveTypes(p=>({...p,[t.key]:!p[t.key]}))}
-              activeBg="#611407" activeColor="#fff" inactiveBg="#FFEDB7" inactiveBorder="1px solid #611407" inactiveColor="#611407">
+            <FilterChip key={t.key} selected={selectedTypes.includes(t.key)} onClick={()=>setActiveTypes(p=>({...p,[t.key]:!p[t.key]}))}>
               {t.label}
             </FilterChip>
           ))}
@@ -4100,8 +4086,8 @@ function ListScreen({ onPublish }) {
           <div style={{height:120,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
             {published.images?.[0]
               ? <img src={published.images[0]} style={{width:'100%',height:'100%',objectFit:'cover'}} />
-              : <div style={{height:'100%',background:'#F5E9BF',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                  {Icon('Image',32,{stroke:'#AFA392',sw:1})}
+              : <div style={{height:'100%',background:'#E8E5DE',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                  {Icon('Image',32,{stroke:'#A39D8F',sw:1})}
                 </div>
             }
           </div>
@@ -4313,8 +4299,8 @@ function ListScreen({ onPublish }) {
                 <div style={{height:190,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
                   {previewPhotos.length
                     ? <img src={previewPhotos[i]} style={{width:'100%',height:'100%',objectFit:'cover',filter:PHOTO_FILTER}} />
-                    : <div style={{height:'100%',background:'#F5E9BF',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                        {Icon('Image',36,{stroke:'#AFA392',sw:1})}
+                    : <div style={{height:'100%',background:'#E8E5DE',display:'flex',alignItems:'center',justifyContent:'center'}}>
+                        {Icon('Image',36,{stroke:'#A39D8F',sw:1})}
                       </div>
                   }
                   {previewPhotos.length>1 && (
