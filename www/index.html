@@ -755,7 +755,8 @@ function proxyImgUrl(url) {
         h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
         h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
         h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
-        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com'))
+        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com') ||
+        h.endsWith('.nextdoor.com') || h === 'nextdoor.com')
       return `${API_BASE}/api/img?url=${encodeURIComponent(url)}`;
   } catch(_) {}
   return url;

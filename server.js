@@ -219,7 +219,7 @@ app.get('/api/img', async (req, res) => {
   let parsed;
   try { parsed = new URL(url); } catch { return res.status(400).send('Invalid url'); }
 
-  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com'];
+  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com', 'nextdoor.com'];
   const host = parsed.hostname.replace(/^www\./, '');
   if (!allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
     return res.status(403).send('Domain not allowed');
@@ -2629,6 +2629,105 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
   return results;
 }
 
+// ── Nextdoor ───────────────────────────────────────────────────────────────────
+// The public "For Sale & Free" category page (no login needed -- confirmed via
+// direct probing) is server-rendered and embeds a real Apollo/GraphQL state
+// blob, the same __NEXT_DATA__ pattern already used for OfferUp and
+// EstateSales.net. Its feed only ever gives a neighborhood-level city/state per
+// post (no street address, no lat/lng, no structured date or price field), and
+// the post's own detail page requires signing in for anything past the title --
+// so, like OfferUp, this treats the title as the only text to mine for a date/
+// address and geocodes the neighborhood's city name (reusing the same
+// California-only geocodeCityName already used for EstateSale.com -- a known,
+// pre-existing scope limit, not new here).
+async function scrapeNextdoor(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `nd:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  Nextdoor cache hit'); return cached; }
+
+  const results = [];
+  try {
+    const cityName = await reverseGeocodeCity(centerLat, centerLng);
+    const state = stateFromZip(zip);
+    if (!cityName || !state) { console.warn('  Nextdoor: could not resolve city/state'); toCache(cacheKey, results); return results; }
+
+    const citySlug = cityName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const url = `https://nextdoor.com/marketplace/${citySlug}--${state}/free/garage-sales/`;
+    console.log('  Nextdoor:', url);
+    const res = await fetchTimeout(url, 9000, { headers: { 'User-Agent': SCRAPE_UA } });
+    if (!res.ok) { console.warn(`  Nextdoor HTTP ${res.status}`); toCache(cacheKey, results); return results; }
+    const html = await res.text();
+
+    const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (!m) { console.warn('  Nextdoor: no __NEXT_DATA__ found'); toCache(cacheKey, results); return results; }
+    const apollo = JSON.parse(m[1])?.props?.pageProps?.apolloState || {};
+    const feedKey = Object.keys(apollo.ROOT_QUERY || {}).find(k => k.startsWith('classifiedsFreeFindsFeed'));
+    const cards = feedKey
+      ? (apollo.ROOT_QUERY[feedKey].feedItems || []).flatMap(r => r.rollupItems || [])
+      : [];
+    console.log(`  Nextdoor raw cards: ${cards.length}`);
+
+    const cityGeoCache = new Map(); // "city,ST" -> {lat,lng}|null, so a repeated neighborhood isn't re-geocoded per card
+
+    for (const card of cards) {
+      const title = card.captionContent?.text?.text;
+      if (!title) continue;
+
+      const classified = apollo[card.item?.classified?.__ref];
+      if (!classified || classified.isSold) continue;
+      const neighborhood = apollo[classified.author?.originationNeighborhood?.__ref];
+      const locCity = neighborhood?.city, locState = neighborhood?.state;
+      if (!locCity) continue;
+
+      const locKey = `${locCity},${locState}`;
+      let coords = cityGeoCache.get(locKey);
+      if (coords === undefined) {
+        coords = await geocodeCityName(locCity);
+        cityGeoCache.set(locKey, coords);
+      }
+      if (!coords) continue;
+
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const detailUrl = (card.action?.url || '').split('?')[0];
+      const idMatch = detailUrl.match(/\/for_sale_and_free\/([a-f0-9-]+)\/?$/);
+      const img = card.backgroundImage?.image?.url;
+      const street = extractStreetAddress(title);
+      const px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
+
+      results.push({
+        id:           `nd-${idMatch ? idMatch[1] : stableHash(detailUrl || title)}`,
+        source:       'nextdoor',
+        type:         detectType(title),
+        title,
+        address:      street ? `${street}, ${locCity}, ${locState}` : `${locCity}, ${locState}`,
+        neighborhood: `${locCity}, ${locState}`,
+        distanceMi:   distMi,
+        lat:          coords.lat,
+        lng:          coords.lng,
+        dateLabel:    parseCLDate(title),
+        timeLabel:    parseTimeFromText(title),
+        photoCount:   img ? 1 : 0,
+        images:       img ? [img] : [],
+        live:         false,
+        blurb:        '',
+        price:        '',
+        items:        extractItemTags(title),
+        url:          detailUrl,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+
+    console.log(`  Nextdoor done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  Nextdoor error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
 // ── Facebook Marketplace — Apify actor ───────────────────────────────────────
 // Actor: apify/facebook-marketplace-scraper
 // Searches for garage/yard/estate sale listings posted on FB Marketplace.
@@ -3185,8 +3284,8 @@ function addressKey(address) {
 // sites first (stable pages, real addresses), generic marketplaces last.
 const SOURCE_RANK = {
   estatesales: 1, estatesalesnet: 2, estatesalecom: 3, gsalr: 4,
-  yardsalesearch: 5, garagesalefinder: 6, craigslist: 7, offerup: 8,
-  facebook: 9, google: 10,
+  yardsalesearch: 5, garagesalefinder: 6, craigslist: 7, offerup: 8, nextdoor: 9,
+  facebook: 10, google: 11,
 };
 const sourceRank = s => SOURCE_RANK[s] || 99;
 
@@ -3317,7 +3416,7 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   const CEILING_MS = 15000;
   const timed = (label, p) => { const t0 = Date.now(); return withCeiling(p, CEILING_MS, label).then(v => { console.log(`  [timing] ${label}: ${Date.now()-t0}ms`); return v; }); };
   const [clListings, ouListings, esListings, fbListings, googleListings,
-         esnListings, yssListings, gsfListings, gsalrListings, escListings] = await Promise.allSettled([
+         esnListings, yssListings, gsfListings, gsalrListings, escListings, ndListings] = await Promise.allSettled([
     timed('CL', scrapeCraigslist(zip, radiusMi, center.lat, center.lng)),
     timed('OU', scrapeOfferUp(zip, radiusMi, center.lat, center.lng)),
     timed('ES', scrapeEstateSales(zip, radiusMi, center.lat, center.lng)),
@@ -3328,21 +3427,25 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
     timed('GSF', scrapeGarageSaleFinder(zip, radiusMi, center.lat, center.lng)),
     timed('GSALR', scrapeGsalr(zip, radiusMi, center.lat, center.lng)),
     timed('ESC', scrapeEstateSaleCom(zip, radiusMi, center.lat, center.lng)),
+    timed('ND', scrapeNextdoor(zip, radiusMi, center.lat, center.lng)),
   ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : []));
 
   // Dedicated sale-listing platforms (EstateSales.org, EstateSales.net,
   // YardSaleSearch, GarageSaleFinder, GSALR, EstateSale.com) are exempt from
   // the title filter — their whole category is estate/yard sales by
   // definition, so filtering by title would only create false negatives.
-  // Generic marketplaces (Craigslist, OfferUp, Facebook, Google) still need it.
+  // Generic marketplaces (Craigslist, OfferUp, Facebook, Google, Nextdoor)
+  // still need it -- Nextdoor's "garage-sales" category also carries plain
+  // single-item give-away posts alongside real sale events.
   const onlySaleEvents = list => list.filter(l => SALE_EVENT_RE.test(l.title || ''));
   const clKept = onlySaleEvents(clListings);
   const ouKept = onlySaleEvents(ouListings);
   const fbKept = onlySaleEvents(fbListings);
   const gKept  = onlySaleEvents(googleListings);
+  const ndKept = onlySaleEvents(ndListings);
 
   const combined = [...clKept, ...ouKept, ...esListings, ...fbKept, ...gKept,
-                    ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings]
+                    ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings, ...ndKept]
     .map(l => ({ ...l, title: decodeHtmlEntities(l.title), address: decodeHtmlEntities(l.address), neighborhood: decodeHtmlEntities(l.neighborhood) }));
 
   // EstateSales.org, EstateSales.net, YardSaleSearch, GarageSaleFinder, and
@@ -3354,7 +3457,7 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   // one card, keeping the richest fields across the duplicates. See the helper
   // for how it decides two listings are the same sale.
   const all = dedupeListings(combined);
-  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length}`);
+  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length}`);
 
   toCache(cacheKey, all);
   return all;
