@@ -2440,6 +2440,64 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
   return results;
 }
 
+// EstateSale.com's search/city pages sit behind Incapsula bot-protection that
+// rejects a plain fetch() outright (confirmed: returns a ~200-byte stub with
+// just the Incapsula challenge script, no content). A real browser navigation
+// solves that challenge automatically the way it would for a human visitor,
+// so this reuses the shared Puppeteer instance instead of fetchTimeout.
+//
+// Each listing's own detail page embeds its full gallery as plain <img> tags
+// pointing at img.esgtphotos.com/esphotos/img/gallery/{companyId}/{saleId}/
+// medium/thumb_{name}.jpg (confirmed via direct probing, same as the
+// GSF/GSALR w150-h100→w500-h500 upgrade below) — dropping both the "medium/"
+// folder and the "thumb_" filename prefix serves the full-size original
+// (9-13x the byte size in spot checks), so every matched URL is upgraded to
+// that before use.
+async function fetchEstateSaleComPhotos(listings, concurrency = 4) {
+  const browser  = await getBrowser();
+  const imageMap = new Map(); // listing.url → string[]
+  const work = listings.filter(l => l.url);
+  console.log(`  ESC: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
+
+  for (let i = 0; i < work.length; i += concurrency) {
+    const batch = work.slice(i, i + concurrency);
+    await Promise.all(batch.map(async listing => {
+      const page = await browser.newPage();
+      try {
+        await page.setUserAgent(SCRAPE_UA);
+        await page.setRequestInterception(true);
+        page.on('request', req => {
+          const t = req.resourceType();
+          if (['document','script','xhr','fetch'].includes(t)) req.continue();
+          else req.abort();
+        });
+        await page.goto(listing.url, { waitUntil: 'networkidle2', timeout: 15000 });
+
+        const urls = await page.evaluate(() => {
+          const seen = new Set();
+          const out = [];
+          for (const img of document.querySelectorAll('img[src*="esgtphotos.com"]')) {
+            const src = img.getAttribute('src') || '';
+            const m = src.match(/^(.*\/gallery\/\d+\/\d+)\/medium\/thumb_(.+)$/);
+            if (!m) continue;
+            const full = `${m[1]}/${m[2]}`;
+            if (!seen.has(full)) { seen.add(full); out.push(full); }
+          }
+          return out;
+        });
+
+        if (urls.length) imageMap.set(listing.url, urls);
+      } catch (_) {
+        // Non-fatal: listing just keeps its single search-result thumbnail
+      } finally {
+        await page.close().catch(() => {});
+      }
+    }));
+  }
+
+  return imageMap;
+}
+
 // ── EstateSale.com ────────────────────────────────────────────────────────────
 // No zip search — resolves our zip's center to a city name, looks that city up
 // in a cached CA city→ID directory, then scrapes that city's listing page.
@@ -2457,12 +2515,19 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     const cityName = await reverseGeocodeCity(centerLat, centerLng);
     if (!cityName) { console.warn('  ESC: could not resolve city name'); toCache(cacheKey, results); return results; }
 
+    // A plain fetch() gets rejected outright by this site's Incapsula
+    // bot-protection (confirmed: a ~200-byte challenge-script stub, no
+    // content, regardless of the URL). A real browser navigation solves
+    // that challenge the way it would for a human visitor, so both fetches
+    // below go through the shared Puppeteer instance instead.
+    const browser = await getBrowser();
+    const page = await browser.newPage();
+    await page.setUserAgent(SCRAPE_UA);
+
     let cityMap = fromCache('esc:ca-cities');
     if (!cityMap) {
-      const stateRes = await fetchTimeout('https://www.estatesale.com/states/view/5/California-Estate-Sales.html', 9000, {
-        headers: { 'User-Agent': SCRAPE_UA },
-      });
-      const stateHtml = await stateRes.text();
+      await page.goto('https://www.estatesale.com/states/view/5/California-Estate-Sales.html', { waitUntil: 'networkidle2', timeout: 20000 });
+      const stateHtml = await page.content();
       cityMap = {};
       const re = /\/cities\/view\/(\d+)\/Estate-Sales-([A-Za-z0-9-]+)-CA\.html/g;
       let cm;
@@ -2477,14 +2542,13 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     const cityKey = cityName.toLowerCase();
     const cityId = cityMap[cityKey]
       || Object.entries(cityMap).find(([name]) => name.includes(cityKey) || cityKey.includes(name))?.[1];
-    if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); toCache(cacheKey, results); return results; }
+    if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); await page.close().catch(()=>{}); toCache(cacheKey, results); return results; }
 
     const citySlug = cityName.replace(/\s+/g, '-');
-    const listRes = await fetchTimeout(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, 9000, {
-      headers: { 'User-Agent': SCRAPE_UA },
-    });
-    if (!listRes.ok) { console.warn(`  ESC HTTP ${listRes.status}`); toCache(cacheKey, results); return results; }
-    const html = await listRes.text();
+    const listResp = await page.goto(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, { waitUntil: 'networkidle2', timeout: 20000 });
+    if (!listResp || !listResp.ok()) { console.warn(`  ESC HTTP ${listResp ? listResp.status() : 'no response'}`); await page.close().catch(()=>{}); toCache(cacheKey, results); return results; }
+    const html = await page.content();
+    await page.close().catch(() => {});
 
     const blocks = html.split('class="listing-summary"').slice(1);
     console.log(`  ESC raw blocks: ${blocks.length}`);
@@ -2492,7 +2556,12 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     let count = 0;
     for (const block of blocks) {
       if (count >= 30) break; // avoid excessive geocoding calls
-      const hrefMatch  = block.match(/window\.location\.href="([^"]+)"/);
+      // page.content() (post-DOM-serialization, since this now goes through
+      // Puppeteer -- see above) entity-encodes the quotes inside this
+      // onclick's JS-string literal as &quot; rather than leaving them as
+      // literal " the way the raw server HTML did, so the href match has to
+      // accept either form.
+      const hrefMatch  = block.match(/window\.location\.href=(?:"|&quot;)([^"&]+)(?:"|&quot;)/);
       const idMatch    = (hrefMatch?.[1] || '').match(/\/sales\/view\/(\d+)\.html/);
       const titleMatch = block.match(/class="listing-title"[^>]*>([^<]+)</);
       const locMatch   = block.match(/class="listing-location"[^>]*>([^<]+)</);
@@ -2532,6 +2601,14 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
         y:            Math.max(10, Math.min(90, px.y)),
       });
     }
+    // The listing page above only exposes one "listing-logo" thumbnail per
+    // sale -- each sale's own detail page embeds its full gallery.
+    const photoMap = await fetchEstateSaleComPhotos(results);
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+    }
+
     console.log(`  ESC done — ${results.length} listings`);
   } catch (err) {
     console.warn('  ESC error:', err.message);
