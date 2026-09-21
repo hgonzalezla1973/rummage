@@ -1756,6 +1756,18 @@ async function scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng) {
       });
     }
 
+    // Apify's dataset only ever gives main_image + thumbnail (2 images, at
+    // most) -- nowhere near "all the photos from the original listing" the
+    // way every other source's own detail-page fetch does. Reuse the same
+    // detail-page gallery scraper the Puppeteer fallback path already uses
+    // below, so Apify-sourced EstateSales.org listings get their full photo
+    // set too instead of being capped at 2.
+    const imageMap = await fetchEstateSalesImages(results);
+    for (const listing of results) {
+      const imgs = imageMap.get(listing.url)?.images || [];
+      if (imgs.length) { listing.images = imgs; listing.photoCount = imgs.length; }
+    }
+
     console.log(`  ES Apify done — ${results.length} listings`);
     return results;
   } catch (err) {
