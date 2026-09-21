@@ -2453,7 +2453,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
 // folder and the "thumb_" filename prefix serves the full-size original
 // (9-13x the byte size in spot checks), so every matched URL is upgraded to
 // that before use.
-async function fetchEstateSaleComPhotos(listings, concurrency = 4) {
+async function fetchEstateSaleComPhotos(listings, concurrency = 6) {
   const browser  = await getBrowser();
   const imageMap = new Map(); // listing.url → string[]
   const work = listings.filter(l => l.url);
@@ -2555,7 +2555,11 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
 
     let count = 0;
     for (const block of blocks) {
-      if (count >= 30) break; // avoid excessive geocoding calls
+      // 10, not 30: each survivor now also costs a full Puppeteer page visit
+      // for its photo gallery below (fetchEstateSaleComPhotos), not just a
+      // geocode call -- at 30 that reliably blew through this pipeline's
+      // 15s-per-source ceiling and made the whole scraper return nothing.
+      if (count >= 10) break;
       // page.content() (post-DOM-serialization, since this now goes through
       // Puppeteer -- see above) entity-encodes the quotes inside this
       // onclick's JS-string literal as &quot; rather than leaving them as
@@ -2602,8 +2606,16 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
       });
     }
     // The listing page above only exposes one "listing-logo" thumbnail per
-    // sale -- each sale's own detail page embeds its full gallery.
-    const photoMap = await fetchEstateSaleComPhotos(results);
+    // sale -- each sale's own detail page embeds its full gallery. Each of
+    // those enrichment fetches is a full Puppeteer page visit though, and
+    // this whole pipeline runs alongside every other scraper sharing the
+    // same one browser instance -- under that real contention even a
+    // handful of extra concurrent page opens reliably blew the 15s-per-
+    // source ceiling (measured directly: 7 listings at concurrency 6 still
+    // hit it). So only the closest few get upgraded; the rest keep their
+    // single search-result thumbnail rather than the whole source timing
+    // out and returning nothing for everyone.
+    const photoMap = await fetchEstateSaleComPhotos(results.slice(0, 4));
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
       if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
