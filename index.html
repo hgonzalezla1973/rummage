@@ -1187,8 +1187,15 @@ function PhotoGallery({ images, type, height=260, onBack, saved, onSave, sale, o
         </div>
       )}
 
-      {lightboxOpen && hasPhotos && (
-        <PhotoLightbox images={slides.filter(isUrl)} startIndex={idx} onClose={()=>setLightboxOpen(false)} />
+      {lightboxOpen && hasPhotos && ReactDOM.createPortal(
+        <PhotoLightbox images={slides.filter(isUrl)} startIndex={idx} onClose={()=>setLightboxOpen(false)} />,
+        document.body
+        // Portaled straight to <body> -- this gallery's own wrapper (and
+        // DetailScreen's root above it) both set overflow:hidden, which
+        // clips position:absolute;inset:0 descendants to that ancestor's
+        // box even though the sizing itself resolves against the viewport.
+        // Without the portal the lightbox rendered as a small clipped
+        // rectangle instead of a true full-screen overlay.
       )}
     </div>
   );
