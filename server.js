@@ -431,6 +431,15 @@ const LA_NEIGHBORHOODS = {
   'san dimas':{'lat':34.1067,'lng':-117.8067},'la verne':{'lat':34.1006,'lng':-117.7678},
 };
 
+// Some estate-sale companies upload hundreds of item photos to a single sale
+// (a full-house liquidation can genuinely have 500+) -- fine for correctness,
+// but holding that many detail-page fetches/arrays in memory at once across
+// ten concurrent scrapers pushed the free-tier 512MB instance into repeated
+// OOM crash loops. Cap what any one listing keeps; still a rich gallery, just
+// not an unbounded one.
+const MAX_LISTING_PHOTOS = 40;
+const capPhotos = arr => (arr && arr.length > MAX_LISTING_PHOTOS) ? arr.slice(0, MAX_LISTING_PHOTOS) : arr;
+
 // ── In-memory cache ───────────────────────────────────────────────────────────
 const cache     = new Map();
 const CACHE_TTL = 8 * 60 * 1000; // 8 minutes
@@ -1336,7 +1345,7 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
     const detail = imageMap.get(listing.url) || {};
     const imgs = detail.images || [];
     if (imgs.length) {
-      listing.images     = imgs;
+      listing.images     = capPhotos(imgs);
       listing.photoCount = imgs.length;
     } else {
       const thumb = mapThumbUrl(listing.lat, listing.lng);
@@ -1550,7 +1559,7 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
     for (const listing of results) {
       const detail = detailMap.get(listing.url);
       if (!detail) continue;
-      if (detail.images.length) { listing.images = detail.images; listing.photoCount = detail.images.length; }
+      if (detail.images.length) { listing.images = capPhotos(detail.images); listing.photoCount = detail.images.length; }
       // OfferUp titles rarely state a date, but sellers often write it into
       // the description instead ("Saturday & Sunday 7/11-7/12") — try there
       // before giving up on the listing entirely. (Listings whose title
@@ -1765,7 +1774,7 @@ async function scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng) {
     const imageMap = await fetchEstateSalesImages(results);
     for (const listing of results) {
       const imgs = imageMap.get(listing.url)?.images || [];
-      if (imgs.length) { listing.images = imgs; listing.photoCount = imgs.length; }
+      if (imgs.length) { listing.images = capPhotos(imgs); listing.photoCount = imgs.length; }
     }
 
     console.log(`  ES Apify done — ${results.length} listings`);
@@ -1948,7 +1957,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
         const detail = imageMap.get(listing.url) || {};
         const imgs = detail.images || [];
         if (imgs.length) {
-          listing.images     = imgs;
+          listing.images     = capPhotos(imgs);
           listing.photoCount = imgs.length;
         }
         if (detail.address) {
@@ -2087,7 +2096,7 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchEstateSalesNetPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
       delete listing.saleId; // internal-only, not needed by the client
     }
 
@@ -2219,7 +2228,7 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchYardSaleSearchPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
     }
 
     console.log(`  YSS done — ${results.length} listings`);
@@ -2375,7 +2384,7 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchGarageSaleFinderPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
     }
 
     console.log(`  GSF done — ${results.length} listings`);
@@ -2467,7 +2476,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchGarageSaleFinderPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
     }
 
     console.log(`  GSALR done — ${results.length} listings`);
@@ -2656,7 +2665,7 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchEstateSaleComPhotos(results.slice(0, 4));
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
     }
 
     console.log(`  ESC done — ${results.length} listings`);
@@ -3412,7 +3421,10 @@ function dedupeListings(listings) {
 
     const richest = g.members.reduce(
       (m, x) => (x.images?.length || 0) > (m.images?.length || 0) ? x : m, primary);
-    if (richest.images?.length) { out.images = richest.images; out.photoCount = richest.images.length; }
+    // photoCount comes from the member's own field, not images.length -- that
+    // array is capped (see capPhotos) while photoCount still reflects the
+    // real total the source had.
+    if (richest.images?.length) { out.images = richest.images; out.photoCount = richest.photoCount ?? richest.images.length; }
 
     const hasStreet = a => a && /\d/.test(a) && a !== 'Nearby';
     for (const m of g.members) {
