@@ -876,7 +876,13 @@ async function newPage(browser) {
 // CL detail pages embed full-size images as <img src="..._600x450.jpg"> even
 // with JS disabled. Thumbnails (_50x50c) are also present; we convert them to
 // full-size by swapping the size suffix.
-async function fetchListingImages(listings, concurrency = 8) {
+//
+// Concurrency kept low (3, not the 8 it used to be) -- this opens a real
+// headless-Chrome tab per listing, and running this alongside the other
+// Puppeteer-based enrichment (EstateSales.org, EstateSale.com) at their old
+// concurrency put 20+ tabs open at once, which OOM-crashed the free-tier
+// 512MB instance in production.
+async function fetchListingImages(listings, concurrency = 3) {
   const browser  = await getBrowser();
   const imageMap = new Map(); // listing.url → { images: string[], address: string }
 
@@ -939,7 +945,7 @@ async function fetchListingImages(listings, concurrency = 8) {
 }
 
 // ── EstateSales.org detail-page image scraper ─────────────────────────────────
-async function fetchEstateSalesImages(listings, concurrency = 8) {
+async function fetchEstateSalesImages(listings, concurrency = 3) {
   const browser  = await getBrowser();
   const imageMap = new Map();
   const work = listings.filter(l => l.url && l.url.includes('estatesales.org'));
@@ -2500,7 +2506,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
 // folder and the "thumb_" filename prefix serves the full-size original
 // (9-13x the byte size in spot checks), so every matched URL is upgraded to
 // that before use.
-async function fetchEstateSaleComPhotos(listings, concurrency = 6) {
+async function fetchEstateSaleComPhotos(listings, concurrency = 3) {
   const browser  = await getBrowser();
   const imageMap = new Map(); // listing.url → string[]
   const work = listings.filter(l => l.url);
