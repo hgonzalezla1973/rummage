@@ -1400,7 +1400,7 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
     const imgs = detail.images || [];
     if (imgs.length) {
       listing.images     = capPhotos(imgs);
-      listing.photoCount = imgs.length;
+      listing.photoCount = listing.images.length;
     } else {
       const thumb = mapThumbUrl(listing.lat, listing.lng);
       if (thumb) { listing.images = [thumb]; listing.photoCount = 1; listing.isMapThumb = true; }
@@ -1613,7 +1613,7 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
     for (const listing of results) {
       const detail = detailMap.get(listing.url);
       if (!detail) continue;
-      if (detail.images.length) { listing.images = capPhotos(detail.images); listing.photoCount = detail.images.length; }
+      if (detail.images.length) { listing.images = capPhotos(detail.images); listing.photoCount = listing.images.length; }
       // OfferUp titles rarely state a date, but sellers often write it into
       // the description instead ("Saturday & Sunday 7/11-7/12") — try there
       // before giving up on the listing entirely. (Listings whose title
@@ -2015,7 +2015,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
         const imgs = detail.images || [];
         if (imgs.length) {
           listing.images     = capPhotos(imgs);
-          listing.photoCount = imgs.length;
+          listing.photoCount = listing.images.length;
         }
         if (detail.address) {
           listing.address = listing.address && listing.address !== 'See listing'
@@ -2137,7 +2137,11 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
         lng:          row.longitude,
         dateLabel:    dates.length ? apifyDateLabel(dates, row.longitude) : '',
         timeLabel:    dates.length ? apifyTimeLabel(dates, row.longitude) : '',
-        photoCount:   row.pictureCount || (img ? 1 : 0),
+        // Not row.pictureCount -- that's the source's claimed total, but
+        // images here is just this one search-result thumbnail; the
+        // enrichment pass below overwrites both together if it succeeds, and
+        // this initial value must stay consistent with itself if it doesn't.
+        photoCount:   img ? 1 : 0,
         images:       img ? [img] : [],
         live:         false,
         blurb:        row.orgName ? `Hosted by ${row.orgName}` : '',
@@ -2154,7 +2158,7 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchEstateSalesNetPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
       delete listing.saleId; // internal-only, not needed by the client
     }
 
@@ -2286,7 +2290,7 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchYardSaleSearchPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  YSS done — ${results.length} listings`);
@@ -2425,7 +2429,9 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
         lat, lng,
         dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
         timeLabel:    parseTimeFromText(title + ' ' + desc),
-        photoCount:   saleData.photo_count || (imgMatch ? 1 : 0),
+        // Not saleData.photo_count -- see the identical note on ESN's own
+        // initial push above.
+        photoCount:   imgMatch ? 1 : 0,
         images:       imgMatch ? [imgMatch[1]] : [],
         live:         false,
         blurb:        desc.slice(0, 300),
@@ -2442,7 +2448,7 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchGarageSaleFinderPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  GSF done — ${results.length} listings`);
@@ -2534,7 +2540,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchGarageSaleFinderPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  GSALR done — ${results.length} listings`);
@@ -2738,7 +2744,7 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchEstateSaleComPhotos(results.slice(0, 4));
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  ESC done — ${results.length} listings`);
@@ -3495,10 +3501,12 @@ function dedupeListings(listings) {
 
     const richest = g.members.reduce(
       (m, x) => (x.images?.length || 0) > (m.images?.length || 0) ? x : m, primary);
-    // photoCount comes from the member's own field, not images.length -- that
-    // array is capped (see capPhotos) while photoCount still reflects the
-    // real total the source had.
-    if (richest.images?.length) { out.images = richest.images; out.photoCount = richest.photoCount ?? richest.images.length; }
+    // photoCount always mirrors the actual images array length here -- never
+    // a separately-tracked "true" total -- so the badge can never promise
+    // more photos than the gallery actually holds (confirmed live: a listing
+    // with hundreds of real photos showed a count far bigger than its capped
+    // gallery, reading as "photos missing").
+    if (richest.images?.length) { out.images = richest.images; out.photoCount = richest.images.length; }
 
     const hasStreet = a => a && /\d/.test(a) && a !== 'Nearby';
     for (const m of g.members) {
