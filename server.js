@@ -2729,8 +2729,12 @@ async function scrapeNextdoor(zip, radiusMi, centerLat, centerLng) {
 }
 
 // ── Facebook Marketplace — Apify actor ───────────────────────────────────────
-// Actor: apify/facebook-marketplace-scraper
-// Searches for garage/yard/estate sale listings posted on FB Marketplace.
+// Actor: apify/facebook-marketplace-scraper. Its input is real Marketplace
+// search URLs (startUrls: [{url}]), not a free-text query/zip pair -- and its
+// output items look like FB's own GraphQL shape (marketplace_listing_title,
+// listing_price.formatted_amount, location.reverse_geocode, a single
+// primary_listing_photo, no description unless includeListingDetails is on).
+// Both confirmed directly against the actor's input schema and README sample.
 async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
   const token = process.env.APIFY_TOKEN;
   if (!token) return [];
@@ -2741,98 +2745,93 @@ async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
 
   const results = [];
   const seen    = new Set();
-  const queries = ['garage sale', 'yard sale', 'estate sale', 'moving sale'];
-  const fbState = stateFromZip(zip);
 
-  for (const query of queries) {
-    try {
-      console.log(`  FB Marketplace Apify: "${query}" near ${zip}`);
-      const res = await fetchTimeout(
-        `https://api.apify.com/v2/acts/apify~facebook-marketplace-scraper/run-sync-get-dataset-items?token=${token}`,
-        90000,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            searchQuery: query,
-            locationZip: zip,
-            maxItems:    20,
-            radiusMiles: radiusMi,
-          }),
-        }
-      );
+  try {
+    const cityName = await reverseGeocodeCity(centerLat, centerLng);
+    if (!cityName) { console.warn('  FB: could not resolve city name'); toCache(cacheKey, results); return results; }
 
-      if (!res.ok) { console.warn(`  FB Apify "${query}" HTTP ${res.status}`); continue; }
+    const citySlug  = cityName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const queries   = ['garage sale', 'yard sale', 'estate sale', 'moving sale'];
+    const startUrls = queries.map(q => ({
+      url: `https://www.facebook.com/marketplace/${citySlug}/search/?query=${encodeURIComponent(q)}`,
+    }));
 
+    console.log(`  FB Marketplace Apify: ${citySlug} (${queries.length} queries)`);
+    const res = await fetchTimeout(
+      `https://api.apify.com/v2/acts/apify~facebook-marketplace-scraper/run-sync-get-dataset-items?token=${token}`,
+      90000,
+      {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startUrls,
+          resultsLimit: 20,
+          includeListingDetails: false,
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      console.warn(`  FB Apify HTTP ${res.status}`);
+    } else {
       const items = await res.json();
-      console.log(`  FB Apify "${query}" → ${items.length} raw items`);
+      console.log(`  FB Apify → ${items.length} raw items`);
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        // Normalize fields — actor may use slightly different names
-        const id     = item.id || item.listingId || item.listing_id || `fb-${i}-${Date.now()}`;
-        const title  = item.title || item.name || '';
-        const price  = item.price != null ? (typeof item.price === 'number' ? `$${item.price}` : item.price) : (item.priceAmount ? `$${item.priceAmount}` : '');
-        const desc   = item.description || item.body || '';
-        const locStr = item.location || item.locationName || item.location_name || item.city || '';
-
-        if (!title || seen.has(id)) continue;
+      const cityGeoCache = new Map();
+      for (const item of items) {
+        const id    = item.id;
+        const title = item.marketplace_listing_title || '';
+        if (!id || !title || seen.has(id) || item.is_sold) continue;
         seen.add(id);
 
-        // Coordinates — actor sometimes provides them
-        let fbLat = item.lat || item.latitude || null;
-        let fbLng = item.lng || item.longitude || null;
+        const geo      = item.location?.reverse_geocode;
+        const locCity  = geo?.city || '';
+        const locState = geo?.state || '';
+        const locStr   = locCity ? `${locCity}, ${locState}` : '';
 
-        // Fall back to geocoding the location string
-        if (!fbLat && locStr) {
-          const coords = await geocodePlaceName(locStr.replace(/,.*$/, '').trim(), fbState);
-          if (coords) { fbLat = coords.lat; fbLng = coords.lng; }
+        let coords = null;
+        if (locCity) {
+          const locKey = `${locCity},${locState}`;
+          coords = cityGeoCache.get(locKey);
+          if (coords === undefined) { coords = await geocodePlaceName(locCity, locState); cityGeoCache.set(locKey, coords); }
+        }
+        if (!coords) {
+          coords = { lat: centerLat + (Math.random() - 0.5) * 0.06, lng: centerLng + (Math.random() - 0.5) * 0.06 };
         }
 
-        // If still no coords, place loosely near center
-        if (!fbLat) {
-          fbLat = centerLat + (Math.random() - 0.5) * 0.06;
-          fbLng = centerLng + (Math.random() - 0.5) * 0.06;
-        }
-
-        const distMi = parseFloat(distanceMiles(centerLat, centerLng, fbLat, fbLng).toFixed(1));
+        const distMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
         if (distMi > radiusMi) continue;
 
-        // Images — actor returns urls array or single image
-        const rawImgs = item.images || item.photos || (item.image ? [item.image] : []);
-        const imgUrls = rawImgs.map(img => typeof img === 'string' ? img : img?.url || img?.src).filter(Boolean);
-        if (!imgUrls.length) {
-          const thumb = mapThumbUrl(fbLat, fbLng);
-          if (thumb) imgUrls.push(thumb);
-        }
+        const imgUrl  = item.primary_listing_photo?.image?.uri;
+        const imgUrls = imgUrl ? [imgUrl] : [];
 
-        const px = pinXY(fbLat, fbLng, centerLat, centerLng, radiusMi);
+        const px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
         results.push({
           id:           `fb-${id}`,
           source:       'facebook',
-          type:         detectType(title + ' ' + desc + ' ' + query),
+          type:         detectType(title),
           title,
           address:      locStr || 'Nearby',
           neighborhood: locStr || 'Nearby',
           distanceMi:   distMi,
-          lat:          fbLat,
-          lng:          fbLng,
+          lat:          coords.lat,
+          lng:          coords.lng,
           dateLabel:    '',
-          timeLabel:    parseTimeFromText(title + ' ' + desc),
+          timeLabel:    parseTimeFromText(title),
           photoCount:   imgUrls.length,
           images:       imgUrls,
-          live:         false,
-          blurb:        desc.slice(0, 300),
-          price,
-          items:        extractItemTags(title, desc),
-          url:          item.url || item.link || `https://www.facebook.com/marketplace/item/${id}`,
+          live:         !!item.is_live,
+          blurb:        '',
+          price:        item.listing_price?.formatted_amount || '',
+          items:        extractItemTags(title),
+          url:          item.listingUrl || `https://www.facebook.com/marketplace/item/${id}`,
           x:            Math.max(5, Math.min(95, px.x)),
           y:            Math.max(5, Math.min(95, px.y)),
         });
       }
-    } catch (err) {
-      console.warn(`  FB Apify "${query}" error:`, err.message);
     }
+  } catch (err) {
+    console.warn('  FB Apify error:', err.message);
   }
 
   console.log(`  FB Marketplace done — ${results.length} listings`);
