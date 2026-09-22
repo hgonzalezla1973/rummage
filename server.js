@@ -2197,7 +2197,11 @@ async function fetchYardSaleSearchPhotos(listings, concurrency = 8) {
         for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/(?:f\/)?s-(\d+)-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
           const id = m[1];
           if (!idGroups.has(id)) idGroups.set(id, []);
-          idGroups.get(id).push(m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
+          // The /f/ bucket only stores the -t (thumbnail) version -- stripping
+          // it there 400s at the CDN (confirmed live: every /f/ URL a real
+          // listing had came back broken). Only the root-level s-... bucket
+          // has a same-path full-size original at the -t-less URL.
+          idGroups.get(id).push(m[0].includes('/f/s-') ? m[0] : m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
         }
         let bestId = null, bestCount = 1;
         for (const [id, group] of idGroups) {
@@ -2343,7 +2347,11 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
         for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/(?:f\/)?s-(\d+)-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
           const id = m[1];
           if (!idGroups.has(id)) idGroups.set(id, []);
-          idGroups.get(id).push(m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
+          // The /f/ bucket only stores the -t (thumbnail) version -- stripping
+          // it there 400s at the CDN (confirmed live: every /f/ URL a real
+          // listing had came back broken). Only the root-level s-... bucket
+          // has a same-path full-size original at the -t-less URL.
+          idGroups.get(id).push(m[0].includes('/f/s-') ? m[0] : m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
         }
         let bestId = null, bestCount = 1;
         for (const [id, group] of idGroups) {
