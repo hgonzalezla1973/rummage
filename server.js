@@ -2116,10 +2116,26 @@ async function fetchYardSaleSearchPhotos(listings, concurrency = 8) {
         const html = await res.text();
         const seen = new Set();
         const urls = [];
-        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
-          const full = m[0].replace(/-t\.(jpg|webp)$/, '.$1');
-          if (!seen.has(full)) { seen.add(full); urls.push(full); }
+
+        // Same eso-cdn sidebar-contamination risk as GarageSaleFinder's
+        // detail pages (shared TLC network) -- group by the sale id embedded
+        // in the path and keep only the id with more than one hit, so a
+        // "nearby sales" thumbnail (one hit per neighbor) can't get mistaken
+        // for this listing's own gallery.
+        const idGroups = new Map();
+        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/(?:f\/)?s-(\d+)-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
+          const id = m[1];
+          if (!idGroups.has(id)) idGroups.set(id, []);
+          idGroups.get(id).push(m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
         }
+        let bestId = null, bestCount = 1;
+        for (const [id, group] of idGroups) {
+          if (group.length > bestCount) { bestCount = group.length; bestId = id; }
+        }
+        if (bestId) {
+          for (const url of idGroups.get(bestId)) if (!seen.has(url)) { seen.add(url); urls.push(url); }
+        }
+
         if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
@@ -2242,18 +2258,40 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
         const html = await res.text();
         const seen = new Set();
         const urls = [];
-        for (const m of html.matchAll(/https:\/\/gsf\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
-          const full = m[0].replace('/w150-h100/', '/w500-h500/');
+
+        // eso-cdn photos are syndicated from EstateSales.org and carry the
+        // sale's own id in the path (s-<id>-<hash>). A detail page's "nearby
+        // sales" sidebar links out through this same CDN too -- one thumbnail
+        // per OTHER sale -- so a plain whole-page match mixes unrelated
+        // listings' photos into this one (confirmed live: two different
+        // GSALR listings came back with the exact same 3 "photos", none of
+        // which were actually theirs). Group matches by id and keep only the
+        // id with more than one hit -- the real gallery is many photos, each
+        // sidebar neighbor contributes exactly one.
+        const idGroups = new Map();
+        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/(?:f\/)?s-(\d+)-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
+          const id = m[1];
+          if (!idGroups.has(id)) idGroups.set(id, []);
+          idGroups.get(id).push(m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
+        }
+        let bestId = null, bestCount = 1;
+        for (const [id, group] of idGroups) {
+          if (group.length > bestCount) { bestCount = group.length; bestId = id; }
+        }
+        if (bestId) {
+          for (const url of idGroups.get(bestId)) if (!seen.has(url)) { seen.add(url); urls.push(url); }
+        }
+
+        // Natively-uploaded (non-syndicated) photos are tagged itemprop="image"
+        // and hosted on ps.tlstatic.com at a small crop size -- scoped to just
+        // this listing's own gallery, unlike the sidebar above. Upgrade to a
+        // real display size the same way the Pinterest share link on the same
+        // page does (w700-h500 of the identical file path).
+        for (const m of html.matchAll(/itemprop="image"[^>]*src="(https:\/\/ps\.tlstatic\.com\/image\/)w\d+-c[\d:]+(\/[^"]+)"/g)) {
+          const full = `${m[1]}w700-h500${m[2]}`;
           if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
-        for (const m of html.matchAll(/https:\/\/gsalr\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
-          const full = m[0].replace('/w150-h100/', '/w500-h500/');
-          if (!seen.has(full)) { seen.add(full); urls.push(full); }
-        }
-        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.webp/g)) {
-          const full = m[0].replace(/-t\.webp$/, '.webp');
-          if (!seen.has(full)) { seen.add(full); urls.push(full); }
-        }
+
         if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
