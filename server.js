@@ -435,9 +435,9 @@ const LA_NEIGHBORHOODS = {
 const cache     = new Map();
 const CACHE_TTL = 8 * 60 * 1000; // 8 minutes
 
-function fromCache(key) {
+function fromCache(key, ttlMs = CACHE_TTL) {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
+  if (hit && Date.now() - hit.ts < ttlMs) return hit.data;
   return null;
 }
 function toCache(key, data) { cache.set(key, { ts: Date.now(), data }); }
@@ -2735,12 +2735,20 @@ async function scrapeNextdoor(zip, radiusMi, centerLat, centerLng) {
 // listing_price.formatted_amount, location.reverse_geocode, a single
 // primary_listing_photo, no description unless includeListingDetails is on).
 // Both confirmed directly against the actor's input schema and README sample.
+// Apify's pay-per-result pricing (~$0.50 per run here, most of which gets
+// discarded by the distance filter since FB's own search doesn't localize
+// tightly) makes the shared 8-minute cache far too short -- real traffic
+// would burn through the $5/month free credit in under an hour. Give FB its
+// own much longer TTL; garage/yard sale listings don't change fast enough to
+// need fresher-than-this data anyway.
+const FB_CACHE_TTL = 8 * 60 * 60 * 1000; // 8 hours
+
 async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
   const token = process.env.APIFY_TOKEN;
   if (!token) return [];
 
   const cacheKey = `fb:${zip}:${radiusMi}`;
-  const cached   = fromCache(cacheKey);
+  const cached   = fromCache(cacheKey, FB_CACHE_TTL);
   if (cached) { console.log('  FB cache hit'); return cached; }
 
   const results = [];
