@@ -441,15 +441,28 @@ const MAX_LISTING_PHOTOS = 40;
 const capPhotos = arr => (arr && arr.length > MAX_LISTING_PHOTOS) ? arr.slice(0, MAX_LISTING_PHOTOS) : arr;
 
 // ── In-memory cache ───────────────────────────────────────────────────────────
-const cache     = new Map();
-const CACHE_TTL = 8 * 60 * 1000; // 8 minutes
+// Nothing ever removed an entry here -- every distinct zip/radius (and each
+// source's own per-zip cache key) accumulated for the life of the process,
+// with no cap and no sweep. Combined with capPhotos() now correctly holding
+// real ~40-photo galleries instead of the old broken/truncated ones, this was
+// a genuine unbounded-growth leak that contributed to the free tier's OOM
+// crash loop -- confirmed live: a handful of distinct zip/radius searches
+// within a few minutes was enough to tip a long-running instance over 512MB.
+// Map preserves insertion order, so the oldest entry is always first.
+const cache        = new Map();
+const CACHE_TTL    = 8 * 60 * 1000; // 8 minutes
+const MAX_CACHE_ENTRIES = 150;
 
 function fromCache(key, ttlMs = CACHE_TTL) {
   const hit = cache.get(key);
   if (hit && Date.now() - hit.ts < ttlMs) return hit.data;
   return null;
 }
-function toCache(key, data) { cache.set(key, { ts: Date.now(), data }); }
+function toCache(key, data) {
+  cache.delete(key); // re-set moves it to the end (most-recently-used)
+  cache.set(key, { ts: Date.now(), data });
+  while (cache.size > MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value);
+}
 
 // Promises for a scrape that's currently in flight, keyed the same as
 // `cache` -- lets getListingsForZip dedupe concurrent identical requests
@@ -840,6 +853,32 @@ function parseTimeFromText(text = '') {
 // ── Browser pool (reuse one browser instance) ─────────────────────────────────
 let _browser = null;
 
+// Per-function concurrency (fetchListingImages, fetchEstateSalesImages, etc.)
+// only bounds tabs *within* a single scrape. Two different zip/radius
+// searches landing close together each start their own full battery of
+// scrapers independently, so their tab counts stack -- confirmed live: an
+// OOM crash landed right as a new search's Puppeteer enrichment started
+// while the previous search's own (past-ceiling but still-running)
+// enrichment was still closing out. This gate caps real Chrome tabs open at
+// once across the whole process, regardless of how many requests are
+// in flight.
+function createGate(max) {
+  let active = 0;
+  const queue = [];
+  return {
+    acquire() {
+      if (active < max) { active++; return Promise.resolve(); }
+      return new Promise(resolve => queue.push(resolve)).then(() => { active++; });
+    },
+    release() {
+      active--;
+      const next = queue.shift();
+      if (next) next();
+    },
+  };
+}
+const pageGate = createGate(5);
+
 async function getBrowser() {
   if (_browser && _browser.connected) return _browser;
   console.log('Launching Chrome…');
@@ -892,8 +931,10 @@ async function fetchListingImages(listings, concurrency = 3) {
   for (let i = 0; i < work.length; i += concurrency) {
     const batch = work.slice(i, i + concurrency);
     await Promise.all(batch.map(async listing => {
-      const page = await browser.newPage();
+      await pageGate.acquire();
+      let page;
       try {
+        page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setJavaScriptEnabled(false);
         // Block everything except the HTML document
@@ -936,7 +977,8 @@ async function fetchListingImages(listings, concurrency = 3) {
         // Non-fatal: listing just won't have images
         console.warn(`    Image fetch failed for "${listing.title?.slice(0,30)}": ${err.message}`);
       } finally {
-        await page.close().catch(() => {});
+        if (page) await page.close().catch(() => {});
+        pageGate.release();
       }
     }));
   }
@@ -961,8 +1003,10 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
   for (let i = 0; i < work.length; i += concurrency) {
     const batch = work.slice(i, i + concurrency);
     await Promise.all(batch.map(async listing => {
-      const page = await browser.newPage();
+      await pageGate.acquire();
+      let page;
       try {
+        page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setRequestInterception(true);
         page.on('request', req => {
@@ -1039,7 +1083,8 @@ async function fetchEstateSalesImages(listings, concurrency = 3) {
       } catch (err) {
         console.warn(`    ES img fetch failed for "${listing.title?.slice(0,30)}": ${err.message}`);
       } finally {
-        await page.close().catch(() => {});
+        if (page) await page.close().catch(() => {});
+        pageGate.release();
       }
     }));
   }
@@ -1244,8 +1289,10 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
 
   for (const url of searchUrls) {
     console.log('  Craigslist:', url);
-    const page = await browser.newPage();
+    await pageGate.acquire();
+    let page;
     try {
+      page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       await page.setJavaScriptEnabled(false);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
@@ -1271,7 +1318,8 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
     } catch (err) {
       console.warn(`  CL error on ${url}:`, err.message);
     } finally {
-      await page.close().catch(() => {});
+      if (page) await page.close().catch(() => {});
+      pageGate.release();
     }
   }
 
@@ -1812,8 +1860,10 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
 
   for (const url of urls) {
     console.log('  EstateSales:', url);
-    const page = await browser.newPage();
+    await pageGate.acquire();
+    let page;
     try {
+      page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       await page.setViewport({ width: 1280, height: 900 });
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
@@ -1881,6 +1931,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
 
       console.log(`  EstateSales found ${items.length} items from ${url}`);
       await page.close().catch(() => {});
+      pageGate.release();
 
       if (items.length === 0) continue; // try next URL
 
@@ -1976,7 +2027,8 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
       break; // got results — stop trying fallback URLs
     } catch (err) {
       console.warn(`  EstateSales error (${url}):`, err.message);
-      await page.close().catch(() => {});
+      if (page) await page.close().catch(() => {});
+      pageGate.release();
     }
   }
 
@@ -2515,8 +2567,10 @@ async function fetchEstateSaleComPhotos(listings, concurrency = 3) {
   for (let i = 0; i < work.length; i += concurrency) {
     const batch = work.slice(i, i + concurrency);
     await Promise.all(batch.map(async listing => {
-      const page = await browser.newPage();
+      await pageGate.acquire();
+      let page;
       try {
+        page = await browser.newPage();
         await page.setUserAgent(SCRAPE_UA);
         await page.setRequestInterception(true);
         page.on('request', req => {
@@ -2543,7 +2597,8 @@ async function fetchEstateSaleComPhotos(listings, concurrency = 3) {
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
       } finally {
-        await page.close().catch(() => {});
+        if (page) await page.close().catch(() => {});
+        pageGate.release();
       }
     }));
   }
@@ -2563,6 +2618,16 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
   if (cached) { console.log('  ESC cache hit'); return cached; }
 
   const results = [];
+  // page/gate cleanup lives outside the try body (and is idempotent) so
+  // both the catch block below and every early-return in between can call
+  // it safely without double-releasing the gate or leaking a page when
+  // page.goto() throws (a real, frequent failure mode for this source).
+  let page = null;
+  let gateAcquired = false;
+  const releasePage = async () => {
+    if (page) { await page.close().catch(() => {}); page = null; }
+    if (gateAcquired) { pageGate.release(); gateAcquired = false; }
+  };
   try {
     console.log(`  EstateSale.com: zip=${zip}`);
     const cityName = await reverseGeocodeCity(centerLat, centerLng);
@@ -2574,7 +2639,9 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     // that challenge the way it would for a human visitor, so both fetches
     // below go through the shared Puppeteer instance instead.
     const browser = await getBrowser();
-    const page = await browser.newPage();
+    await pageGate.acquire();
+    gateAcquired = true;
+    page = await browser.newPage();
     await page.setUserAgent(SCRAPE_UA);
 
     let cityMap = fromCache('esc:ca-cities');
@@ -2595,13 +2662,13 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     const cityKey = cityName.toLowerCase();
     const cityId = cityMap[cityKey]
       || Object.entries(cityMap).find(([name]) => name.includes(cityKey) || cityKey.includes(name))?.[1];
-    if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); await page.close().catch(()=>{}); toCache(cacheKey, results); return results; }
+    if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); await releasePage(); toCache(cacheKey, results); return results; }
 
     const citySlug = cityName.replace(/\s+/g, '-');
     const listResp = await page.goto(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, { waitUntil: 'networkidle2', timeout: 20000 });
-    if (!listResp || !listResp.ok()) { console.warn(`  ESC HTTP ${listResp ? listResp.status() : 'no response'}`); await page.close().catch(()=>{}); toCache(cacheKey, results); return results; }
+    if (!listResp || !listResp.ok()) { console.warn(`  ESC HTTP ${listResp ? listResp.status() : 'no response'}`); await releasePage(); toCache(cacheKey, results); return results; }
     const html = await page.content();
-    await page.close().catch(() => {});
+    await releasePage();
 
     const blocks = html.split('class="listing-summary"').slice(1);
     console.log(`  ESC raw blocks: ${blocks.length}`);
@@ -2677,6 +2744,7 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     console.log(`  ESC done — ${results.length} listings`);
   } catch (err) {
     console.warn('  ESC error:', err.message);
+    await releasePage();
   }
   toCache(cacheKey, results);
   return results;
