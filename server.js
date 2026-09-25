@@ -225,8 +225,14 @@ app.get('/api/img', async (req, res) => {
     return res.status(403).send('Domain not allowed');
   }
 
+  await imgProxyGate.acquire();
   try {
-    const r = await fetch(url, {
+    // Previously a plain fetch() with no timeout -- a stalled upstream
+    // connection (more common on a mobile network away from home than on
+    // home WiFi) just hung forever instead of failing, so the thumbnail sat
+    // blank indefinitely rather than falling back to the placeholder the
+    // frontend's onError handler already knows how to show.
+    const r = await fetchTimeout(url, 8000, {
       headers: {
         'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer':         `${parsed.protocol}//${parsed.hostname}/`,
@@ -266,6 +272,8 @@ app.get('/api/img', async (req, res) => {
   } catch (err) {
     console.warn('Image proxy error:', err.message);
     res.status(502).send('Proxy error');
+  } finally {
+    imgProxyGate.release();
   }
 });
 
@@ -878,6 +886,11 @@ function createGate(max) {
   };
 }
 const pageGate = createGate(5);
+// A sale-detail page can have up to MAX_LISTING_PHOTOS (40) thumbnails, each
+// hitting /api/img at once -- capped separately from pageGate (lighter work,
+// no real browser page) so one detail-page view can't pile up 40 simultaneous
+// upstream fetches + sharp conversions on the free-tier instance.
+const imgProxyGate = createGate(8);
 
 async function getBrowser() {
   if (_browser && _browser.connected) return _browser;
