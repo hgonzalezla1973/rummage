@@ -4580,26 +4580,51 @@ function App() {
   const [useHomeZip, setUseHomeZip] = useState(false); // explicit "no, use my home ZIP" override
   const [locating, setLocating] = useState(false);
   const [locationDenied, setLocationDenied] = useState(false);
+  const resolvePosition = (lat, lng) => {
+    fetch(`${API_BASE}/api/reverse-geocode?lat=${lat}&lng=${lng}`)
+      .then(r => r.json())
+      .then(data => {
+        if (!data.zip) { setLocationDenied(true); return; }
+        // No saved home ZIP yet -- use the real detected location as
+        // home. Once a home ZIP exists, later detections only drive the
+        // "away from home" banner below, not overwrite it.
+        if (!localStorage.getItem('rummage_zip')) setZip(data.zip);
+        else { setDetectedZip(data.zip); setDetectedCity(data.city || null); }
+      })
+      .catch(() => setLocationDenied(true))
+      .finally(() => setLocating(false));
+  };
+  // The plain web Geolocation API (navigator.geolocation) is unreliable
+  // inside Capacitor's WKWebView -- confirmed on-device: with location
+  // permission already granted, getCurrentPosition still never resolves to
+  // anywhere but wherever the WebView was first loaded, so a real change of
+  // location on the device never gets picked up. The official plugin
+  // bridges to CoreLocation directly instead of going through the WebView's
+  // own (unreliable) geolocation bridge, so it's used whenever the app is
+  // running natively; plain browser access (rummagedeals.com) has no such
+  // plugin and keeps using navigator.geolocation as before.
   const requestLocation = () => {
+    const GeoPlugin = window.Capacitor?.Plugins?.Geolocation;
+    const opts = { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60 * 1000 };
+    if (GeoPlugin) {
+      setLocating(true);
+      GeoPlugin.checkPermissions()
+        .then(status => status.location === 'granted' ? status : GeoPlugin.requestPermissions())
+        .then(status => {
+          if (status.location !== 'granted') { setLocating(false); setLocationDenied(true); return; }
+          return GeoPlugin.getCurrentPosition(opts).then(
+            pos => resolvePosition(pos.coords.latitude, pos.coords.longitude)
+          );
+        })
+        .catch(() => { setLocating(false); setLocationDenied(true); });
+      return;
+    }
     if (!navigator.geolocation) { setLocationDenied(true); return; }
     setLocating(true);
     navigator.geolocation.getCurrentPosition(
-      pos => {
-        fetch(`${API_BASE}/api/reverse-geocode?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`)
-          .then(r => r.json())
-          .then(data => {
-            if (!data.zip) { setLocationDenied(true); return; }
-            // No saved home ZIP yet -- use the real detected location as
-            // home. Once a home ZIP exists, later detections only drive the
-            // "away from home" banner below, not overwrite it.
-            if (!localStorage.getItem('rummage_zip')) setZip(data.zip);
-            else { setDetectedZip(data.zip); setDetectedCity(data.city || null); }
-          })
-          .catch(() => setLocationDenied(true))
-          .finally(() => setLocating(false));
-      },
+      pos => resolvePosition(pos.coords.latitude, pos.coords.longitude),
       () => { setLocating(false); setLocationDenied(true); }, // permission denied or unavailable
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 10 * 60 * 1000 }
+      opts
     );
   };
   useEffect(() => {
