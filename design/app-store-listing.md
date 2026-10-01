@@ -19,13 +19,13 @@ FIND SALES NEAR YOU
 Browse by map or list, filter by sale type (estate, yard, moving), and see what's live right now versus starting later. Switch on "Open now" to instantly narrow down to sales you can walk into today.
 
 PLAN YOUR ROUTE
-Save the sales you don't want to miss, then let My Trip build the fastest route to hit them all — sorted nearest to furthest, with one tap to open turn-by-turn directions in Google Maps.
+Save the sales you don't want to miss, then let My Trip build the fastest route to hit them all — sorted nearest to furthest, with one tap to open turn-by-turn directions in Apple Maps (Google Maps and Waze also supported).
 
 THRIFT & VINTAGE STORES, TOO
 Not just one-off sales — Rummage also surfaces the thrift, vintage, antique, and consignment shops near you, so you can build a full day of hunting for the good stuff.
 
 LIST YOUR OWN SALE
-Hosting a sale? Post it directly in the app — free, with up to 12 photos — and it shows up on the map immediately for shoppers nearby.
+Hosting a sale? Post it directly in the app — free, with as many photos as you'd like — and it shows up on the map immediately for shoppers nearby.
 
 DAILY DIGEST
 Turn on the daily digest and get that day's nearby sales sent straight to your inbox each morning, so you never have to remember to check.

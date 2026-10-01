@@ -3,10 +3,12 @@ services:
     name: rummage
     runtime: node
     plan: free
-    buildCommand: npm install
+    buildCommand: npm install && npx puppeteer browsers install chrome
     startCommand: npm start
     healthCheckPath: /api/health
     envVars:
+      - key: PUPPETEER_CACHE_DIR
+        value: /opt/render/project/src/.cache/puppeteer
       - key: RESEND_API_KEY
         sync: false
       - key: FEEDBACK_EMAIL

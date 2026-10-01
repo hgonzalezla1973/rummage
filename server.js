@@ -205,18 +205,34 @@ app.post('/api/feedback', async (req, res) => {
 app.get('/api/img', async (req, res) => {
   const url = req.query.url;
   if (!url) return res.status(400).send('Missing url');
+  // Optional w/h -- used by the email digest (see proxyImgUrlForEmail) to
+  // pre-crop photos server-side to the exact box the email template
+  // displays them in. CSS object-fit does this for free in the app/browser,
+  // but Outlook's desktop renderer (the Word engine, not a real browser)
+  // ignores object-fit and just stretches whatever image it gets to fill
+  // the <img>'s width/height attributes -- so a portrait photo forced into
+  // a short wide box comes out squashed. Cropping to the same ratio here
+  // means that stretch becomes a uniform scale, no distortion.
+  const w = Math.min(1200, parseInt(req.query.w, 10) || 0);
+  const h = Math.min(1200, parseInt(req.query.h, 10) || 0);
 
   let parsed;
   try { parsed = new URL(url); } catch { return res.status(400).send('Invalid url'); }
 
-  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com'];
+  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com', 'nextdoor.com'];
   const host = parsed.hostname.replace(/^www\./, '');
   if (!allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
     return res.status(403).send('Domain not allowed');
   }
 
+  await imgProxyGate.acquire();
   try {
-    const r = await fetch(url, {
+    // Previously a plain fetch() with no timeout -- a stalled upstream
+    // connection (more common on a mobile network away from home than on
+    // home WiFi) just hung forever instead of failing, so the thumbnail sat
+    // blank indefinitely rather than falling back to the placeholder the
+    // frontend's onError handler already knows how to show.
+    const r = await fetchTimeout(url, 8000, {
       headers: {
         'User-Agent':      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         'Referer':         `${parsed.protocol}//${parsed.hostname}/`,
@@ -234,7 +250,14 @@ app.get('/api/img', async (req, res) => {
     // fine in a regular browser). Converting to JPEG here fixes it for
     // every client uniformly, not just iOS.
     let outCt = ct;
-    if (ct.includes('webp') || /\.webp(\?|$)/i.test(url)) {
+    if (w && h) {
+      try {
+        buf = await sharp(buf).resize(w, h, { fit: 'cover' }).jpeg({ quality: 82 }).toBuffer();
+        outCt = 'image/jpeg';
+      } catch (err) {
+        console.warn('Image resize failed, serving unresized:', err.message);
+      }
+    } else if (ct.includes('webp') || /\.webp(\?|$)/i.test(url)) {
       try {
         buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
         outCt = 'image/jpeg';
@@ -249,6 +272,8 @@ app.get('/api/img', async (req, res) => {
   } catch (err) {
     console.warn('Image proxy error:', err.message);
     res.status(502).send('Proxy error');
+  } finally {
+    imgProxyGate.release();
   }
 });
 
@@ -266,6 +291,26 @@ app.get(['/terms', '/terms/'], (_req, res) => res.sendFile(path.join(__dirname, 
 app.get(['/help', '/help/'], (_req, res) => res.sendFile(path.join(__dirname, 'help.html')));
 app.get(['/support', '/support/'], (_req, res) => res.sendFile(path.join(__dirname, 'support.html')));
 app.get('/auth/apple/callback', (_req, res) => res.sendFile(path.join(__dirname, 'apple-callback.html')));
+
+// Universal Links: tells iOS which URLs on this domain should open the app
+// directly instead of Safari (e.g. the digest email's "View sale" links,
+// currently plain https:// links that always open in a browser even with
+// the app installed). Must be served as JSON with no redirect -- iOS fetches
+// this over HTTPS at install time and caches it. Needs a matching
+// com.apple.developer.associated-domains entitlement in the iOS app AND the
+// Associated Domains capability registered for the App ID before this does
+// anything; hosting it here is necessary but not sufficient on its own.
+const APPLE_APP_SITE_ASSOCIATION = {
+  applinks: {
+    apps: [],
+    details: [
+      { appID: 'S6XPG2444R.com.rummagedeals.app', paths: ['/app', '/app/*'] },
+    ],
+  },
+};
+app.get(['/.well-known/apple-app-site-association', '/apple-app-site-association'], (_req, res) => {
+  res.set('Content-Type', 'application/json').json(APPLE_APP_SITE_ASSOCIATION);
+});
 
 // Standalone static page (not the React SPA) documenting SMS opt-in consent
 // -- required as "Opt-In Policy Proof" for Twilio Toll-Free Verification.
@@ -394,16 +439,38 @@ const LA_NEIGHBORHOODS = {
   'san dimas':{'lat':34.1067,'lng':-117.8067},'la verne':{'lat':34.1006,'lng':-117.7678},
 };
 
-// ── In-memory cache ───────────────────────────────────────────────────────────
-const cache     = new Map();
-const CACHE_TTL = 8 * 60 * 1000; // 8 minutes
+// Some estate-sale companies upload hundreds of item photos to a single sale
+// (a full-house liquidation can genuinely have 500+) -- fine for correctness,
+// but holding that many detail-page fetches/arrays in memory at once across
+// ten concurrent scrapers pushed the free-tier 512MB instance into repeated
+// OOM crash loops. Cap what any one listing keeps; still a rich gallery, just
+// not an unbounded one.
+const MAX_LISTING_PHOTOS = 40;
+const capPhotos = arr => (arr && arr.length > MAX_LISTING_PHOTOS) ? arr.slice(0, MAX_LISTING_PHOTOS) : arr;
 
-function fromCache(key) {
+// ── In-memory cache ───────────────────────────────────────────────────────────
+// Nothing ever removed an entry here -- every distinct zip/radius (and each
+// source's own per-zip cache key) accumulated for the life of the process,
+// with no cap and no sweep. Combined with capPhotos() now correctly holding
+// real ~40-photo galleries instead of the old broken/truncated ones, this was
+// a genuine unbounded-growth leak that contributed to the free tier's OOM
+// crash loop -- confirmed live: a handful of distinct zip/radius searches
+// within a few minutes was enough to tip a long-running instance over 512MB.
+// Map preserves insertion order, so the oldest entry is always first.
+const cache        = new Map();
+const CACHE_TTL    = 8 * 60 * 1000; // 8 minutes
+const MAX_CACHE_ENTRIES = 150;
+
+function fromCache(key, ttlMs = CACHE_TTL) {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.ts < CACHE_TTL) return hit.data;
+  if (hit && Date.now() - hit.ts < ttlMs) return hit.data;
   return null;
 }
-function toCache(key, data) { cache.set(key, { ts: Date.now(), data }); }
+function toCache(key, data) {
+  cache.delete(key); // re-set moves it to the end (most-recently-used)
+  cache.set(key, { ts: Date.now(), data });
+  while (cache.size > MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value);
+}
 
 // Promises for a scrape that's currently in flight, keyed the same as
 // `cache` -- lets getListingsForZip dedupe concurrent identical requests
@@ -572,11 +639,16 @@ function isoDateLabel(startISO, endISO) {
 
 // Static map thumbnail via Geoapify (free tier: 3,000/day, no credit card)
 // Set GEOAPIFY_KEY in .env — get one at https://myprojects.geoapify.com
+//
+// No marker: the map is already centered on lat/lng, so the pin was purely
+// decorative -- and Geoapify's "material" pin renders baked into the raster
+// at a size that swallows most of a 400x260 crop, looking like a broken
+// oversized blob rather than a location hint. Center-of-frame already
+// conveys the same thing without that failure mode.
 function mapThumbUrl(lat, lng) {
   const key = process.env.GEOAPIFY_KEY;
   if (!key || !lat || !lng) return null;
-  const marker = `lonlat:${lng},${lat};type:material;color:%230d9488;size:medium`;
-  return `https://maps.geoapify.com/v1/staticmap?style=osm-bright-smooth&width=400&height=260&center=lonlat:${lng},${lat}&zoom=15&marker=${marker}&apiKey=${key}`;
+  return `https://maps.geoapify.com/v1/staticmap?style=osm-bright-smooth&width=400&height=260&center=lonlat:${lng},${lat}&zoom=15&apiKey=${key}`;
 }
 
 function detectType(text = '') {
@@ -789,6 +861,37 @@ function parseTimeFromText(text = '') {
 // ── Browser pool (reuse one browser instance) ─────────────────────────────────
 let _browser = null;
 
+// Per-function concurrency (fetchListingImages, fetchEstateSalesImages, etc.)
+// only bounds tabs *within* a single scrape. Two different zip/radius
+// searches landing close together each start their own full battery of
+// scrapers independently, so their tab counts stack -- confirmed live: an
+// OOM crash landed right as a new search's Puppeteer enrichment started
+// while the previous search's own (past-ceiling but still-running)
+// enrichment was still closing out. This gate caps real Chrome tabs open at
+// once across the whole process, regardless of how many requests are
+// in flight.
+function createGate(max) {
+  let active = 0;
+  const queue = [];
+  return {
+    acquire() {
+      if (active < max) { active++; return Promise.resolve(); }
+      return new Promise(resolve => queue.push(resolve)).then(() => { active++; });
+    },
+    release() {
+      active--;
+      const next = queue.shift();
+      if (next) next();
+    },
+  };
+}
+const pageGate = createGate(5);
+// A sale-detail page can have up to MAX_LISTING_PHOTOS (40) thumbnails, each
+// hitting /api/img at once -- capped separately from pageGate (lighter work,
+// no real browser page) so one detail-page view can't pile up 40 simultaneous
+// upstream fetches + sharp conversions on the free-tier instance.
+const imgProxyGate = createGate(8);
+
 async function getBrowser() {
   if (_browser && _browser.connected) return _browser;
   console.log('Launching Chrome…');
@@ -825,7 +928,13 @@ async function newPage(browser) {
 // CL detail pages embed full-size images as <img src="..._600x450.jpg"> even
 // with JS disabled. Thumbnails (_50x50c) are also present; we convert them to
 // full-size by swapping the size suffix.
-async function fetchListingImages(listings, concurrency = 8) {
+//
+// Concurrency kept low (3, not the 8 it used to be) -- this opens a real
+// headless-Chrome tab per listing, and running this alongside the other
+// Puppeteer-based enrichment (EstateSales.org, EstateSale.com) at their old
+// concurrency put 20+ tabs open at once, which OOM-crashed the free-tier
+// 512MB instance in production.
+async function fetchListingImages(listings, concurrency = 3) {
   const browser  = await getBrowser();
   const imageMap = new Map(); // listing.url → { images: string[], address: string }
 
@@ -835,8 +944,10 @@ async function fetchListingImages(listings, concurrency = 8) {
   for (let i = 0; i < work.length; i += concurrency) {
     const batch = work.slice(i, i + concurrency);
     await Promise.all(batch.map(async listing => {
-      const page = await browser.newPage();
+      await pageGate.acquire();
+      let page;
       try {
+        page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setJavaScriptEnabled(false);
         // Block everything except the HTML document
@@ -869,7 +980,7 @@ async function fetchListingImages(listings, concurrency = 8) {
             if (m) addr = m[1].trim();
           }
 
-          return { images: imgs.slice(0, 8), address: addr }; // max 8 images per listing
+          return { images: imgs, address: addr }; // no cap -- show every photo the listing has
         });
 
         imageMap.set(listing.url, { images, address });
@@ -879,7 +990,8 @@ async function fetchListingImages(listings, concurrency = 8) {
         // Non-fatal: listing just won't have images
         console.warn(`    Image fetch failed for "${listing.title?.slice(0,30)}": ${err.message}`);
       } finally {
-        await page.close().catch(() => {});
+        if (page) await page.close().catch(() => {});
+        pageGate.release();
       }
     }));
   }
@@ -888,7 +1000,7 @@ async function fetchListingImages(listings, concurrency = 8) {
 }
 
 // ── EstateSales.org detail-page image scraper ─────────────────────────────────
-async function fetchEstateSalesImages(listings, concurrency = 8) {
+async function fetchEstateSalesImages(listings, concurrency = 3) {
   const browser  = await getBrowser();
   const imageMap = new Map();
   const work = listings.filter(l => l.url && l.url.includes('estatesales.org'));
@@ -904,8 +1016,10 @@ async function fetchEstateSalesImages(listings, concurrency = 8) {
   for (let i = 0; i < work.length; i += concurrency) {
     const batch = work.slice(i, i + concurrency);
     await Promise.all(batch.map(async listing => {
-      const page = await browser.newPage();
+      await pageGate.acquire();
+      let page;
       try {
+        page = await browser.newPage();
         await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
         await page.setRequestInterception(true);
         page.on('request', req => {
@@ -955,7 +1069,7 @@ async function fetchEstateSalesImages(listings, concurrency = 8) {
             }
           }
 
-          if (imgs.length >= 3) return { images: imgs.slice(0, 12), address };
+          if (imgs.length >= 3) return { images: imgs, address };
 
           // 3. Fallback: img tags — check data-src for lazy-loaded images too
           for (const img of document.querySelectorAll('img')) {
@@ -969,10 +1083,9 @@ async function fetchEstateSalesImages(listings, concurrency = 8) {
             if ((w && w < 120) || (h && h < 120)) continue;
             const key = src.split('?')[0];
             if (!seen.has(key)) { seen.add(key); imgs.push(src); }
-            if (imgs.length >= 12) break;
           }
 
-          return { images: imgs.slice(0, 12), address };
+          return { images: imgs, address };
         }, GOOD_DOMAINS, BAD_DOMAINS);
 
         const filteredImgs = images.filter(u => !u.includes('nophoto') && !u.includes('placeholder') && !u.includes('spacer') && !u.includes('/track/'));
@@ -983,7 +1096,8 @@ async function fetchEstateSalesImages(listings, concurrency = 8) {
       } catch (err) {
         console.warn(`    ES img fetch failed for "${listing.title?.slice(0,30)}": ${err.message}`);
       } finally {
-        await page.close().catch(() => {});
+        if (page) await page.close().catch(() => {});
+        pageGate.release();
       }
     }));
   }
@@ -1188,8 +1302,10 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
 
   for (const url of searchUrls) {
     console.log('  Craigslist:', url);
-    const page = await browser.newPage();
+    await pageGate.acquire();
+    let page;
     try {
+      page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       await page.setJavaScriptEnabled(false);
       await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
@@ -1215,7 +1331,8 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
     } catch (err) {
       console.warn(`  CL error on ${url}:`, err.message);
     } finally {
-      await page.close().catch(() => {});
+      if (page) await page.close().catch(() => {});
+      pageGate.release();
     }
   }
 
@@ -1295,8 +1412,8 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
     const detail = imageMap.get(listing.url) || {};
     const imgs = detail.images || [];
     if (imgs.length) {
-      listing.images     = imgs;
-      listing.photoCount = imgs.length;
+      listing.images     = capPhotos(imgs);
+      listing.photoCount = listing.images.length;
     } else {
       const thumb = mapThumbUrl(listing.lat, listing.lng);
       if (thumb) { listing.images = [thumb]; listing.photoCount = 1; listing.isMapThumb = true; }
@@ -1339,7 +1456,7 @@ async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 8) {
           ? photos.map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url).filter(Boolean)
           : [];
         detailMap.set(listing.url, {
-          images: urls.slice(0, 10),
+          images: urls,
           description: listingData.description || '',
         });
       } catch (_) {
@@ -1509,7 +1626,7 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
     for (const listing of results) {
       const detail = detailMap.get(listing.url);
       if (!detail) continue;
-      if (detail.images.length) { listing.images = detail.images; listing.photoCount = detail.images.length; }
+      if (detail.images.length) { listing.images = capPhotos(detail.images); listing.photoCount = listing.images.length; }
       // OfferUp titles rarely state a date, but sellers often write it into
       // the description instead ("Saturday & Sunday 7/11-7/12") — try there
       // before giving up on the listing entirely. (Listings whose title
@@ -1715,6 +1832,18 @@ async function scrapeEstateSalesApify(zip, radiusMi, centerLat, centerLng) {
       });
     }
 
+    // Apify's dataset only ever gives main_image + thumbnail (2 images, at
+    // most) -- nowhere near "all the photos from the original listing" the
+    // way every other source's own detail-page fetch does. Reuse the same
+    // detail-page gallery scraper the Puppeteer fallback path already uses
+    // below, so Apify-sourced EstateSales.org listings get their full photo
+    // set too instead of being capped at 2.
+    const imageMap = await fetchEstateSalesImages(results);
+    for (const listing of results) {
+      const imgs = imageMap.get(listing.url)?.images || [];
+      if (imgs.length) { listing.images = capPhotos(imgs); listing.photoCount = imgs.length; }
+    }
+
     console.log(`  ES Apify done — ${results.length} listings`);
     return results;
   } catch (err) {
@@ -1744,8 +1873,10 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
 
   for (const url of urls) {
     console.log('  EstateSales:', url);
-    const page = await browser.newPage();
+    await pageGate.acquire();
+    let page;
     try {
+      page = await browser.newPage();
       await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
       await page.setViewport({ width: 1280, height: 900 });
       await page.goto(url, { waitUntil: 'networkidle2', timeout: 25000 });
@@ -1813,6 +1944,7 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
 
       console.log(`  EstateSales found ${items.length} items from ${url}`);
       await page.close().catch(() => {});
+      pageGate.release();
 
       if (items.length === 0) continue; // try next URL
 
@@ -1895,8 +2027,8 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
         const detail = imageMap.get(listing.url) || {};
         const imgs = detail.images || [];
         if (imgs.length) {
-          listing.images     = imgs;
-          listing.photoCount = imgs.length;
+          listing.images     = capPhotos(imgs);
+          listing.photoCount = listing.images.length;
         }
         if (detail.address) {
           listing.address = listing.address && listing.address !== 'See listing'
@@ -1908,7 +2040,8 @@ async function scrapeEstateSalesPuppeteer(zip, radiusMi, centerLat, centerLng) {
       break; // got results — stop trying fallback URLs
     } catch (err) {
       console.warn(`  EstateSales error (${url}):`, err.message);
-      await page.close().catch(() => {});
+      if (page) await page.close().catch(() => {});
+      pageGate.release();
     }
   }
 
@@ -1957,7 +2090,7 @@ async function fetchEstateSalesNetPhotos(listings, concurrency = 8) {
         const urls = pictures
           .map(p => p?.images?.[0]?.url || p?.url)
           .filter(Boolean);
-        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+        if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
       }
@@ -2017,7 +2150,11 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
         lng:          row.longitude,
         dateLabel:    dates.length ? apifyDateLabel(dates, row.longitude) : '',
         timeLabel:    dates.length ? apifyTimeLabel(dates, row.longitude) : '',
-        photoCount:   row.pictureCount || (img ? 1 : 0),
+        // Not row.pictureCount -- that's the source's claimed total, but
+        // images here is just this one search-result thumbnail; the
+        // enrichment pass below overwrites both together if it succeeds, and
+        // this initial value must stay consistent with itself if it doesn't.
+        photoCount:   img ? 1 : 0,
         images:       img ? [img] : [],
         live:         false,
         blurb:        row.orgName ? `Hosted by ${row.orgName}` : '',
@@ -2034,7 +2171,7 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchEstateSalesNetPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
       delete listing.saleId; // internal-only, not needed by the client
     }
 
@@ -2063,11 +2200,31 @@ async function fetchYardSaleSearchPhotos(listings, concurrency = 8) {
         const html = await res.text();
         const seen = new Set();
         const urls = [];
-        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
-          const full = m[0].replace(/-t\.(jpg|webp)$/, '.$1');
-          if (!seen.has(full)) { seen.add(full); urls.push(full); }
+
+        // Same eso-cdn sidebar-contamination risk as GarageSaleFinder's
+        // detail pages (shared TLC network) -- group by the sale id embedded
+        // in the path and keep only the id with more than one hit, so a
+        // "nearby sales" thumbnail (one hit per neighbor) can't get mistaken
+        // for this listing's own gallery.
+        const idGroups = new Map();
+        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/(?:f\/)?s-(\d+)-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
+          const id = m[1];
+          if (!idGroups.has(id)) idGroups.set(id, []);
+          // The /f/ bucket only stores the -t (thumbnail) version -- stripping
+          // it there 400s at the CDN (confirmed live: every /f/ URL a real
+          // listing had came back broken). Only the root-level s-... bucket
+          // has a same-path full-size original at the -t-less URL.
+          idGroups.get(id).push(m[0].includes('/f/s-') ? m[0] : m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
         }
-        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+        let bestId = null, bestCount = 1;
+        for (const [id, group] of idGroups) {
+          if (group.length > bestCount) { bestCount = group.length; bestId = id; }
+        }
+        if (bestId) {
+          for (const url of idGroups.get(bestId)) if (!seen.has(url)) { seen.add(url); urls.push(url); }
+        }
+
+        if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
       }
@@ -2150,7 +2307,7 @@ async function scrapeYardSaleSearch(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchYardSaleSearchPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  YSS done — ${results.length} listings`);
@@ -2189,19 +2346,45 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
         const html = await res.text();
         const seen = new Set();
         const urls = [];
-        for (const m of html.matchAll(/https:\/\/gsf\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
-          const full = m[0].replace('/w150-h100/', '/w500-h500/');
+
+        // eso-cdn photos are syndicated from EstateSales.org and carry the
+        // sale's own id in the path (s-<id>-<hash>). A detail page's "nearby
+        // sales" sidebar links out through this same CDN too -- one thumbnail
+        // per OTHER sale -- so a plain whole-page match mixes unrelated
+        // listings' photos into this one (confirmed live: two different
+        // GSALR listings came back with the exact same 3 "photos", none of
+        // which were actually theirs). Group matches by id and keep only the
+        // id with more than one hit -- the real gallery is many photos, each
+        // sidebar neighbor contributes exactly one.
+        const idGroups = new Map();
+        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/(?:f\/)?s-(\d+)-[^"'\s]+?-t\.(?:jpg|webp)/g)) {
+          const id = m[1];
+          if (!idGroups.has(id)) idGroups.set(id, []);
+          // The /f/ bucket only stores the -t (thumbnail) version -- stripping
+          // it there 400s at the CDN (confirmed live: every /f/ URL a real
+          // listing had came back broken). Only the root-level s-... bucket
+          // has a same-path full-size original at the -t-less URL.
+          idGroups.get(id).push(m[0].includes('/f/s-') ? m[0] : m[0].replace(/-t\.(jpg|webp)$/, '.$1'));
+        }
+        let bestId = null, bestCount = 1;
+        for (const [id, group] of idGroups) {
+          if (group.length > bestCount) { bestCount = group.length; bestId = id; }
+        }
+        if (bestId) {
+          for (const url of idGroups.get(bestId)) if (!seen.has(url)) { seen.add(url); urls.push(url); }
+        }
+
+        // Natively-uploaded (non-syndicated) photos are tagged itemprop="image"
+        // and hosted on ps.tlstatic.com at a small crop size -- scoped to just
+        // this listing's own gallery, unlike the sidebar above. Upgrade to a
+        // real display size the same way the Pinterest share link on the same
+        // page does (w700-h500 of the identical file path).
+        for (const m of html.matchAll(/itemprop="image"[^>]*src="(https:\/\/ps\.tlstatic\.com\/image\/)w\d+-c[\d:]+(\/[^"]+)"/g)) {
+          const full = `${m[1]}w700-h500${m[2]}`;
           if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
-        for (const m of html.matchAll(/https:\/\/gsalr\.tlstatic\.com\/image\/w150-h100[^"'\s]+/g)) {
-          const full = m[0].replace('/w150-h100/', '/w500-h500/');
-          if (!seen.has(full)) { seen.add(full); urls.push(full); }
-        }
-        for (const m of html.matchAll(/https:\/\/eso-cdn\.tlcdn\.workers\.dev\/s-[^"'\s]+?-t\.webp/g)) {
-          const full = m[0].replace(/-t\.webp$/, '.webp');
-          if (!seen.has(full)) { seen.add(full); urls.push(full); }
-        }
-        if (urls.length) imageMap.set(listing.url, urls.slice(0, 12));
+
+        if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail
       }
@@ -2267,7 +2450,9 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
         lat, lng,
         dateLabel:    startMatch ? isoDateLabel(startMatch[1], endMatch?.[1]) : '',
         timeLabel:    parseTimeFromText(title + ' ' + desc),
-        photoCount:   saleData.photo_count || (imgMatch ? 1 : 0),
+        // Not saleData.photo_count -- see the identical note on ESN's own
+        // initial push above.
+        photoCount:   imgMatch ? 1 : 0,
         images:       imgMatch ? [imgMatch[1]] : [],
         live:         false,
         blurb:        desc.slice(0, 300),
@@ -2284,7 +2469,7 @@ async function scrapeGarageSaleFinder(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchGarageSaleFinderPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  GSF done — ${results.length} listings`);
@@ -2376,7 +2561,7 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
     const photoMap = await fetchGarageSaleFinderPhotos(results);
     for (const listing of results) {
       const urls = photoMap.get(listing.url);
-      if (urls?.length) { listing.images = urls; listing.photoCount = urls.length; }
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  GSALR done — ${results.length} listings`);
@@ -2385,6 +2570,67 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
   }
   toCache(cacheKey, results);
   return results;
+}
+
+// EstateSale.com's search/city pages sit behind Incapsula bot-protection that
+// rejects a plain fetch() outright (confirmed: returns a ~200-byte stub with
+// just the Incapsula challenge script, no content). A real browser navigation
+// solves that challenge automatically the way it would for a human visitor,
+// so this reuses the shared Puppeteer instance instead of fetchTimeout.
+//
+// Each listing's own detail page embeds its full gallery as plain <img> tags
+// pointing at img.esgtphotos.com/esphotos/img/gallery/{companyId}/{saleId}/
+// medium/thumb_{name}.jpg (confirmed via direct probing, same as the
+// GSF/GSALR w150-h100→w500-h500 upgrade below) — dropping both the "medium/"
+// folder and the "thumb_" filename prefix serves the full-size original
+// (9-13x the byte size in spot checks), so every matched URL is upgraded to
+// that before use.
+async function fetchEstateSaleComPhotos(listings, concurrency = 3) {
+  const browser  = await getBrowser();
+  const imageMap = new Map(); // listing.url → string[]
+  const work = listings.filter(l => l.url);
+  console.log(`  ESC: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
+
+  for (let i = 0; i < work.length; i += concurrency) {
+    const batch = work.slice(i, i + concurrency);
+    await Promise.all(batch.map(async listing => {
+      await pageGate.acquire();
+      let page;
+      try {
+        page = await browser.newPage();
+        await page.setUserAgent(SCRAPE_UA);
+        await page.setRequestInterception(true);
+        page.on('request', req => {
+          const t = req.resourceType();
+          if (['document','script','xhr','fetch'].includes(t)) req.continue();
+          else req.abort();
+        });
+        await page.goto(listing.url, { waitUntil: 'networkidle2', timeout: 15000 });
+
+        const urls = await page.evaluate(() => {
+          const seen = new Set();
+          const out = [];
+          for (const img of document.querySelectorAll('img[src*="esgtphotos.com"]')) {
+            const src = img.getAttribute('src') || '';
+            const m = src.match(/^(.*\/gallery\/\d+\/\d+)\/medium\/thumb_(.+)$/);
+            if (!m) continue;
+            const full = `${m[1]}/${m[2]}`;
+            if (!seen.has(full)) { seen.add(full); out.push(full); }
+          }
+          return out;
+        });
+
+        if (urls.length) imageMap.set(listing.url, urls);
+      } catch (_) {
+        // Non-fatal: listing just keeps its single search-result thumbnail
+      } finally {
+        if (page) await page.close().catch(() => {});
+        pageGate.release();
+      }
+    }));
+  }
+
+  return imageMap;
 }
 
 // ── EstateSale.com ────────────────────────────────────────────────────────────
@@ -2399,17 +2645,36 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
   if (cached) { console.log('  ESC cache hit'); return cached; }
 
   const results = [];
+  // page/gate cleanup lives outside the try body (and is idempotent) so
+  // both the catch block below and every early-return in between can call
+  // it safely without double-releasing the gate or leaking a page when
+  // page.goto() throws (a real, frequent failure mode for this source).
+  let page = null;
+  let gateAcquired = false;
+  const releasePage = async () => {
+    if (page) { await page.close().catch(() => {}); page = null; }
+    if (gateAcquired) { pageGate.release(); gateAcquired = false; }
+  };
   try {
     console.log(`  EstateSale.com: zip=${zip}`);
     const cityName = await reverseGeocodeCity(centerLat, centerLng);
     if (!cityName) { console.warn('  ESC: could not resolve city name'); toCache(cacheKey, results); return results; }
 
+    // A plain fetch() gets rejected outright by this site's Incapsula
+    // bot-protection (confirmed: a ~200-byte challenge-script stub, no
+    // content, regardless of the URL). A real browser navigation solves
+    // that challenge the way it would for a human visitor, so both fetches
+    // below go through the shared Puppeteer instance instead.
+    const browser = await getBrowser();
+    await pageGate.acquire();
+    gateAcquired = true;
+    page = await browser.newPage();
+    await page.setUserAgent(SCRAPE_UA);
+
     let cityMap = fromCache('esc:ca-cities');
     if (!cityMap) {
-      const stateRes = await fetchTimeout('https://www.estatesale.com/states/view/5/California-Estate-Sales.html', 9000, {
-        headers: { 'User-Agent': SCRAPE_UA },
-      });
-      const stateHtml = await stateRes.text();
+      await page.goto('https://www.estatesale.com/states/view/5/California-Estate-Sales.html', { waitUntil: 'networkidle2', timeout: 20000 });
+      const stateHtml = await page.content();
       cityMap = {};
       const re = /\/cities\/view\/(\d+)\/Estate-Sales-([A-Za-z0-9-]+)-CA\.html/g;
       let cm;
@@ -2424,22 +2689,30 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
     const cityKey = cityName.toLowerCase();
     const cityId = cityMap[cityKey]
       || Object.entries(cityMap).find(([name]) => name.includes(cityKey) || cityKey.includes(name))?.[1];
-    if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); toCache(cacheKey, results); return results; }
+    if (!cityId) { console.warn(`  ESC: no city match for "${cityName}"`); await releasePage(); toCache(cacheKey, results); return results; }
 
     const citySlug = cityName.replace(/\s+/g, '-');
-    const listRes = await fetchTimeout(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, 9000, {
-      headers: { 'User-Agent': SCRAPE_UA },
-    });
-    if (!listRes.ok) { console.warn(`  ESC HTTP ${listRes.status}`); toCache(cacheKey, results); return results; }
-    const html = await listRes.text();
+    const listResp = await page.goto(`https://www.estatesale.com/cities/view/${cityId}/Estate-Sales-${citySlug}-CA.html`, { waitUntil: 'networkidle2', timeout: 20000 });
+    if (!listResp || !listResp.ok()) { console.warn(`  ESC HTTP ${listResp ? listResp.status() : 'no response'}`); await releasePage(); toCache(cacheKey, results); return results; }
+    const html = await page.content();
+    await releasePage();
 
     const blocks = html.split('class="listing-summary"').slice(1);
     console.log(`  ESC raw blocks: ${blocks.length}`);
 
     let count = 0;
     for (const block of blocks) {
-      if (count >= 30) break; // avoid excessive geocoding calls
-      const hrefMatch  = block.match(/window\.location\.href="([^"]+)"/);
+      // 10, not 30: each survivor now also costs a full Puppeteer page visit
+      // for its photo gallery below (fetchEstateSaleComPhotos), not just a
+      // geocode call -- at 30 that reliably blew through this pipeline's
+      // 15s-per-source ceiling and made the whole scraper return nothing.
+      if (count >= 10) break;
+      // page.content() (post-DOM-serialization, since this now goes through
+      // Puppeteer -- see above) entity-encodes the quotes inside this
+      // onclick's JS-string literal as &quot; rather than leaving them as
+      // literal " the way the raw server HTML did, so the href match has to
+      // accept either form.
+      const hrefMatch  = block.match(/window\.location\.href=(?:"|&quot;)([^"&]+)(?:"|&quot;)/);
       const idMatch    = (hrefMatch?.[1] || '').match(/\/sales\/view\/(\d+)\.html/);
       const titleMatch = block.match(/class="listing-title"[^>]*>([^<]+)</);
       const locMatch   = block.match(/class="listing-location"[^>]*>([^<]+)</);
@@ -2479,119 +2752,242 @@ async function scrapeEstateSaleCom(zip, radiusMi, centerLat, centerLng) {
         y:            Math.max(10, Math.min(90, px.y)),
       });
     }
+    // The listing page above only exposes one "listing-logo" thumbnail per
+    // sale -- each sale's own detail page embeds its full gallery. Each of
+    // those enrichment fetches is a full Puppeteer page visit though, and
+    // this whole pipeline runs alongside every other scraper sharing the
+    // same one browser instance -- under that real contention even a
+    // handful of extra concurrent page opens reliably blew the 15s-per-
+    // source ceiling (measured directly: 7 listings at concurrency 6 still
+    // hit it). So only the closest few get upgraded; the rest keep their
+    // single search-result thumbnail rather than the whole source timing
+    // out and returning nothing for everyone.
+    const photoMap = await fetchEstateSaleComPhotos(results.slice(0, 4));
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
+    }
+
     console.log(`  ESC done — ${results.length} listings`);
   } catch (err) {
     console.warn('  ESC error:', err.message);
+    await releasePage();
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
+// ── Nextdoor ───────────────────────────────────────────────────────────────────
+// The public "For Sale & Free" category page (no login needed -- confirmed via
+// direct probing) is server-rendered and embeds a real Apollo/GraphQL state
+// blob, the same __NEXT_DATA__ pattern already used for OfferUp and
+// EstateSales.net. Its feed only ever gives a neighborhood-level city/state per
+// post (no street address, no lat/lng, no structured date or price field), and
+// the post's own detail page requires signing in for anything past the title --
+// so, like OfferUp, this treats the title as the only text to mine for a date/
+// address and geocodes the neighborhood's city name (reusing the same
+// California-only geocodeCityName already used for EstateSale.com -- a known,
+// pre-existing scope limit, not new here).
+async function scrapeNextdoor(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `nd:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  Nextdoor cache hit'); return cached; }
+
+  const results = [];
+  try {
+    const cityName = await reverseGeocodeCity(centerLat, centerLng);
+    const state = stateFromZip(zip);
+    if (!cityName || !state) { console.warn('  Nextdoor: could not resolve city/state'); toCache(cacheKey, results); return results; }
+
+    const citySlug = cityName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
+    const url = `https://nextdoor.com/marketplace/${citySlug}--${state}/free/garage-sales/`;
+    console.log('  Nextdoor:', url);
+    const res = await fetchTimeout(url, 9000, { headers: { 'User-Agent': SCRAPE_UA } });
+    if (!res.ok) { console.warn(`  Nextdoor HTTP ${res.status}`); toCache(cacheKey, results); return results; }
+    const html = await res.text();
+
+    const m = html.match(/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
+    if (!m) { console.warn('  Nextdoor: no __NEXT_DATA__ found'); toCache(cacheKey, results); return results; }
+    const apollo = JSON.parse(m[1])?.props?.pageProps?.apolloState || {};
+    const feedKey = Object.keys(apollo.ROOT_QUERY || {}).find(k => k.startsWith('classifiedsFreeFindsFeed'));
+    const cards = feedKey
+      ? (apollo.ROOT_QUERY[feedKey].feedItems || []).flatMap(r => r.rollupItems || [])
+      : [];
+    console.log(`  Nextdoor raw cards: ${cards.length}`);
+
+    const cityGeoCache = new Map(); // "city,ST" -> {lat,lng}|null, so a repeated neighborhood isn't re-geocoded per card
+
+    for (const card of cards) {
+      const title = card.captionContent?.text?.text;
+      if (!title) continue;
+
+      const classified = apollo[card.item?.classified?.__ref];
+      if (!classified || classified.isSold) continue;
+      const neighborhood = apollo[classified.author?.originationNeighborhood?.__ref];
+      const locCity = neighborhood?.city, locState = neighborhood?.state;
+      if (!locCity) continue;
+
+      const locKey = `${locCity},${locState}`;
+      let coords = cityGeoCache.get(locKey);
+      if (coords === undefined) {
+        coords = await geocodeCityName(locCity);
+        cityGeoCache.set(locKey, coords);
+      }
+      if (!coords) continue;
+
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const detailUrl = (card.action?.url || '').split('?')[0];
+      const idMatch = detailUrl.match(/\/for_sale_and_free\/([a-f0-9-]+)\/?$/);
+      const img = card.backgroundImage?.image?.url;
+      const street = extractStreetAddress(title);
+      const px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
+
+      results.push({
+        id:           `nd-${idMatch ? idMatch[1] : stableHash(detailUrl || title)}`,
+        source:       'nextdoor',
+        type:         detectType(title),
+        title,
+        address:      street ? `${street}, ${locCity}, ${locState}` : `${locCity}, ${locState}`,
+        neighborhood: `${locCity}, ${locState}`,
+        distanceMi:   distMi,
+        lat:          coords.lat,
+        lng:          coords.lng,
+        dateLabel:    parseCLDate(title),
+        timeLabel:    parseTimeFromText(title),
+        photoCount:   img ? 1 : 0,
+        images:       img ? [img] : [],
+        live:         false,
+        blurb:        '',
+        price:        '',
+        items:        extractItemTags(title),
+        url:          detailUrl,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+
+    console.log(`  Nextdoor done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  Nextdoor error:', err.message);
   }
   toCache(cacheKey, results);
   return results;
 }
 
 // ── Facebook Marketplace — Apify actor ───────────────────────────────────────
-// Actor: apify/facebook-marketplace-scraper
-// Searches for garage/yard/estate sale listings posted on FB Marketplace.
+// Actor: apify/facebook-marketplace-scraper. Its input is real Marketplace
+// search URLs (startUrls: [{url}]), not a free-text query/zip pair -- and its
+// output items look like FB's own GraphQL shape (marketplace_listing_title,
+// listing_price.formatted_amount, location.reverse_geocode, a single
+// primary_listing_photo, no description unless includeListingDetails is on).
+// Both confirmed directly against the actor's input schema and README sample.
+// Apify's pay-per-result pricing (~$0.50 per run here, most of which gets
+// discarded by the distance filter since FB's own search doesn't localize
+// tightly) makes the shared 8-minute cache far too short -- real traffic
+// would burn through the $5/month free credit in under an hour. Give FB its
+// own much longer TTL; garage/yard sale listings don't change fast enough to
+// need fresher-than-this data anyway.
+const FB_CACHE_TTL = 8 * 60 * 60 * 1000; // 8 hours
+
 async function scrapeFacebookMarketplace(zip, radiusMi, centerLat, centerLng) {
   const token = process.env.APIFY_TOKEN;
   if (!token) return [];
 
   const cacheKey = `fb:${zip}:${radiusMi}`;
-  const cached   = fromCache(cacheKey);
+  const cached   = fromCache(cacheKey, FB_CACHE_TTL);
   if (cached) { console.log('  FB cache hit'); return cached; }
 
   const results = [];
   const seen    = new Set();
-  const queries = ['garage sale', 'yard sale', 'estate sale', 'moving sale'];
-  const fbState = stateFromZip(zip);
 
-  for (const query of queries) {
-    try {
-      console.log(`  FB Marketplace Apify: "${query}" near ${zip}`);
-      const res = await fetchTimeout(
-        `https://api.apify.com/v2/acts/apify~facebook-marketplace-scraper/run-sync-get-dataset-items?token=${token}`,
-        90000,
-        {
-          method:  'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            searchQuery: query,
-            locationZip: zip,
-            maxItems:    20,
-            radiusMiles: radiusMi,
-          }),
-        }
-      );
+  try {
+    const cityName = await reverseGeocodeCity(centerLat, centerLng);
+    if (!cityName) { console.warn('  FB: could not resolve city name'); toCache(cacheKey, results); return results; }
 
-      if (!res.ok) { console.warn(`  FB Apify "${query}" HTTP ${res.status}`); continue; }
+    const citySlug  = cityName.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const queries   = ['garage sale', 'yard sale', 'estate sale', 'moving sale'];
+    const startUrls = queries.map(q => ({
+      url: `https://www.facebook.com/marketplace/${citySlug}/search/?query=${encodeURIComponent(q)}`,
+    }));
 
+    console.log(`  FB Marketplace Apify: ${citySlug} (${queries.length} queries)`);
+    const res = await fetchTimeout(
+      `https://api.apify.com/v2/acts/apify~facebook-marketplace-scraper/run-sync-get-dataset-items?token=${token}`,
+      90000,
+      {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          startUrls,
+          resultsLimit: 20,
+          includeListingDetails: false,
+        }),
+      }
+    );
+
+    if (!res.ok) {
+      console.warn(`  FB Apify HTTP ${res.status}`);
+    } else {
       const items = await res.json();
-      console.log(`  FB Apify "${query}" → ${items.length} raw items`);
+      console.log(`  FB Apify → ${items.length} raw items`);
 
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i];
-        // Normalize fields — actor may use slightly different names
-        const id     = item.id || item.listingId || item.listing_id || `fb-${i}-${Date.now()}`;
-        const title  = item.title || item.name || '';
-        const price  = item.price != null ? (typeof item.price === 'number' ? `$${item.price}` : item.price) : (item.priceAmount ? `$${item.priceAmount}` : '');
-        const desc   = item.description || item.body || '';
-        const locStr = item.location || item.locationName || item.location_name || item.city || '';
-
-        if (!title || seen.has(id)) continue;
+      const cityGeoCache = new Map();
+      for (const item of items) {
+        const id    = item.id;
+        const title = item.marketplace_listing_title || '';
+        if (!id || !title || seen.has(id) || item.is_sold) continue;
         seen.add(id);
 
-        // Coordinates — actor sometimes provides them
-        let fbLat = item.lat || item.latitude || null;
-        let fbLng = item.lng || item.longitude || null;
+        const geo      = item.location?.reverse_geocode;
+        const locCity  = geo?.city || '';
+        const locState = geo?.state || '';
+        const locStr   = locCity ? `${locCity}, ${locState}` : '';
 
-        // Fall back to geocoding the location string
-        if (!fbLat && locStr) {
-          const coords = await geocodePlaceName(locStr.replace(/,.*$/, '').trim(), fbState);
-          if (coords) { fbLat = coords.lat; fbLng = coords.lng; }
+        let coords = null;
+        if (locCity) {
+          const locKey = `${locCity},${locState}`;
+          coords = cityGeoCache.get(locKey);
+          if (coords === undefined) { coords = await geocodePlaceName(locCity, locState); cityGeoCache.set(locKey, coords); }
+        }
+        if (!coords) {
+          coords = { lat: centerLat + (Math.random() - 0.5) * 0.06, lng: centerLng + (Math.random() - 0.5) * 0.06 };
         }
 
-        // If still no coords, place loosely near center
-        if (!fbLat) {
-          fbLat = centerLat + (Math.random() - 0.5) * 0.06;
-          fbLng = centerLng + (Math.random() - 0.5) * 0.06;
-        }
-
-        const distMi = parseFloat(distanceMiles(centerLat, centerLng, fbLat, fbLng).toFixed(1));
+        const distMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
         if (distMi > radiusMi) continue;
 
-        // Images — actor returns urls array or single image
-        const rawImgs = item.images || item.photos || (item.image ? [item.image] : []);
-        const imgUrls = rawImgs.map(img => typeof img === 'string' ? img : img?.url || img?.src).filter(Boolean);
-        if (!imgUrls.length) {
-          const thumb = mapThumbUrl(fbLat, fbLng);
-          if (thumb) imgUrls.push(thumb);
-        }
+        const imgUrl  = item.primary_listing_photo?.image?.uri;
+        const imgUrls = imgUrl ? [imgUrl] : [];
 
-        const px = pinXY(fbLat, fbLng, centerLat, centerLng, radiusMi);
+        const px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
         results.push({
           id:           `fb-${id}`,
           source:       'facebook',
-          type:         detectType(title + ' ' + desc + ' ' + query),
+          type:         detectType(title),
           title,
           address:      locStr || 'Nearby',
           neighborhood: locStr || 'Nearby',
           distanceMi:   distMi,
-          lat:          fbLat,
-          lng:          fbLng,
+          lat:          coords.lat,
+          lng:          coords.lng,
           dateLabel:    '',
-          timeLabel:    parseTimeFromText(title + ' ' + desc),
+          timeLabel:    parseTimeFromText(title),
           photoCount:   imgUrls.length,
           images:       imgUrls,
-          live:         false,
-          blurb:        desc.slice(0, 300),
-          price,
-          items:        extractItemTags(title, desc),
-          url:          item.url || item.link || `https://www.facebook.com/marketplace/item/${id}`,
+          live:         !!item.is_live,
+          blurb:        '',
+          price:        item.listing_price?.formatted_amount || '',
+          items:        extractItemTags(title),
+          url:          item.listingUrl || `https://www.facebook.com/marketplace/item/${id}`,
           x:            Math.max(5, Math.min(95, px.x)),
           y:            Math.max(5, Math.min(95, px.y)),
         });
       }
-    } catch (err) {
-      console.warn(`  FB Apify "${query}" error:`, err.message);
     }
+  } catch (err) {
+    console.warn('  FB Apify error:', err.message);
   }
 
   console.log(`  FB Marketplace done — ${results.length} listings`);
@@ -3043,8 +3439,8 @@ function addressKey(address) {
 // sites first (stable pages, real addresses), generic marketplaces last.
 const SOURCE_RANK = {
   estatesales: 1, estatesalesnet: 2, estatesalecom: 3, gsalr: 4,
-  yardsalesearch: 5, garagesalefinder: 6, craigslist: 7, offerup: 8,
-  facebook: 9, google: 10,
+  yardsalesearch: 5, garagesalefinder: 6, craigslist: 7, offerup: 8, nextdoor: 9,
+  facebook: 10, google: 11,
 };
 const sourceRank = s => SOURCE_RANK[s] || 99;
 
@@ -3126,6 +3522,11 @@ function dedupeListings(listings) {
 
     const richest = g.members.reduce(
       (m, x) => (x.images?.length || 0) > (m.images?.length || 0) ? x : m, primary);
+    // photoCount always mirrors the actual images array length here -- never
+    // a separately-tracked "true" total -- so the badge can never promise
+    // more photos than the gallery actually holds (confirmed live: a listing
+    // with hundreds of real photos showed a count far bigger than its capped
+    // gallery, reading as "photos missing").
     if (richest.images?.length) { out.images = richest.images; out.photoCount = richest.images.length; }
 
     const hasStreet = a => a && /\d/.test(a) && a !== 'Nearby';
@@ -3175,7 +3576,7 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   const CEILING_MS = 15000;
   const timed = (label, p) => { const t0 = Date.now(); return withCeiling(p, CEILING_MS, label).then(v => { console.log(`  [timing] ${label}: ${Date.now()-t0}ms`); return v; }); };
   const [clListings, ouListings, esListings, fbListings, googleListings,
-         esnListings, yssListings, gsfListings, gsalrListings, escListings] = await Promise.allSettled([
+         esnListings, yssListings, gsfListings, gsalrListings, escListings, ndListings] = await Promise.allSettled([
     timed('CL', scrapeCraigslist(zip, radiusMi, center.lat, center.lng)),
     timed('OU', scrapeOfferUp(zip, radiusMi, center.lat, center.lng)),
     timed('ES', scrapeEstateSales(zip, radiusMi, center.lat, center.lng)),
@@ -3186,21 +3587,25 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
     timed('GSF', scrapeGarageSaleFinder(zip, radiusMi, center.lat, center.lng)),
     timed('GSALR', scrapeGsalr(zip, radiusMi, center.lat, center.lng)),
     timed('ESC', scrapeEstateSaleCom(zip, radiusMi, center.lat, center.lng)),
+    timed('ND', scrapeNextdoor(zip, radiusMi, center.lat, center.lng)),
   ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : []));
 
   // Dedicated sale-listing platforms (EstateSales.org, EstateSales.net,
   // YardSaleSearch, GarageSaleFinder, GSALR, EstateSale.com) are exempt from
   // the title filter — their whole category is estate/yard sales by
   // definition, so filtering by title would only create false negatives.
-  // Generic marketplaces (Craigslist, OfferUp, Facebook, Google) still need it.
+  // Generic marketplaces (Craigslist, OfferUp, Facebook, Google, Nextdoor)
+  // still need it -- Nextdoor's "garage-sales" category also carries plain
+  // single-item give-away posts alongside real sale events.
   const onlySaleEvents = list => list.filter(l => SALE_EVENT_RE.test(l.title || ''));
   const clKept = onlySaleEvents(clListings);
   const ouKept = onlySaleEvents(ouListings);
   const fbKept = onlySaleEvents(fbListings);
   const gKept  = onlySaleEvents(googleListings);
+  const ndKept = onlySaleEvents(ndListings);
 
   const combined = [...clKept, ...ouKept, ...esListings, ...fbKept, ...gKept,
-                    ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings]
+                    ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings, ...ndKept]
     .map(l => ({ ...l, title: decodeHtmlEntities(l.title), address: decodeHtmlEntities(l.address), neighborhood: decodeHtmlEntities(l.neighborhood) }));
 
   // EstateSales.org, EstateSales.net, YardSaleSearch, GarageSaleFinder, and
@@ -3212,7 +3617,7 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   // one card, keeping the richest fields across the duplicates. See the helper
   // for how it decides two listings are the same sale.
   const all = dedupeListings(combined);
-  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length}`);
+  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length}`);
 
   toCache(cacheKey, all);
   return all;
@@ -3593,8 +3998,11 @@ function proxyImgUrlForEmail(url) {
         h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
         h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
         h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
-        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com'))
-      return `${PUBLIC_BASE_URL}/api/img?url=${encodeURIComponent(url)}`;
+        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com') ||
+        h === 'offerup.com' || h.endsWith('.offerup.com') || h === 'offerupcdn.com' || h.endsWith('.offerupcdn.com'))
+      // 536x240 = 2x the card's actual display box (~268x120), same ratio --
+      // see the w/h comment on /api/img for why matching the ratio matters.
+      return `${PUBLIC_BASE_URL}/api/img?url=${encodeURIComponent(url)}&w=536&h=240`;
   } catch (_) {}
   return url;
 }

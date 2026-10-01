@@ -3,6 +3,7 @@
   "appName": "Rummage",
   "webDir": "www",
   "server": {
-    "hostname": "rummagedeals.com"
+    "url": "https://rummagedeals.com/app",
+    "cleartext": false
   }
 }
