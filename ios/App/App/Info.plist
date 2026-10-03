@@ -26,6 +26,8 @@
 	<true/>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Rummage uses your location to find and show distances to yard, estate, and moving sales near you. Your location is never stored on our servers.</string>
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Rummage uses your location to find and show distances to yard, estate, and moving sales near you. Your location is never stored on our servers.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Rummage uses your camera so you can take photos when posting a sale.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
