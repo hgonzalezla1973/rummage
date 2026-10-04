@@ -3716,22 +3716,33 @@ function DetailScreen({ sale, onBack, hideBack=false, photoHeight, onToggleSave,
           </Btn>
         ) : null}
         <div style={{display:'flex',gap:8}}>
-          <button type="button" onClick={openDirections} aria-label="Directions" style={{
-            width:52,height:52,borderRadius:'var(--radius-btn)',flexShrink:0,
-            background:'var(--ink-900)',border:'1px solid var(--ink-200)',cursor:'pointer',
-            display:'flex',alignItems:'center',justifyContent:'center',
-          }}>
-            {Icon('Navigation',20,{stroke:'#fff'})}
-          </button>
-          {onToggleTrip && (
-            <div style={{flex:1,minWidth:0}}>
-              <Btn variant={inTrip?'secondary':'primary'} fullWidth
-                leadingIcon={Icon(inTrip?'RouteOff':'Route',16)}
-                onClick={onToggleTrip}
-                style={inTrip?{borderColor:'var(--secondary)',color:'var(--secondary)'}:{}}>
-                {inTrip ? 'In trip' : 'Add to trip'}
-              </Btn>
-            </div>
+          {onToggleTrip ? (
+            <>
+              <button type="button" onClick={openDirections} aria-label="Directions" style={{
+                width:52,height:52,borderRadius:'var(--radius-btn)',flexShrink:0,
+                background:'var(--ink-900)',border:'1px solid var(--ink-200)',cursor:'pointer',
+                display:'flex',alignItems:'center',justifyContent:'center',
+              }}>
+                {Icon('Navigation',20,{stroke:'#fff'})}
+              </button>
+              <div style={{flex:1,minWidth:0}}>
+                <Btn variant={inTrip?'secondary':'primary'} fullWidth
+                  leadingIcon={Icon(inTrip?'RouteOff':'Route',16)}
+                  onClick={onToggleTrip}
+                  style={inTrip?{borderColor:'var(--secondary)',color:'var(--secondary)'}:{}}>
+                  {inTrip ? 'In trip' : 'Add to trip'}
+                </Btn>
+              </div>
+            </>
+          ) : (
+            // No trip planner on the desktop web experience (SaleDetailPage /
+            // the in-page preview modal both skip onToggleTrip) -- a lone
+            // "Add to trip" there toggled state nothing on desktop could ever
+            // show back, so Directions becomes the one full-width action
+            // instead of sharing the row with a dead-looking icon button.
+            <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Navigation',18)} onClick={openDirections}>
+              Directions
+            </Btn>
           )}
         </div>
       </div>
@@ -4794,7 +4805,7 @@ function WebHomeScreen({
 // A dedicated, full-page view for exactly one sale -- what a browser tab
 // opened straight to /app?sale=<id> shows (see deepLinkSaleId in App()).
 // No browse grid, no backdrop: just that listing, with a way back out.
-function SaleDetailPage({ sale, apiStatus, onToggleSave, inTrip, onToggleTrip, itemsView, setItemsView }) {
+function SaleDetailPage({ sale, apiStatus, onToggleSave, itemsView, setItemsView }) {
   const backToBrowse = () => { window.location.href = '/app'; };
   const stillLoading = !sale && (apiStatus === 'loading' || apiStatus === 'idle');
   // The reused screens below (DetailScreen, ItemsGalleryScreen, ...) are a
@@ -4849,7 +4860,6 @@ function SaleDetailPage({ sale, apiStatus, onToggleSave, inTrip, onToggleTrip, i
           )}
           {sale && !itemsView && (
             <DetailScreen sale={sale} onBack={backToBrowse} hideBack photoHeight={440} onToggleSave={onToggleSave}
-              inTrip={inTrip} onToggleTrip={onToggleTrip}
               onOpenItems={sale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined} />
           )}
         </div>
@@ -5345,8 +5355,6 @@ function App() {
   if (deepLinkSaleId) {
     return (
       <SaleDetailPage sale={detailSale} apiStatus={apiStatus} onToggleSave={toggleSave}
-        inTrip={!!detailSale && tripIds.includes(detailSale.id)}
-        onToggleTrip={()=> detailSale && toggleTrip(detailSale.id)}
         itemsView={itemsView} setItemsView={setItemsView} />
     );
   }
@@ -5390,7 +5398,6 @@ function App() {
             )}
             {detailSale && !itemsView && (
               <DetailScreen sale={detailSale} onBack={closeDetail} onToggleSave={toggleSave}
-                inTrip={tripIds.includes(detailSale.id)} onToggleTrip={()=>toggleTrip(detailSale.id)}
                 onOpenItems={detailSale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined} />
             )}
             {!detailSale && tab==='list' && (
