@@ -3598,10 +3598,11 @@ function ShareSheet({ sale, onClose }) {
   );
 }
 
-function DetailScreen({ sale, onBack, hideBack=false, photoHeight, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems }) {
+function DetailScreen({ sale, onBack, hideBack=false, photoHeight, collapsibleMap=false, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems }) {
   const s = sale;
   const openDirections = () => openSaleDirections(s, onNavigateTo);
   const [shareOpen, setShareOpen] = useState(false);
+  const [mapOpen, setMapOpen] = useState(!collapsibleMap);
   const { height: vh, isLandscape } = useViewport();
 
   return (
@@ -3655,11 +3656,39 @@ function DetailScreen({ sale, onBack, hideBack=false, photoHeight, onToggleSave,
             )}
           </div>
         </div>
-        <div style={{margin:'0 18px',height:130,borderRadius:'var(--radius-xl)',overflow:'hidden',position:'relative',zIndex:0,isolation:'isolate',boxShadow:'var(--shadow-sm)'}}>
-          <RealMap sales={s.lat ? [s] : []} selectedId={s.id} onSelect={()=>{}}
-            centerLat={s.lat} centerLng={s.lng}
-            zoom={15} interactive={false} />
-        </div>
+        {collapsibleMap ? (
+          s.lat != null && s.lng != null && (
+            // Same show/hide-a-map pattern as the desktop browse page's "Show
+            // map" toggle, rather than always spending the vertical space (and
+            // a live Leaflet instance) on a single-pin preview most visitors
+            // won't need -- Directions below already covers "take me there".
+            <div style={{margin:'0 18px'}}>
+              <button type="button" onClick={()=>setMapOpen(v=>!v)} style={{
+                display:'flex', alignItems:'center', justifyContent:'space-between', width:'100%',
+                padding:'12px 16px', background:'var(--surface-sunken)', border:'none', cursor:'pointer',
+                borderRadius: mapOpen ? 'var(--radius-xl) var(--radius-xl) 0 0' : 'var(--radius-xl)',
+                fontFamily:'var(--font-sans)', fontWeight:700, fontSize:14, color:'var(--text-primary)',
+              }}>
+                <span style={{display:'inline-flex',alignItems:'center',gap:8}}>
+                  {Icon('Map',16,{stroke:'var(--text-secondary)'})} {mapOpen ? 'Hide map' : 'Show map'}
+                </span>
+                {Icon(mapOpen?'ChevronUp':'ChevronDown',18,{stroke:'var(--text-muted)'})}
+              </button>
+              {mapOpen && (
+                <div style={{height:130,borderRadius:'0 0 var(--radius-xl) var(--radius-xl)',overflow:'hidden',position:'relative',zIndex:0,isolation:'isolate'}}>
+                  <RealMap sales={[s]} selectedId={s.id} onSelect={()=>{}}
+                    centerLat={s.lat} centerLng={s.lng} zoom={15} interactive={false} />
+                </div>
+              )}
+            </div>
+          )
+        ) : (
+          <div style={{margin:'0 18px',height:130,borderRadius:'var(--radius-xl)',overflow:'hidden',position:'relative',zIndex:0,isolation:'isolate',boxShadow:'var(--shadow-sm)'}}>
+            <RealMap sales={s.lat ? [s] : []} selectedId={s.id} onSelect={()=>{}}
+              centerLat={s.lat} centerLng={s.lng}
+              zoom={15} interactive={false} />
+          </div>
+        )}
         <div style={{padding:'20px 18px 6px'}}>
           <h2 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:19,color:'var(--text-primary)',marginBottom:8}}>About this sale</h2>
           <p style={{fontFamily:'var(--font-sans)',fontSize:15,lineHeight:1.55,color:'var(--text-secondary)'}}>{s.blurb}</p>
@@ -4878,7 +4907,7 @@ function SaleDetailPage({ sale, apiStatus, onToggleSave, itemsView, setItemsView
               onSelectItem={idx=>setItemsView({mode:'item', idx})} />
           )}
           {sale && !itemsView && (
-            <DetailScreen sale={sale} onBack={backToBrowse} hideBack photoHeight={440} onToggleSave={onToggleSave}
+            <DetailScreen sale={sale} onBack={backToBrowse} hideBack photoHeight={440} collapsibleMap onToggleSave={onToggleSave}
               onOpenItems={sale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined} />
           )}
         </div>
@@ -5416,7 +5445,7 @@ function App() {
                 onSelectItem={idx=>setItemsView({mode:'item', idx})} />
             )}
             {detailSale && !itemsView && (
-              <DetailScreen sale={detailSale} onBack={closeDetail} onToggleSave={toggleSave}
+              <DetailScreen sale={detailSale} onBack={closeDetail} collapsibleMap onToggleSave={toggleSave}
                 onOpenItems={detailSale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined} />
             )}
             {!detailSale && tab==='list' && (
