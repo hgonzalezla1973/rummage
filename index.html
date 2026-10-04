@@ -4842,7 +4842,12 @@ function SaleDetailPage({ sale, apiStatus, onToggleSave, itemsView, setItemsView
         </div>
       </div>
       <div style={{position:'relative', flex:1, minHeight:0}}>
-        <div style={{position:'absolute', top:0, bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:CONTENT_W}}>
+        {/* top:100 (not 0) -- DetailScreen fills this box edge-to-edge with
+            inset:0, so padding-top on this wrapper wouldn't push it down
+            (an absolutely-positioned inset:0 child fills its ancestor's
+            padding box, ignoring the ancestor's own padding); offsetting
+            the box itself is what actually creates the gap above the photo. */}
+        <div style={{position:'absolute', top:100, bottom:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:CONTENT_W}}>
           {stillLoading && (
             <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:12}}>
               <span style={{display:'inline-flex',animation:'spin 1s linear infinite',color:'var(--accent)'}}>{Icon('Loader2',28)}</span>
