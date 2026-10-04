@@ -4631,8 +4631,10 @@ function WebHomeScreen({
   };
   // Opening a listing hands off to a dedicated page for just that sale,
   // rather than a modal over the browse grid -- /app?sale=<id> is the same
-  // stable deep link the share sheet and digest emails already use.
-  const openSaleTab = (id) => window.open(`/app?sale=${encodeURIComponent(id)}`, '_blank', 'noopener');
+  // stable deep link the share sheet and digest emails already use. Same
+  // tab (not window.open) -- "All sales" on that page navigates back here
+  // the normal way, same as any other link.
+  const goToSale = (id) => { window.location.href = `/app?sale=${encodeURIComponent(id)}`; };
 
   const wrap = { maxWidth: 1180, margin: '0 auto', padding: '0 28px' };
 
@@ -4785,7 +4787,7 @@ function WebHomeScreen({
                     boxShadow: highlightId===s.id ? '0 0 0 3px var(--accent)' : 'none',
                     transform: highlightId===s.id ? 'translateY(-3px)' : 'none',
                   }}>
-                    <DesktopSaleCard sale={s} onClick={()=>openSaleTab(s.id)} onToggleSave={()=>onToggleSave(s.id)} />
+                    <DesktopSaleCard sale={s} onClick={()=>goToSale(s.id)} onToggleSave={()=>onToggleSave(s.id)} />
                   </div>
                 ))}
               </div>
