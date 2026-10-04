@@ -472,6 +472,31 @@ function toCache(key, data) {
   while (cache.size > MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value);
 }
 
+// Separate, much longer-lived cache of per-listing OfferUp photos, keyed by
+// listing URL rather than zip/radius. OfferUp enrichment visits a real
+// browser tab per listing (see fetchOfferUpPhotos) and is time-budgeted, so
+// any one request only gets through a handful before its budget runs out --
+// without this, every fresh scrapeOfferUp() call (every 8 minutes, per the
+// main `cache` TTL above) would re-attempt enrichment from scratch and hit
+// the same budget wall forever, never actually converging on full coverage.
+// Keyed separately (not reusing `cache`) so one large search's worth of
+// listings can't evict other sources' entries out of that shared, much
+// smaller 150-entry cache. 24h TTL because a listing's own photos rarely
+// change after it's posted.
+const ouPhotoCache    = new Map();
+const OU_PHOTO_TTL    = 24 * 60 * 60 * 1000;
+const OU_PHOTO_MAX    = 3000;
+function ouPhotoFromCache(url) {
+  const hit = ouPhotoCache.get(url);
+  if (hit && Date.now() - hit.ts < OU_PHOTO_TTL) return hit.data;
+  return null;
+}
+function ouPhotoToCache(url, data) {
+  ouPhotoCache.delete(url);
+  ouPhotoCache.set(url, { ts: Date.now(), data });
+  while (ouPhotoCache.size > OU_PHOTO_MAX) ouPhotoCache.delete(ouPhotoCache.keys().next().value);
+}
+
 // Promises for a scrape that's currently in flight, keyed the same as
 // `cache` -- lets getListingsForZip dedupe concurrent identical requests
 // (two tabs hitting the same zip/radius at once) and background refreshes
@@ -1430,37 +1455,101 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
 // The search feed's GraphQL only returns one thumbnail per listing, but each
 // listing's own detail page embeds a full __NEXT_DATA__ blob with a real
 // photos array (Apollo cache, keyed as `listing({"listingId":"..."})`).
-async function fetchOfferUpPhotos(listings, cookies, ua, concurrency = 8) {
-  const detailMap = new Map(); // listing.url → { images: string[], description: string }
-  const work = listings.filter(l => l.url);
-  console.log(`  OU: fetching full photo sets for ${work.length} listings (${concurrency} at a time)…`);
+//
+// A plain fetch() here used to work but no longer does -- OfferUp's item
+// detail pages (unlike their GraphQL search endpoint) now sit behind a
+// Cloudflare JS challenge ("Just a moment...") that only a real browser can
+// solve, so every fetch just got the challenge page back, __NEXT_DATA__
+// never matched, and every OfferUp listing silently sat at its one
+// search-result thumbnail. Confirmed live (2026-10-03) that a real
+// headless-Chrome tab clears the challenge automatically in ~2-4s (it's a
+// transparent JS proof-of-work, not an interactive checkbox) and lands on
+// the real page -- so this now drives one through getBrowser()/pageGate,
+// the same mechanism already used for Craigslist/EstateSales.org detail
+// pages. Unlike those, JavaScript must stay ENABLED (the challenge requires
+// running it) and only pure assets are blocked -- blocking scripts or
+// XHR/fetch here would block the challenge's own verification round-trip.
+// `deadline` is an absolute Date.now()-style timestamp, not a duration --
+// scrapeOfferUp computes it from its OWN start time (see call site) because
+// this whole function's elapsed time (GraphQL search + geocoding, both
+// before this ever runs) already eats into the 15s ceiling the caller races
+// scrapeOfferUp against. Checked only *between* batches, not wrapped around
+// the whole call: a batch already in flight is left to finish and its
+// results kept, rather than the all-or-nothing discard a Promise.race
+// against the whole function would give (confirmed live: that approach lost
+// every listing's data, not just its photos, whenever the budget ran out
+// mid-enrichment). Listings past the deadline just keep their single
+// search-result thumbnail for this response. Every listing is also checked
+// against ouPhotoCache first (a 24h, per-listing cache -- see its own
+// comment) so one enriched by some *earlier* request, for this zip/radius
+// or any overlapping one, costs no browser visit and no budget here at all
+// -- that's what lets coverage actually keep climbing across the normal
+// 8-minute result-cache cycle instead of re-hitting the same time budget
+// from zero every time.
+async function fetchOfferUpPhotos(listings, deadline, concurrency = 3) {
+  const browser = await getBrowser();
+  const detailMap = new Map(); // listing.url -> { images: string[], description: string }
+  const work = [];
+  for (const l of listings) {
+    if (!l.url) continue;
+    const cachedPhoto = ouPhotoFromCache(l.url);
+    if (cachedPhoto) { detailMap.set(l.url, cachedPhoto); continue; }
+    work.push(l);
+  }
+  console.log(`  OU: ${detailMap.size} from photo cache, fetching ${work.length} fresh via headless Chrome (${concurrency} at a time)...`);
 
+  let visited = 0;
   for (let i = 0; i < work.length; i += concurrency) {
+    if (Date.now() > deadline) {
+      console.log(`  OU: photo budget used up -- visited ${visited}/${work.length}, rest keep their thumbnail`);
+      break;
+    }
     const batch = work.slice(i, i + concurrency);
     await Promise.all(batch.map(async listing => {
+      await pageGate.acquire();
+      let page;
       try {
-        const res = await fetchTimeout(listing.url, 10000, {
-          headers: { 'User-Agent': ua, ...(cookies ? { Cookie: cookies } : {}) },
+        page = await browser.newPage();
+        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
+        await page.setRequestInterception(true);
+        page.on('request', req => {
+          ['image', 'font', 'media', 'stylesheet'].includes(req.resourceType()) ? req.abort() : req.continue();
         });
-        if (!res.ok) return;
-        const html = await res.text();
-        const m = html.match(/<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/);
-        if (!m) return;
-        const data = JSON.parse(m[1]);
-        const rootQuery = data?.props?.pageProps?.initialApolloState?.ROOT_QUERY || {};
-        const key = Object.keys(rootQuery).find(k => k.startsWith('listing('));
-        const listingData = key ? rootQuery[key] : null;
-        if (!listingData) return;
-        const photos = listingData.photos;
-        const urls = Array.isArray(photos)
-          ? photos.map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url).filter(Boolean)
-          : [];
-        detailMap.set(listing.url, {
-          images: urls,
-          description: listingData.description || '',
+        // Real-world challenge solves land in 2-5s (confirmed live) -- these
+        // stay well above that but short enough that one hung listing can't
+        // single-handedly drag a batch past the deadline check above by much.
+        await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => {});
+        // domcontentloaded fires on the *challenge* page almost instantly --
+        // the real content only shows up after Cloudflare's own redirect, so
+        // wait for __NEXT_DATA__ itself rather than trusting goto's resolve.
+        await page.waitForSelector('#__NEXT_DATA__', { timeout: 7000 });
+
+        const detail = await page.evaluate(() => {
+          try {
+            const data = JSON.parse(document.getElementById('__NEXT_DATA__').textContent);
+            const rootQuery = data?.props?.pageProps?.initialApolloState?.ROOT_QUERY || {};
+            const key = Object.keys(rootQuery).find(k => k.startsWith('listing('));
+            const listingData = key ? rootQuery[key] : null;
+            if (!listingData) return null;
+            const photos = listingData.photos;
+            const urls = Array.isArray(photos)
+              ? photos.map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url).filter(Boolean)
+              : [];
+            return { images: urls, description: listingData.description || '' };
+          } catch (_) { return null; }
         });
+
+        visited++;
+        if (detail) {
+          detailMap.set(listing.url, detail);
+          ouPhotoToCache(listing.url, detail);
+          if (detail.images.length) console.log(`    ${listing.title?.slice(0,40)} → ${detail.images.length} image(s)`);
+        }
       } catch (_) {
         // Non-fatal: listing just keeps its single search-result thumbnail and no date
+      } finally {
+        if (page) await page.close().catch(() => {});
+        pageGate.release();
       }
     }));
   }
@@ -1493,6 +1582,12 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
   const cached   = fromCache(cacheKey);
   if (cached) { console.log('  OU cache hit'); return cached; }
 
+  // The /api/listings caller races this whole function against a 15s
+  // ceiling (withCeiling) and discards it entirely if it loses -- so the
+  // photo-enrichment deadline below is computed from *this* start time, at
+  // 12s, leaving 3s of margin for that outer ceiling regardless of how long
+  // the GraphQL search + geocoding above already took.
+  const __scrapeStart = Date.now();
   const results = [];
   const seen    = new Set();
 
@@ -1621,8 +1716,9 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
     }
 
     // The search feed only gives one thumbnail per listing — visit each
-    // listing's own page to pull its full photo set instead.
-    const detailMap = await fetchOfferUpPhotos(results, rawCookies, UA);
+    // listing's own page to pull its full photo set instead, budgeted
+    // against __scrapeStart above (see fetchOfferUpPhotos for why).
+    const detailMap = await fetchOfferUpPhotos(results, __scrapeStart + 12000);
     for (const listing of results) {
       const detail = detailMap.get(listing.url);
       if (!detail) continue;
@@ -1655,8 +1751,6 @@ async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
   return results;
 }
 
-// OfferUp blocks all server-side requests (Cloudflare bot protection on their GraphQL endpoint).
-// Keeping this stub so the parallel fetch in /api/listings doesn't need to change.
 // ── EstateSales.org scraper ───────────────────────────────────────────────────
 const ZIP_TO_CITY = {
   '90601':'whittier','90602':'whittier','90603':'whittier','90604':'whittier','90605':'whittier','90606':'whittier',
