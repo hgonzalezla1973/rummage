@@ -2375,11 +2375,16 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
         }
 
         // Natively-uploaded (non-syndicated) photos are tagged itemprop="image"
-        // and hosted on ps.tlstatic.com at a small crop size -- scoped to just
-        // this listing's own gallery, unlike the sidebar above. Upgrade to a
-        // real display size the same way the Pinterest share link on the same
-        // page does (w700-h500 of the identical file path).
-        for (const m of html.matchAll(/itemprop="image"[^>]*src="(https:\/\/ps\.tlstatic\.com\/image\/)w\d+-c[\d:]+(\/[^"]+)"/g)) {
+        // and hosted on {ps,gsf,...}.tlstatic.com at a small crop size --
+        // scoped to just this listing's own gallery, unlike the sidebar
+        // above. Upgrade to a real display size the same way the Pinterest
+        // share link on the same page does (w700-h500 of the identical file
+        // path). Matches any *.tlstatic.com subdomain, not just ps.tlstatic.com
+        // -- confirmed live (2026-10-03) that the site has since moved native
+        // listing photos to gsf.tlstatic.com, which the old ps-only pattern
+        // silently never matched, so every GSALR/GarageSaleFinder listing's
+        // gallery was quietly stuck at just its one search-result thumbnail.
+        for (const m of html.matchAll(/itemprop="image"[^>]*src="(https:\/\/[a-z0-9-]+\.tlstatic\.com\/image\/)w\d+-c[\d:]+(\/[^"]+)"/g)) {
           const full = `${m[1]}w700-h500${m[2]}`;
           if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
