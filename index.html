@@ -93,6 +93,12 @@ h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.03
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 .rmg-eyebrow{font-family:var(--font-sans);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;color:var(--text-muted)}
+/* Scrolling stays enabled, just without the visible track/thumb -- used on
+   DetailScreen's inner scroll pane, where a classic Windows-Chrome scrollbar
+   would otherwise sit at the edge of the centered desktop content column
+   instead of the window edge, reading as a stray bar floating mid-page. */
+.rmg-scroll-hidden{scrollbar-width:none;-ms-overflow-style:none}
+.rmg-scroll-hidden::-webkit-scrollbar{display:none}
 .rmg-data{font-family:var(--font-mono);font-weight:500;font-variant-numeric:tabular-nums}
 input[type=range]{-webkit-appearance:none;appearance:none}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:26px;height:26px;border-radius:50%;background:var(--surface-card);border:2px solid var(--accent);box-shadow:var(--shadow-md);cursor:pointer}
@@ -3600,7 +3606,7 @@ function DetailScreen({ sale, onBack, hideBack=false, photoHeight, onToggleSave,
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{flex:1,overflowY:'auto',overflowX:'hidden'}}>
+      <div className="rmg-scroll-hidden" style={{flex:1,overflowY:'auto',overflowX:'hidden'}}>
         <PhotoGallery
           images={s.images}
           type={s.type}
@@ -3786,7 +3792,7 @@ function ItemsGalleryScreen({ sale, onBack, onOpenItem, onDirections }) {
           </div>
         )}
       </div>
-      <div style={{flex:1,overflowY:'auto',padding:'14px 16px 16px'}}>
+      <div className="rmg-scroll-hidden" style={{flex:1,overflowY:'auto',padding:'14px 16px 16px'}}>
         <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
           {shown.map(it => (
             <button key={it.id} type="button" onClick={()=>onOpenItem(items.indexOf(it))}
@@ -3836,7 +3842,7 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem }) {
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
-      <div style={{flex:1,overflowY:'auto'}}>
+      <div className="rmg-scroll-hidden" style={{flex:1,overflowY:'auto'}}>
         <div style={{position:'relative',height:320,flexShrink:0,background:'linear-gradient(135deg,var(--brand-50),var(--paper-2))',display:'flex',alignItems:'center',justifyContent:'center'}}>
           <ItemThumb src={item.image} size={44} fallbackIcon="Image" stroke="var(--ink-300)" sw={1.4} />
           <div style={{position:'absolute',top:'var(--safe-top)',left:14,right:14,display:'flex',justifyContent:'space-between'}}>
