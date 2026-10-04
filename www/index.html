@@ -4777,6 +4777,29 @@ function WebHomeScreen({
             </div>
           </div>
 
+          {showMap ? (
+            // A big map that takes over the browse area (like
+            // yardsaletreasuremap.com's "Show Map" -- the whole listing view
+            // swaps for one large map of every pin, not a small panel
+            // squeezed between the photo strip and the grid) -- "Hide map"
+            // floats on the map itself so it's reachable without scrolling
+            // back up to the toolbar chip once you've scrolled into it.
+            <div style={wrap}>
+              <div style={{position:'relative', height:'70vh', minHeight:460, margin:'20px 0 56px', borderRadius:'var(--radius-xl)', overflow:'hidden', border:'1px solid var(--line)', isolation:'isolate'}}>
+                <RealMap sales={shown} onSelect={onOpenSale} centerLat={mapCenter?.lat} centerLng={mapCenter?.lng} />
+                <button type="button" onClick={()=>setShowMap(false)} style={{
+                  position:'absolute', top:16, right:16, zIndex:1000,
+                  display:'inline-flex', alignItems:'center', gap:7,
+                  padding:'11px 18px', borderRadius:'var(--radius-btn)', border:'none',
+                  background:'#fff', boxShadow:'var(--shadow-md)', cursor:'pointer',
+                  fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13.5, color:'var(--text-primary)',
+                }}>
+                  {Icon('X',15)} Hide map
+                </button>
+              </div>
+            </div>
+          ) : (
+          <>
           {photoSales.length > 0 && (
             <div style={{borderBottom:'1px solid var(--line)', background:'var(--surface)', padding:'14px 0'}}>
               <div style={{...wrap, display:'flex', gap:8, overflowX:'auto', paddingBottom:2}}>
@@ -4785,14 +4808,6 @@ function WebHomeScreen({
                     <SaleImg src={s.images[0]} height={92} width={92} type={s.type} title={s.title} lat={s.lat} lng={s.lng} id={s.id} />
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
-
-          {showMap && (
-            <div style={wrap}>
-              <div style={{position:'relative', height:440, margin:'20px 0', borderRadius:'var(--radius-xl)', overflow:'hidden', border:'1px solid var(--line)', isolation:'isolate'}}>
-                <RealMap sales={shown} onSelect={onOpenSale} centerLat={mapCenter?.lat} centerLng={mapCenter?.lng} />
               </div>
             </div>
           )}
@@ -4822,6 +4837,8 @@ function WebHomeScreen({
               </div>
             )}
           </div>
+          </>
+          )}
         </>
       )}
 
