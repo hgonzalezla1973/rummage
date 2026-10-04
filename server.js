@@ -950,9 +950,9 @@ async function newPage(browser) {
 }
 
 // ── Image fetcher — visits each listing detail page in parallel batches ────────
-// CL detail pages embed full-size images as <img src="..._600x450.jpg"> even
-// with JS disabled. Thumbnails (_50x50c) are also present; we convert them to
-// full-size by swapping the size suffix.
+// CL detail pages embed images at <img src="..._600x450.jpg"> even with JS
+// disabled. Thumbnails (_50x50c) are also present; we convert everything to
+// the largest size swapping the suffix actually serves (1200x900).
 //
 // Concurrency kept low (3, not the 8 it used to be) -- this opens a real
 // headless-Chrome tab per listing, and running this alongside the other
@@ -988,8 +988,11 @@ async function fetchListingImages(listings, concurrency = 3) {
           for (const img of document.querySelectorAll('img[src]')) {
             const src = img.getAttribute('src') || '';
             if (!src.includes('images.craigslist.org')) continue;
-            // Convert any size variant to 600x450
-            const full = src.replace(/_\d+x\d+c?\.jpg/, '_600x450.jpg');
+            // 600x450 looked soft blown up to the desktop detail page's wider
+            // photo gallery -- confirmed live that Craigslist's CDN also
+            // serves a real (not just upscaled) 1200x900 rendition at the
+            // same path, just under 2x the bytes, so use that instead.
+            const full = src.replace(/_\d+x\d+c?\.jpg/, '_1200x900.jpg');
             if (!seen.has(full)) { seen.add(full); imgs.push(full); }
           }
 

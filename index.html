@@ -4819,8 +4819,14 @@ function SaleDetailPage({ sale, apiStatus, onToggleSave, itemsView, setItemsView
   // a real desktop window edge to edge, the photo goes short-and-wide and
   // text lines run the full window. Page background spans the window (capped
   // at 1440 so it doesn't stretch further on an ultra-wide monitor); the
-  // actual column of content is centered and held to a reading-friendly 900.
-  const CONTENT_W = 900;
+  // actual column of content is centered and held to a reading-friendly
+  // width. 720, not wider: several sources only ever have a ~700px-wide
+  // photo available (confirmed live -- GSALR/GarageSaleFinder's CDN 404s on
+  // anything above w700-h500, unlike Craigslist, which actually has a real
+  // 1200-wide rendition available), so a wider column was visibly
+  // upscaling -- and thus softening -- those photos past their real
+  // resolution for no benefit to the surrounding text.
+  const CONTENT_W = 720;
   return (
     <div style={{position:'fixed', inset:0, background:'var(--surface-app)', display:'flex', flexDirection:'column'}}>
       <div style={{flexShrink:0, borderBottom:'1px solid var(--line)', background:'var(--surface)'}}>
