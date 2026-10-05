@@ -7,33 +7,33 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* "Clean SaaS Monochrome" (from a referenced product-UI style-guide pin):
-     warm off-white surface, a black/warm-gray neutral scale, and a single
-     deep-teal action accent (CTAs, focus/links, "live now") -- real rounded
-     corners and soft elevation shadows instead of the previous straight-
-     edges/hairline-border system. Every color below is still read through
+  /* "Carbon Copy Classifieds": newsprint ground, carbon-ink neutral scale,
+     and a single hot poster-orange accent -- the color of the actual
+     cardboard signs people staple to telephone poles. Hard-edged borders
+     do the separation work (no soft blurred elevation), corners are small
+     and crisp, not rounded pills. Every color below is still read through
      the same --semantic-alias tokens the whole app already used, so
      retuning here is enough to recolor/reshape the app without touching
      components. */
-  --paper:#F7F5F0; --paper-2:#EFEBE2; --surface:#FFFFFF; --surface-tint:#FFFFFF;
+  --paper:#F1EFE9; --paper-2:#E7E3D8; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
-  /* Neutral ink — warm-tinted black/gray scale (not true cool gray) */
-  --ink-900:#1C1B17; --ink-800:#2C2A24; --ink-700:#4A473F; --ink-600:#675F52;
-  --ink-500:#8A8579; --ink-400:#A39D8F; --ink-300:#C7C3B9; --ink-200:#DEDACE; --ink-100:#E8E5DE; --line:#E8E5DE;
+  /* Neutral ink — carbon/newsprint black-gray scale */
+  --ink-900:#1A1A1A; --ink-800:#2B2B28; --ink-700:#46453F; --ink-600:#5C5B54;
+  --ink-500:#76756C; --ink-400:#949289; --ink-300:#B8B6AB; --ink-200:#D6D3C6; --ink-100:#E7E3D8; --line:#2A2A26;
 
-  /* Primary — one deep-teal accent, spent only on "live now" and the
-     primary action. (Still named --brand-* so every existing call site
-     just picks up the new color without edits.) */
-  --brand-50:#E4EFEE; --brand-100:#B8D3D2; --brand-200:#7AACAA; --brand-300:#3D8482;
-  --brand-400:#146664; --brand-500:#0F504E; --brand-600:#0C403E; --brand-700:#093230; --brand-800:#072624;
-  --brand-grad:#146664;
+  /* Primary — one hot poster-orange accent, spent on the primary action,
+     "live now", and links. (Still named --brand-* so every existing call
+     site just picks up the new color without edits.) */
+  --brand-50:#FDE8DF; --brand-100:#F8C3AC; --brand-200:#F29B79; --brand-300:#EC7249;
+  --brand-400:#E8491D; --brand-500:#C23814; --brand-600:#9C2D10; --brand-700:#76220C; --brand-800:#551809;
+  --brand-grad:#E8491D;
 
-  --tape-50:#EFEBE2; --tape-100:#E8E5DE; --tape-300:#DEDACE; --tape-500:#FFFFFF; --tape-600:#DEDACE; --tape-700:#8A8579;
+  --tape-50:#E7E3D8; --tape-100:#DBD7C9; --tape-300:#C7C2B0; --tape-500:#FFFFFF; --tape-600:#DBD7C9; --tape-700:#76756C;
   --teal-50:#E4EFEE; --teal-100:#B8D3D2; --teal-300:#7AACAA; --teal-500:#146664; --teal-600:#0F504E; --teal-700:#093230;
   --green-600:#1E8E5A; --green-bg:#E3F5EC; --amber-600:#9A7B0A; --amber-bg:#FDF3D6; --red-600:#D6392F; --red-bg:#FBE4E2;
   --coral:#C2453B; --coral-bg:#FBE4E2;
@@ -57,9 +57,9 @@
   --danger:var(--red-600); --danger-bg:var(--red-bg);
   --pin:var(--ink-900); --pin-saved:var(--coral);
 
-  --font-display:'Inter',system-ui,-apple-system,sans-serif;
-  --font-sans:'Inter',system-ui,-apple-system,'Segoe UI',sans-serif;
-  --font-mono:'Inter',ui-monospace,'SF Mono',Menlo,monospace;
+  --font-display:'Anton',system-ui,-apple-system,sans-serif;
+  --font-sans:'Work Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
   --text-lg:20px; --text-xl:24px; --text-2xl:30px; --text-3xl:38px; --text-4xl:48px;
@@ -69,18 +69,24 @@
 
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  /* Real rounded corners, replacing the previous straight-edges system. */
-  --radius-xs:6px; --radius-sm:8px; --radius-md:10px; --radius-lg:12px;
-  --radius-xl:16px; --radius-2xl:20px; --radius-pill:999px; --radius-btn:999px;
+  /* Small, crisp corners -- a printed card, not a rounded app tile.
+     --radius-pill stays a true pill: it's spent only on genuinely round
+     shapes (carousel dots, badges, a progress bar's rounded end), not on
+     buttons/chips/cards, which get the flat --radius-btn/--radius-xl scale
+     below instead. */
+  --radius-xs:2px; --radius-sm:3px; --radius-md:3px; --radius-lg:4px;
+  --radius-xl:4px; --radius-2xl:6px; --radius-pill:999px; --radius-btn:4px;
 
-  /* Soft elevation shadows, replacing the previous flattened-to-none set. */
-  --shadow-xs:0 1px 2px rgba(28,27,23,.04);
-  --shadow-sm:0 1px 3px rgba(28,27,23,.06), 0 1px 2px rgba(28,27,23,.04);
-  --shadow-md:0 4px 12px rgba(28,27,23,.08);
-  --shadow-lg:0 12px 32px rgba(28,27,23,.14);
-  --shadow-sheet:0 -4px 16px rgba(28,27,23,.10);
-  --shadow-pin:0 2px 6px rgba(28,27,23,.18);
-  --shadow-focus:0 0 0 3px var(--brand-100);
+  /* Hard, unblurred "cut paper" shadows -- an offset, not a glow. Borders
+     do most of the separation work in this system; these are a light
+     lift for the few things that still need to read as layered on top. */
+  --shadow-xs:0 1px 0 rgba(26,26,26,.1);
+  --shadow-sm:1px 2px 0 rgba(26,26,26,.14);
+  --shadow-md:2px 3px 0 rgba(26,26,26,.18);
+  --shadow-lg:3px 5px 0 rgba(26,26,26,.22);
+  --shadow-sheet:0 -2px 0 rgba(26,26,26,.14);
+  --shadow-pin:1px 2px 0 rgba(26,26,26,.3);
+  --shadow-focus:0 0 0 3px var(--brand-200);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
   --dur-fast:140ms; --dur-base:220ms; --dur-slow:360ms;
@@ -89,7 +95,7 @@
 *,*::before,*::after{box-sizing:border-box}
 html,body{margin:0;height:100%;background:var(--surface-app);overflow:hidden;-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
 body{font-family:var(--font-sans);font-size:var(--text-base);line-height:var(--leading-normal);color:var(--text-primary)}
-h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:-0.03em;line-height:1.02;margin:0}
+h1,h2,h3,h4{font-family:var(--font-display);font-weight:900;letter-spacing:0;line-height:1.02;margin:0}
 button{font-family:inherit;cursor:pointer}
 input{font-family:inherit}
 .rmg-eyebrow{font-family:var(--font-sans);font-weight:700;letter-spacing:.08em;text-transform:uppercase;font-size:11px;color:var(--text-muted)}
@@ -199,7 +205,7 @@ function RummageLogo({ markSize = 56, textSize = 26 }) {
   return (
     <div style={{display:'flex',flexDirection:'column',alignItems:'center',gap:8}}>
       <RummageMark size={markSize} />
-      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:textSize,letterSpacing:'-0.03em',color:'var(--ink-900)'}}>Rummage</div>
+      <div style={{fontFamily:'var(--font-display)',fontWeight:900,fontSize:textSize,color:'var(--ink-900)'}}>Rummage</div>
     </div>
   );
 }
@@ -308,8 +314,8 @@ const ALL_SALES = [];
 function Btn({ variant='primary', size='default', fullWidth, leadingIcon, onClick, children, style, disabled }) {
   const base = {
     display:'inline-flex', alignItems:'center', justifyContent:'center',
-    gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-sans)',
-    fontWeight:700, letterSpacing:'-0.01em', whiteSpace:'nowrap',
+    gap:8, border:'none', cursor:'pointer', fontFamily:'var(--font-display)',
+    fontWeight:400, letterSpacing:'.02em', textTransform:'uppercase', whiteSpace:'nowrap',
     transition:`all var(--dur-fast) var(--ease-out)`,
     borderRadius:'var(--radius-btn)', width: fullWidth?'100%':'auto',
     flex: fullWidth ? '1 1 0%' : 'initial', minWidth: fullWidth ? 0 : 'auto',
@@ -383,7 +389,7 @@ function SaleTypeTag({ type, size }) {
   return (
     <span style={{
       fontFamily:'var(--font-mono)', fontWeight:600, fontSize,
-      letterSpacing:'0.06em', textTransform:'uppercase', color:'var(--text-muted)',
+      letterSpacing:'0.06em', textTransform:'uppercase', color:'var(--accent)',
     }}>
       {CAT[type]?.label || type}
     </span>
@@ -421,18 +427,18 @@ function Avatar({ name='?', size=44, emoji=null }) {
 
 function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children,
   activeBg='var(--brand-grad)', activeColor='#fff',
-  inactiveBg='var(--ink-100)', inactiveBorder='none', inactiveColor='var(--ink-700)' }) {
+  inactiveBg='var(--surface)', inactiveBorder='1px solid var(--border-default)', inactiveColor='var(--ink-900)' }) {
   return (
     <button type="button" onClick={onClick} style={{
       display:'inline-flex', alignItems:'center', gap:5,
       padding:'9px 18px', borderRadius:'var(--radius-btn)',
-      border: selected ? 'none' : inactiveBorder,
+      border: selected ? '1px solid var(--border-default)' : inactiveBorder,
       background: selected ? activeBg : inactiveBg,
       color: selected ? activeColor : inactiveColor,
       fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13,
       cursor:'pointer', whiteSpace:'nowrap', flexShrink:0,
       transition:'all var(--dur-fast) var(--ease-out)',
-      boxShadow: selected ? '0 4px 14px rgba(24,24,27,.30)' : 'none',
+      boxShadow:'none',
     }}>
       {leadingIcon && <span style={{display:'inline-flex'}}>{leadingIcon}</span>}
       {children}
@@ -505,10 +511,10 @@ function RmgInput({ size: sz, leadingIcon, trailingIcon, placeholder, value, onC
         onChange={onChange}
         style={{
           width:'100%', height:h, padding: `0 ${trailingIcon?42:16}px 0 ${leadingIcon?46:16}px`,
-          border:'none', borderRadius:'var(--radius-pill)',
+          border:'1px solid var(--border-default)', borderRadius:'var(--radius-btn)',
           background:'var(--surface-card)', color:'var(--text-primary)',
           fontFamily:'var(--font-sans)', fontSize:15,
-          outline:'none', boxShadow:'var(--shadow-sm)',
+          outline:'none', boxShadow:'none',
           transition:'box-shadow var(--dur-fast)',
         }}
       />
@@ -2573,7 +2579,7 @@ function PriceCheckScreen({ onBack }) {
             <div style={{textAlign:'center',padding:'8px 0'}}>
               <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',marginBottom:6}}>{result.itemName}</div>
               {result.low != null ? (
-                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--secondary)',letterSpacing:'-0.02em'}}>
+                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--secondary)'}}>
                   ${result.low}{result.high !== result.low ? ` – $${result.high}` : ''}
                 </div>
               ) : (
@@ -3687,7 +3693,7 @@ function DetailScreen({ sale, onBack, hideBack=false, photoHeight, collapsibleMa
           <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10,flexWrap:'wrap'}}>
             <SaleTypeTag type={s.type} />
           </div>
-          <h1 style={{fontWeight:800,letterSpacing:'-0.025em',fontSize:28,lineHeight:1.12,letterSpacing:'-0.02em',color:'var(--text-primary)'}}>{s.title}</h1>
+          <h1 style={{fontWeight:400,fontSize:28,lineHeight:1.15,textTransform:'uppercase',color:'var(--text-primary)'}}>{s.title}</h1>
           {/* Plain label/value list instead of icon-in-a-circle rows -- no
               icon glyph needed to tell "when" from "where" apart when the
               mono uppercase label already says so. */}
@@ -3949,7 +3955,7 @@ function ItemDetailScreen({ sale, idx, onBack, onOpenSale, onSelectItem }) {
             )}
             <Badge tone={item.sold?undefined:'success'}>{item.sold?'Sold':'Available'}</Badge>
           </div>
-          <h1 style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:27,lineHeight:1.12,letterSpacing:'-0.02em',color:'var(--text-primary)'}}>{item.name}</h1>
+          <h1 style={{fontFamily:'var(--font-display)',fontWeight:800,fontSize:27,lineHeight:1.12,color:'var(--text-primary)'}}>{item.name}</h1>
           {item.price!=null && (
             <div style={{display:'flex',alignItems:'baseline',gap:9,marginTop:8}}>
               <span style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:26,color:'var(--text-primary)'}}>{item.price}</span>
@@ -4667,7 +4673,7 @@ function DesktopSaleCard({ sale: s, onClick, onToggleSave }) {
       </div>
       <div style={{padding:'14px 16px 16px',display:'flex',flexDirection:'column',gap:6,flex:1}}>
         <SaleTypeTag type={s.type} size="sm" />
-        <h3 style={{fontSize:15,fontWeight:800,color:'var(--ink-900)',lineHeight:1.3,letterSpacing:'-0.01em',margin:0,
+        <h3 style={{fontFamily:'var(--font-display)',fontSize:15,fontWeight:400,color:'var(--ink-900)',lineHeight:1.25,textTransform:'uppercase',margin:0,
           display:'-webkit-box',WebkitLineClamp:2,WebkitBoxOrient:'vertical',overflow:'hidden'}}>{s.title}</h3>
         <div style={{fontSize:12.5,color:'var(--text-muted)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.neighborhood || s.address}</div>
         <div style={{fontFamily:'var(--font-mono)',fontSize:11.5,color:'var(--text-faint)'}}>{s.dateLabel}{s.timeLabel?` · ${s.timeLabel}`:''}</div>
@@ -4733,16 +4739,16 @@ function WebHomeScreen({
 
   return (
     <div style={{minHeight:'100%', background:'var(--paper)'}}>
-      <nav style={{position:'sticky', top:0, zIndex:20, background:'rgba(247,245,240,.92)', backdropFilter:'blur(16px)', borderBottom:'1px solid var(--line)'}}>
+      <nav style={{position:'sticky', top:0, zIndex:20, background:'var(--ink-900)', borderBottom:'3px solid var(--accent)'}}>
         <div style={{...wrap, display:'flex', alignItems:'center', justifyContent:'space-between', height:68}}>
           <div style={{display:'flex', alignItems:'center', gap:9}}>
             <RummageMark size={30} />
-            <span style={{fontFamily:'var(--font-display)', fontWeight:900, fontSize:19, letterSpacing:'-0.03em', color:'var(--ink-900)'}}>Rummage</span>
+            <span style={{fontFamily:'var(--font-display)', fontWeight:900, fontSize:19, color:'var(--paper)'}}>Rummage</span>
           </div>
           <div style={{display:'flex', alignItems:'center', gap:14}}>
             <button type="button" onClick={()=>setSavedOnly(v=>!v)} style={{
               display:'inline-flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer',
-              fontFamily:'var(--font-sans)', fontWeight:700, fontSize:14, color: savedOnly ? 'var(--accent)' : 'var(--text-secondary)', padding:'8px 4px',
+              fontFamily:'var(--font-sans)', fontWeight:700, fontSize:14, color: savedOnly ? 'var(--accent)' : 'var(--ink-300)', padding:'8px 4px',
             }}>
               {Icon('Heart',17, savedOnly ? {fill:'var(--coral)',stroke:'var(--coral)'} : {stroke:'currentColor'})}
               Saved{savedCount>0?` (${savedCount})`:''}
@@ -4752,22 +4758,22 @@ function WebHomeScreen({
         </div>
       </nav>
 
-      <header style={{background:'var(--brand-grad)', padding: zip ? '44px 0 36px' : '64px 0'}}>
+      <header style={{background:'var(--paper)', borderBottom:'1px dashed var(--ink-900)', padding: zip ? '44px 0 36px' : '64px 0'}}>
         <div style={wrap}>
           {zip ? (
             <>
-              <h1 style={{color:'#fff', fontSize:34, maxWidth:620, lineHeight:1.12}}>Yard sales, estate sales &amp; moving sales near {zip}.</h1>
-              <p style={{color:'rgba(255,255,255,.82)', fontFamily:'var(--font-sans)', fontSize:15.5, maxWidth:560, margin:'12px 0 0', lineHeight:1.6}}>
-                Pulled live from Craigslist, OfferUp, EstateSales.org and more onto one map — updated every few minutes.
+              <h1 style={{color:'var(--ink-900)', fontSize:34, maxWidth:620, lineHeight:1.12, textTransform:'uppercase'}}>Yard sales, estate sales &amp; moving sales near {zip}.</h1>
+              <p style={{color:'var(--ink-600)', fontFamily:'var(--font-mono)', fontSize:13.5, maxWidth:560, margin:'12px 0 0', lineHeight:1.6}}>
+                // Pulled live from Craigslist, OfferUp, EstateSales.org — updated every few minutes.
               </p>
-              <Btn variant="surface" size="sm" leadingIcon={Icon('Map',14)} onClick={()=>setShowMap(v=>!v)} style={{marginTop:16}}>
+              <Btn variant="primary" size="sm" leadingIcon={Icon('Map',14)} onClick={()=>setShowMap(v=>!v)} style={{marginTop:16}}>
                 {showMap ? 'Hide map' : 'Show map'}
               </Btn>
             </>
           ) : (
             <div style={{maxWidth:380, margin:'0 auto', textAlign:'center'}}>
-              <h1 style={{color:'#fff', fontSize:28, marginBottom:10}}>{locating ? 'Finding you…' : 'Where should we look?'}</h1>
-              <p style={{color:'rgba(255,255,255,.82)', fontFamily:'var(--font-sans)', fontSize:15, margin:'0 0 20px'}}>
+              <h1 style={{color:'var(--ink-900)', fontSize:28, marginBottom:10, textTransform:'uppercase'}}>{locating ? 'Finding you…' : 'Where should we look?'}</h1>
+              <p style={{color:'var(--ink-600)', fontFamily:'var(--font-sans)', fontSize:15, margin:'0 0 20px'}}>
                 {locating ? 'Hang tight while we check your location.' : 'Turn on location, or enter your ZIP code to find sales near you.'}
               </p>
               {!locating && (
@@ -4867,7 +4873,7 @@ function WebHomeScreen({
             <div style={{borderBottom:'1px solid var(--line)', background:'var(--surface)', padding:'14px 0'}}>
               <div style={{...wrap, display:'flex', gap:8, overflowX:'auto', paddingBottom:2}}>
                 {photoSales.map(s => (
-                  <div key={s.id} onClick={()=>scrollToCard(s.id)} title={s.title} style={{flexShrink:0, width:92, height:92, borderRadius:'var(--radius-md)', overflow:'hidden', cursor:'pointer'}}>
+                  <div key={s.id} onClick={()=>scrollToCard(s.id)} title={s.title} style={{flexShrink:0, width:92, height:92, border:'1px solid var(--border-default)', borderRadius:'var(--radius-md)', overflow:'hidden', cursor:'pointer'}}>
                     <SaleImg src={s.images[0]} height={92} width={92} type={s.type} title={s.title} lat={s.lat} lng={s.lng} id={s.id} />
                   </div>
                 ))}
