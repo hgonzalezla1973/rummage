@@ -5001,6 +5001,40 @@ function SaleDetailPage({ sale, apiStatus, onToggleSave, itemsView, setItemsView
   );
 }
 
+// A dedicated page for posting a sale, reached via /app?post=1 (same
+// deep-link convention as /app?sale=<id>) -- "Post a Sale" on the desktop
+// browse page used to open ListScreen (a screen built for a ~390px phone
+// width, bottom tab-bar clearance and all) in a small 420px modal, which
+// read as the mobile app crammed into a popup rather than a real page.
+function PostSalePage() {
+  return (
+    <div style={{position:'fixed', inset:0, background:'var(--surface-app)', display:'flex', flexDirection:'column'}}>
+      <div style={{flexShrink:0, borderBottom:'1px solid var(--line)', background:'var(--surface)'}}>
+        <div style={{maxWidth:1440, margin:'0 auto', display:'flex', alignItems:'center', gap:14, padding:'14px 28px'}}>
+          <a href="/app" style={{display:'flex', alignItems:'center', gap:8, textDecoration:'none', color:'var(--ink-900)'}}>
+            <RummageMark size={26} />
+            <span style={{fontFamily:'var(--font-display)', fontWeight:900, fontSize:16}}>Rummage</span>
+          </a>
+          <span style={{color:'var(--ink-300)'}}>/</span>
+          <a href="/app" style={{fontFamily:'var(--font-sans)', fontWeight:700, fontSize:13.5, color:'var(--text-link)', textDecoration:'none'}}>
+            ← All sales
+          </a>
+        </div>
+      </div>
+      <div style={{position:'relative', flex:1, minHeight:0}}>
+        {/* ListScreen fills this box edge-to-edge with position:absolute;inset:0,
+            same reasoning as SaleDetailPage's DetailScreen -- 520, not 720: this
+            is a form (type picker, text fields, a photo grid), not a photo-led
+            reading column, and stays comfortable at a narrower width instead of
+            stretching inputs across the page. */}
+        <div style={{position:'absolute', inset:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:520}}>
+          <ListScreen onPublish={()=>{}} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab] = useState('explore');
@@ -5025,6 +5059,8 @@ function App() {
   // on a sale link renders that sale as its own dedicated page; a sale
   // opened while already browsing stays a lightweight modal over the grid.
   const [deepLinkSaleId] = useState(() => new URLSearchParams(window.location.search).get('sale'));
+  // Same convention as deepLinkSaleId, for /app?post=1 -- see PostSalePage.
+  const [deepLinkPost] = useState(() => new URLSearchParams(window.location.search).get('post') === '1');
   // Every "open this listing" entry point routes through here, regardless
   // of which screen (Explore, Saved, Search, notifications...) the tap
   // came from.
@@ -5492,13 +5528,18 @@ function App() {
     );
   }
 
+  // Same idea for /app?post=1 -- see PostSalePage and deepLinkPost above.
+  if (deepLinkPost) {
+    return <PostSalePage />;
+  }
+
   // Desktop/mouse visitors (rummagedeals.com in a real browser) get the full
   // web experience below instead of the phone-mockup preview frame -- see
   // isMobileDevice and WebHomeScreen. A sale opened from *within* this page
   // (a map pin click) still reuses the exact same DetailScreen the mobile
   // app and SaleDetailPage both use, just presented in a centered modal
   // panel instead of a full-screen shell -- quick preview, not a navigation.
-  const closeModal = () => { closeDetail(); setTab('explore'); };
+  const closeModal = () => { closeDetail(); };
   return (
     <div id="phone-frame" style={{position:'fixed', inset:0, overflow:'auto', background:'var(--paper)'}}>
       <WebHomeScreen
@@ -5509,32 +5550,29 @@ function App() {
         keyword={keyword} setKeyword={setKeyword}
         onToggleSave={toggleSave}
         apiStatus={apiStatus} coverageMessage={coverageMessage} mapCenter={mapCenter}
-        onOpenPost={()=>setTab('list')}
+        onOpenPost={()=>{ window.location.href = '/app?post=1'; }}
       />
 
-      {(detailSale || tab==='list') && (
+      {detailSale && (
         <div onClick={closeModal} style={{position:'fixed',inset:0,zIndex:60,background:'rgba(17,15,13,.6)',display:'flex',alignItems:'center',justifyContent:'center',padding:24}}>
           <div onClick={e=>e.stopPropagation()} style={{position:'relative',width:420,maxWidth:'100%',height:'min(860px, calc(100vh - 48px))',background:'var(--surface-app)',borderRadius:28,overflow:'hidden',boxShadow:'0 40px 90px rgba(0,0,0,.45)'}}>
             <button type="button" onClick={closeModal} aria-label="Close" style={{position:'absolute',top:-14,right:-14,zIndex:100,width:36,height:36,borderRadius:'50%',background:'#fff',border:'none',boxShadow:'var(--shadow-lg)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>
               {Icon('X',18)}
             </button>
-            {detailSale && itemsView?.mode==='gallery' && (
+            {itemsView?.mode==='gallery' && (
               <ItemsGalleryScreen sale={detailSale} onBack={()=>setItemsView(null)}
                 onOpenItem={idx=>setItemsView({mode:'item', idx})}
                 onDirections={()=>openSaleDirections(detailSale)} />
             )}
-            {detailSale && itemsView?.mode==='item' && (
+            {itemsView?.mode==='item' && (
               <ItemDetailScreen sale={detailSale} idx={itemsView.idx}
                 onBack={()=>setItemsView({mode:'gallery'})}
                 onOpenSale={()=>setItemsView(null)}
                 onSelectItem={idx=>setItemsView({mode:'item', idx})} />
             )}
-            {detailSale && !itemsView && (
+            {!itemsView && (
               <DetailScreen sale={detailSale} onBack={closeDetail} collapsibleMap onToggleSave={toggleSave}
                 onOpenItems={detailSale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined} />
-            )}
-            {!detailSale && tab==='list' && (
-              <ListScreen onPublish={listing=>{setUserListings(p=>[...p,listing]);setTab('explore');}} />
             )}
           </div>
         </div>
