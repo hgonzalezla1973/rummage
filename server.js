@@ -2295,23 +2295,25 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
 }
 
 // GSALR, GarageSaleFinder, and YardSaleSearch (all the same "Treasure
-// Listings" site network) also host each sale's OWN native photos --
-// not syndicated from EstateSales.org -- on a per-site *.cloudfront.net
-// subdomain, one <img> per photo in the gallery strip, each tagged
-// alt="Sale Photo Thumbnail #N" (GSALR/GarageSaleFinder) or "Sale
+// Listings" site network) also host each sale's OWN native photos -- not
+// syndicated from EstateSales.org -- on a per-site *.cloudfront.net OR
+// *.tlstatic.com subdomain (confirmed live, both in active use across
+// different listings), one <img> per photo in the gallery strip, each
+// tagged alt="Sale Photo Thumbnail #N" (GSALR/GarageSaleFinder) or "Sale
 // Gallery Photo Thumbnail" (YardSaleSearch). Only the very first one
 // carries itemprop="image" -- every photo after it has no itemprop at
-// all -- so scoping a match to itemprop="image" (as the eso-cdn/
-// tlstatic.com cases elsewhere in this file correctly do, since THEIR
-// sidebar-contamination risk requires that scoping) silently drops every
-// photo past the first here instead. Confirmed live (2026-10-05): a real
-// GSALR listing with 9 photos was coming back with just 1 because of
-// this. The alt text itself is what scopes this to the listing's own
-// gallery (a "nearby sales" sidebar link doesn't carry it), so itemprop
-// isn't needed as a filter. Same w700-h500 upgrade as the Pinterest
-// share link on the same page already uses for the identical file.
+// all -- so scoping a match to itemprop="image" (as the eso-cdn case
+// elsewhere in this file correctly does, since ITS sidebar-contamination
+// risk requires that scoping) silently drops every photo past the first
+// here instead. Confirmed live (2026-10-05): real listings on both
+// domains with 9 photos were coming back with just 1, or even 0 when the
+// single itemprop-scoped match also missed. The alt text itself is what
+// scopes this to the listing's own gallery (a "nearby sales" sidebar
+// link doesn't carry it), so itemprop isn't needed as a filter. Same
+// w700-h500 upgrade as the Pinterest share link on the same page already
+// uses for the identical file.
 function collectNativeThumbnailGallery(html, seen, urls) {
-  for (const m of html.matchAll(/(https:\/\/[a-z0-9]+\.cloudfront\.net\/image\/)w\d+-[a-z]?[\d:]+(\/[^"]+)"[^>]*alt="Sale (?:Gallery )?Photo Thumbnail/g)) {
+  for (const m of html.matchAll(/(https:\/\/[a-z0-9-]+\.(?:cloudfront\.net|tlstatic\.com)\/image\/)w\d+-[a-z]?[\d:]+(\/[^"]+)"[^>]*alt="Sale (?:Gallery )?Photo Thumbnail/g)) {
     const full = `${m[1]}w700-h500${m[2]}`;
     if (!seen.has(full)) { seen.add(full); urls.push(full); }
   }
@@ -2510,21 +2512,12 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
           for (const url of idGroups.get(bestId)) if (!seen.has(url)) { seen.add(url); urls.push(url); }
         }
 
-        // Natively-uploaded (non-syndicated) photos are tagged itemprop="image"
-        // and hosted on {ps,gsf,...}.tlstatic.com at a small crop size --
-        // scoped to just this listing's own gallery, unlike the sidebar
-        // above. Upgrade to a real display size the same way the Pinterest
-        // share link on the same page does (w700-h500 of the identical file
-        // path). Matches any *.tlstatic.com subdomain, not just ps.tlstatic.com
-        // -- confirmed live (2026-10-03) that the site has since moved native
-        // listing photos to gsf.tlstatic.com, which the old ps-only pattern
-        // silently never matched, so every GSALR/GarageSaleFinder listing's
-        // gallery was quietly stuck at just its one search-result thumbnail.
-        for (const m of html.matchAll(/itemprop="image"[^>]*src="(https:\/\/[a-z0-9-]+\.tlstatic\.com\/image\/)w\d+-c[\d:]+(\/[^"]+)"/g)) {
-          const full = `${m[1]}w700-h500${m[2]}`;
-          if (!seen.has(full)) { seen.add(full); urls.push(full); }
-        }
-
+        // Natively-uploaded (non-syndicated) photos -- scoped to just this
+        // listing's own gallery, unlike the sidebar above -- are collected by
+        // collectNativeThumbnailGallery, which covers both the
+        // *.tlstatic.com and *.cloudfront.net variants this site network
+        // uses (see its own comment for why itemprop="image" alone isn't
+        // enough to find every photo).
         collectNativeThumbnailGallery(html, seen, urls);
 
         if (urls.length) imageMap.set(listing.url, urls);
