@@ -4718,6 +4718,9 @@ function WebHomeScreen({
               <p style={{color:'rgba(255,255,255,.82)', fontFamily:'var(--font-sans)', fontSize:15.5, maxWidth:560, margin:'12px 0 0', lineHeight:1.6}}>
                 Pulled live from Craigslist, OfferUp, EstateSales.org and more onto one map — updated every few minutes.
               </p>
+              <Btn variant="surface" size="sm" leadingIcon={Icon('Map',14)} onClick={()=>setShowMap(v=>!v)} style={{marginTop:16}}>
+                {showMap ? 'Hide map' : 'Show map'}
+              </Btn>
             </>
           ) : (
             <div style={{maxWidth:380, margin:'0 auto', textAlign:'center'}}>
@@ -4783,9 +4786,6 @@ function WebHomeScreen({
                   <FilterChip key={t.key} selected={selectedTypes.includes(t.key)}
                     onClick={()=>setActiveTypes(p=>({...p,[t.key]:!p[t.key]}))}>{t.label}</FilterChip>
                 ))}
-                <FilterChip selected={showMap} leadingIcon={Icon('Map',14)} onClick={()=>setShowMap(v=>!v)}>
-                  {showMap ? 'Hide map' : 'Show map'}
-                </FilterChip>
                 <div style={{display:'flex',alignItems:'center',gap:6,marginLeft:'auto'}}>
                   <span style={{fontFamily:'var(--font-sans)',fontSize:12.5,color:'var(--text-muted)'}}>Within</span>
                   <select value={radiusMi} onChange={e=>setRadiusMi(Number(e.target.value))} style={{
