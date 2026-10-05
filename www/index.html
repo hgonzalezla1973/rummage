@@ -4617,7 +4617,7 @@ function WalkthroughScreen({ onDone, userName }) {
 // rather than reusing the app's own single-screen-at-a-time mobile shell.
 function DesktopSaleCard({ sale: s, onClick, onToggleSave }) {
   return (
-    <Card interactive onClick={onClick} padded={false} elevation="sm" style={{display:'flex',flexDirection:'column'}}>
+    <Card interactive onClick={onClick} padded={false} elevation="sm" style={{display:'flex',flexDirection:'column',height:'100%'}}>
       <div style={{position:'relative'}}>
         <SaleImg src={s.images?.[0]} height={168} type={s.type} blurb={s.blurb} title={s.title} lat={s.lat} lng={s.lng} id={s.id} />
         <span style={{position:'absolute',top:10,left:10,background:'rgba(28,27,23,.72)',color:'#fff',fontFamily:'var(--font-mono)',fontWeight:700,fontSize:11,padding:'3px 9px',borderRadius:'var(--radius-pill)'}}>{s.distanceMi} mi</span>
@@ -4849,7 +4849,7 @@ function WebHomeScreen({
               <div style={{display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(260px,1fr))', gap:20, padding:'28px 0 56px'}}>
                 {shown.map(s => (
                   <div key={s.id} ref={el => { cardRefs.current[s.id] = el; }} data-sale-id={s.id} style={{
-                    borderRadius:'var(--radius-xl)', transition:'box-shadow .3s var(--ease-out), transform .3s var(--ease-out)',
+                    height:'100%', borderRadius:'var(--radius-xl)', transition:'box-shadow .3s var(--ease-out), transform .3s var(--ease-out)',
                     boxShadow: highlightId===s.id ? '0 0 0 3px var(--accent)' : 'none',
                     transform: highlightId===s.id ? 'translateY(-3px)' : 'none',
                   }}>
