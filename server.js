@@ -448,6 +448,20 @@ const LA_NEIGHBORHOODS = {
 const MAX_LISTING_PHOTOS = 40;
 const capPhotos = arr => (arr && arr.length > MAX_LISTING_PHOTOS) ? arr.slice(0, MAX_LISTING_PHOTOS) : arr;
 
+// EstateSales.org's Apify feed, YardSaleSearch's search-result fallback, and
+// GSALR all sometimes hand back only a w100 (100px-wide) thumbnail from this
+// shared garage-sale-site image CDN -- visibly blurry once stretched to fill
+// a photo gallery or the listing page's hero photo. Confirmed live: the same
+// CDN serves a real w700 rendition at the identical path (same convention as
+// the w700-h500 upgrade already used for tlstatic.com elsewhere), just never
+// linked anywhere in the page/API response these scrapers read from.
+const SMALL_THUMB_RE = /^(https:\/\/[a-z0-9-]+\.cloudfront\.net\/image\/)w100(-c[\d:]+\/.+)$/;
+const upgradeSmallThumbUrl = url => {
+  if (typeof url !== 'string') return url;
+  const m = url.match(SMALL_THUMB_RE);
+  return m ? `${m[1]}w700${m[2]}` : url;
+};
+
 // ── In-memory cache ───────────────────────────────────────────────────────────
 // Nothing ever removed an entry here -- every distinct zip/radius (and each
 // source's own per-zip cache key) accumulated for the life of the process,
@@ -3719,6 +3733,9 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   // one card, keeping the richest fields across the duplicates. See the helper
   // for how it decides two listings are the same sale.
   const all = dedupeListings(combined);
+  for (const listing of all) {
+    if (listing.images?.length) listing.images = listing.images.map(upgradeSmallThumbUrl);
+  }
   console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length}`);
 
   toCache(cacheKey, all);
