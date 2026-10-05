@@ -683,7 +683,7 @@ const TYPE_COLOR_HEX = {
   estate:'#0F9D58', yard:'#0F9D58', moving:'#0F9D58',
 };
 
-function RealMap({ sales, selectedId, onSelect, centerLat, centerLng, zoom=13, interactive=true }) {
+function RealMap({ sales, selectedId, onSelect, centerLat, centerLng, zoom=13, interactive=true, popupLinks=false }) {
   const containerRef = useRef(null);
   const mapRef       = useRef(null);
   const markersRef   = useRef({});
@@ -765,6 +765,28 @@ function RealMap({ sales, selectedId, onSelect, centerLat, centerLng, zoom=13, i
       const marker = L.marker([s.lat, s.lng], { icon, zIndexOffset: sel ? 1000 : 0 })
         .addTo(map)
         .on('click', () => onSelect?.(s.id));
+      // Same pin-click pattern as yardsaletreasuremap.com's map: a small
+      // popup with the title (linking straight to that sale's own page) and
+      // its date, instead of jumping into the full in-page detail modal --
+      // confirmed live on their site (click a pin, a popup opens with a link
+      // + date, with its own close button). Built with real DOM nodes and
+      // textContent (not an HTML string) so a scraped title can't inject
+      // markup into the page.
+      if (popupLinks) {
+        const box = document.createElement('div');
+        const link = document.createElement('a');
+        link.href = `/app?sale=${encodeURIComponent(s.id)}`;
+        link.textContent = s.title || 'View sale';
+        link.style.cssText = 'font-family:var(--font-sans);font-weight:700;font-size:13.5px;color:var(--accent);text-decoration:underline;';
+        box.appendChild(link);
+        if (s.dateLabel) {
+          const meta = document.createElement('div');
+          meta.textContent = s.dateLabel + (s.timeLabel ? ' · ' + s.timeLabel : '');
+          meta.style.cssText = 'font-family:var(--font-sans);font-size:12px;color:var(--text-muted);margin-top:3px;';
+          box.appendChild(meta);
+        }
+        marker.bindPopup(box, { maxWidth: 220 });
+      }
       markersRef.current[s.id] = marker;
     });
 
@@ -4624,7 +4646,7 @@ function DesktopSaleCard({ sale: s, onClick, onToggleSave }) {
 function WebHomeScreen({
   sales, zip, setZip, locating, locationDenied, onRequestLocation,
   radiusMi, setRadiusMi, activeTypes, setActiveTypes, keyword, setKeyword,
-  onOpenSale, onToggleSave, apiStatus, coverageMessage, mapCenter, onOpenPost,
+  onToggleSave, apiStatus, coverageMessage, mapCenter, onOpenPost,
 }) {
   const [dayFilter, setDayFilter] = useState(null); // null = All, else 0 (Sun) .. 6 (Sat)
   const [showMap, setShowMap] = useState(false);
@@ -4786,7 +4808,7 @@ function WebHomeScreen({
             // back up to the toolbar chip once you've scrolled into it.
             <div style={wrap}>
               <div style={{position:'relative', height:'70vh', minHeight:460, margin:'20px 0 56px', borderRadius:'var(--radius-xl)', overflow:'hidden', border:'1px solid var(--line)', isolation:'isolate'}}>
-                <RealMap sales={shown} onSelect={onOpenSale} centerLat={mapCenter?.lat} centerLng={mapCenter?.lng} />
+                <RealMap sales={shown} popupLinks centerLat={mapCenter?.lat} centerLng={mapCenter?.lng} />
                 <button type="button" onClick={()=>setShowMap(false)} style={{
                   position:'absolute', top:16, right:16, zIndex:1000,
                   display:'inline-flex', alignItems:'center', gap:7,
@@ -5439,7 +5461,7 @@ function App() {
         radiusMi={radiusMi} setRadiusMi={setRadiusMi}
         activeTypes={activeTypes} setActiveTypes={setActiveTypes}
         keyword={keyword} setKeyword={setKeyword}
-        onOpenSale={openSaleDetail} onToggleSave={toggleSave}
+        onToggleSave={toggleSave}
         apiStatus={apiStatus} coverageMessage={coverageMessage} mapCenter={mapCenter}
         onOpenPost={()=>setTab('list')}
       />
