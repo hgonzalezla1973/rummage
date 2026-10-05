@@ -2294,6 +2294,29 @@ async function scrapeEstateSalesNet(zip, radiusMi, centerLat, centerLng) {
   return results;
 }
 
+// GSALR, GarageSaleFinder, and YardSaleSearch (all the same "Treasure
+// Listings" site network) also host each sale's OWN native photos --
+// not syndicated from EstateSales.org -- on a per-site *.cloudfront.net
+// subdomain, one <img> per photo in the gallery strip, each tagged
+// alt="Sale Photo Thumbnail #N" (GSALR/GarageSaleFinder) or "Sale
+// Gallery Photo Thumbnail" (YardSaleSearch). Only the very first one
+// carries itemprop="image" -- every photo after it has no itemprop at
+// all -- so scoping a match to itemprop="image" (as the eso-cdn/
+// tlstatic.com cases elsewhere in this file correctly do, since THEIR
+// sidebar-contamination risk requires that scoping) silently drops every
+// photo past the first here instead. Confirmed live (2026-10-05): a real
+// GSALR listing with 9 photos was coming back with just 1 because of
+// this. The alt text itself is what scopes this to the listing's own
+// gallery (a "nearby sales" sidebar link doesn't carry it), so itemprop
+// isn't needed as a filter. Same w700-h500 upgrade as the Pinterest
+// share link on the same page already uses for the identical file.
+function collectNativeThumbnailGallery(html, seen, urls) {
+  for (const m of html.matchAll(/(https:\/\/[a-z0-9]+\.cloudfront\.net\/image\/)w\d+-[a-z]?[\d:]+(\/[^"]+)"[^>]*alt="Sale (?:Gallery )?Photo Thumbnail/g)) {
+    const full = `${m[1]}w700-h500${m[2]}`;
+    if (!seen.has(full)) { seen.add(full); urls.push(full); }
+  }
+}
+
 // Same TLC network as GarageSaleFinder — listings syndicated from
 // EstateSales.org host photos on eso-cdn.tlcdn.workers.dev with a "-t"
 // thumbnail suffix; stripping it serves the full-size original.
@@ -2334,6 +2357,8 @@ async function fetchYardSaleSearchPhotos(listings, concurrency = 8) {
         if (bestId) {
           for (const url of idGroups.get(bestId)) if (!seen.has(url)) { seen.add(url); urls.push(url); }
         }
+
+        collectNativeThumbnailGallery(html, seen, urls);
 
         if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
@@ -2499,6 +2524,8 @@ async function fetchGarageSaleFinderPhotos(listings, concurrency = 8) {
           const full = `${m[1]}w700-h500${m[2]}`;
           if (!seen.has(full)) { seen.add(full); urls.push(full); }
         }
+
+        collectNativeThumbnailGallery(html, seen, urls);
 
         if (urls.length) imageMap.set(listing.url, urls);
       } catch (_) {
