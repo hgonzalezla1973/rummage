@@ -4186,7 +4186,7 @@ function ListScreen({ onPublish }) {
 
   if (step===0) {
     return (
-      <div style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)'}}>
+      <div className="rmg-scroll-hidden" style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)'}}>
         <div style={{paddingTop:'var(--safe-top)'}} />
         <div style={{padding:'20px 20px 0'}}>
           <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',lineHeight:1.05,marginBottom:4}}>Sell Your Stuff</h1>
@@ -4290,7 +4290,7 @@ function ListScreen({ onPublish }) {
   }
 
   return (
-    <div style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)'}}>
+    <div className="rmg-scroll-hidden" style={{position:'absolute',inset:0,overflowY:'auto',background:'var(--surface-app)'}}>
       <div style={{paddingTop:'var(--safe-top)'}} />
       <div style={{padding:'8px 20px 0'}}>
         <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',lineHeight:1.05,marginBottom:4}}>
