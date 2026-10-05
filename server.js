@@ -3584,7 +3584,7 @@ function dedupeListings(listings) {
   const MERGE_RADIUS_ADDR = 3;   // mi — same street address, allowing geocode drift
   const MERGE_RADIUS_TITLE = 12;  // mi — distinctive title match
   const MERGE_RADIUS_TIGHT = 1;   // mi — generic/near-identical title match
-  const GROUP_CAP = 8;            // stop title-merging into an already-large group
+  const GROUP_CAP = 8;            // caps the generic/contained-title merge paths only -- see their use below
 
   const groups = [];              // { members, tokens:Set, addrKey, lat, lng, type }
   const byId = new Map();         // exact listing id -> its group
@@ -3606,20 +3606,31 @@ function dedupeListings(listings) {
           g = cand; break;
         }
         // (b) same title, near each other, same sale type
-        if (hasCoords && cand.lat != null && cand.members.length < GROUP_CAP && l.type === cand.type) {
+        if (hasCoords && cand.lat != null && l.type === cand.type) {
           const dist = distanceMiles(l.lat, l.lng, cand.lat, cand.lng);
+          const underCap = cand.members.length < GROUP_CAP;
           if (tokens.size && cand.tokens.size) {
             const sim = tokenSimilarity(tokens, cand.tokens);
             const [small, big] = tokens.size <= cand.tokens.size
               ? [tokens, cand.tokens] : [cand.tokens, tokens];
             const contained = small.size >= 2 && [...small].every(t => big.has(t));
             const distinctive = tokens.size >= 3 && cand.tokens.size >= 3;
-            if ((distinctive && sim >= 0.55 && dist <= MERGE_RADIUS_TITLE) ||
-                (contained && dist <= MERGE_RADIUS_ADDR) ||
-                (sim >= 0.8 && dist <= MERGE_RADIUS_TIGHT)) {
+            // GROUP_CAP exists to stop a GENERIC title ("Yard Sale") from
+            // pathologically over-merging every unrelated post in a dense
+            // area -- it doesn't apply to the distinctive-title match below.
+            // Confirmed live: a real "Community/Multi-Family Yard Sale"
+            // lists 10+ participating addresses, each scraped as its own
+            // listing sharing the identical distinctive title -- capping
+            // that merge at 8 just spilled the rest into 2-3 duplicate
+            // cards for the same event instead of the one it should've
+            // been. A 3+-token exact-ish title match this specific is
+            // already a reliable same-event signal on its own.
+            if (distinctive && sim >= 0.55 && dist <= MERGE_RADIUS_TITLE) {
               g = cand; break;
             }
-          } else if (!tokens.size && !cand.tokens.size &&
+            if (underCap && contained && dist <= MERGE_RADIUS_ADDR) { g = cand; break; }
+            if (underCap && sim >= 0.8 && dist <= MERGE_RADIUS_TIGHT) { g = cand; break; }
+          } else if (underCap && !tokens.size && !cand.tokens.size &&
                      normTitle && cand.normTitles.has(normTitle) && dist <= MERGE_RADIUS_TIGHT) {
             // Both titles are fully generic ("Yard Sale" — nothing left after
             // dropping filler words). Only merge on an identical normalized
