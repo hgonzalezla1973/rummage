@@ -3737,7 +3737,7 @@ function DetailScreen({ sale, onBack, hideBack=false, photoHeight, collapsibleMa
                 {s.items.map((it,i)=>{
                   const label = typeof it==='string' ? it : it.name;
                   return (
-                    <span key={typeof it==='string'?it:(it.id||i)} style={{fontFamily:'var(--font-sans)',fontWeight:500,fontSize:13,color:'var(--text-secondary)',background:'var(--surface-card)',boxShadow:'var(--shadow-xs)',padding:'7px 14px',borderRadius:'var(--radius-pill)'}}>{label}</span>
+                    <span key={typeof it==='string'?it:(it.id||i)} title={label} style={{flex:'0 0 180px',textAlign:'center',whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',fontFamily:'var(--font-sans)',fontWeight:500,fontSize:13,color:'var(--text-secondary)',background:'var(--surface-card)',boxShadow:'var(--shadow-xs)',padding:'7px 14px',borderRadius:'var(--radius-pill)'}}>{label}</span>
                   );
                 })}
               </div>
