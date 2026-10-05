@@ -894,18 +894,36 @@ function MapPlaceholder({ height, width, lat, lng, type='yard', id='ph', zoom=15
 // there are no coordinates either) on load error.
 function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }) {
   const [failed, setFailed] = React.useState(false);
+  // Some sources only ever have a small original (confirmed live down to
+  // 250x250 for some OfferUp listings) -- object-fit:cover stretches that to
+  // completely fill whatever box it's given, which looks fine for a small
+  // card thumbnail but turns visibly blurry once the box is much bigger than
+  // the photo's own pixels (the full-bleed hero photo on a listing page,
+  // especially). Once the real size is known, fall back to object-fit:contain
+  // (a correctly-sized photo on a neutral backdrop) instead of stretching
+  // past native resolution -- same principle as the lightbox's zoom cap, just
+  // applied to the box the photo starts at rather than how far it can be
+  // zoomed from there.
+  const [undersized, setUndersized] = React.useState(false);
+  const wrapRef = React.useRef(null);
   if (!src || failed) {
     if (lat != null && lng != null) return <MapPlaceholder height={height} width={width} lat={lat} lng={lng} type={type} id={id} />;
     return <PhotoPlaceholder height={height} type={type} blurb={blurb} title={title} />;
   }
   return (
-    <div style={{ width: width || '100%', height, overflow:'hidden', background:'transparent', ...style }}>
+    <div ref={wrapRef} style={{ width: width || '100%', height, overflow:'hidden', background: undersized ? 'var(--surface-sunken)' : 'transparent', ...style }}>
       <img
         src={proxyImgUrl(src)}
         onError={() => setFailed(true)}
+        onLoad={e => {
+          const box = wrapRef.current?.getBoundingClientRect();
+          if (!box || !box.width || !box.height) return;
+          const { naturalWidth: nw, naturalHeight: nh } = e.target;
+          if (nw < box.width || nh < box.height) setUndersized(true);
+        }}
         loading="lazy"
         decoding="async"
-        style={{ width:'100%', height:'100%', objectFit:'cover', display:'block', filter:PHOTO_FILTER }}
+        style={{ width:'100%', height:'100%', objectFit: undersized ? 'contain' : 'cover', display:'block', filter:PHOTO_FILTER }}
       />
     </div>
   );
