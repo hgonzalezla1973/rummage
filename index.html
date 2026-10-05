@@ -4799,13 +4799,12 @@ function WebHomeScreen({
             </div>
           </div>
 
-          {showMap ? (
-            // A big map that takes over the browse area (like
-            // yardsaletreasuremap.com's "Show Map" -- the whole listing view
-            // swaps for one large map of every pin, not a small panel
-            // squeezed between the photo strip and the grid) -- "Hide map"
-            // floats on the map itself so it's reachable without scrolling
-            // back up to the toolbar chip once you've scrolled into it.
+          {showMap && (
+            // A big map above the listings (like yardsaletreasuremap.com's
+            // "Show Map") -- it doesn't replace the browse grid, just pushes
+            // it down the page. "Hide map" floats on the map itself so it's
+            // reachable without scrolling back up to the toolbar chip once
+            // you've scrolled into it.
             <div style={wrap}>
               <div style={{position:'relative', height:'70vh', minHeight:460, margin:'20px 0 56px', borderRadius:'var(--radius-xl)', overflow:'hidden', border:'1px solid var(--line)', isolation:'isolate'}}>
                 <RealMap sales={shown} popupLinks centerLat={mapCenter?.lat} centerLng={mapCenter?.lng} />
@@ -4820,7 +4819,7 @@ function WebHomeScreen({
                 </button>
               </div>
             </div>
-          ) : (
+          )}
           <>
           {photoSales.length > 0 && (
             <div style={{borderBottom:'1px solid var(--line)', background:'var(--surface)', padding:'14px 0'}}>
@@ -4860,7 +4859,6 @@ function WebHomeScreen({
             )}
           </div>
           </>
-          )}
         </>
       )}
 
