@@ -958,6 +958,28 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   const [scale, setScale] = useState(1);
   const [tx, setTx] = useState(0);
   const [ty, setTy] = useState(0);
+  // Some sources (EstateSales.org's own photo storage, confirmed live) only
+  // ever have a ~320px-wide original -- object-fit:contain already stretches
+  // that well past its native resolution just to fill the screen at rest, so
+  // letting the usual 4x pinch/double-tap zoom stack on top of that turns it
+  // to mush. Once a photo's real pixel size is known (onLoad below), cap how
+  // far IT can be zoomed so it's never displayed larger than its own native
+  // resolution -- a genuinely high-res photo still gets the full 4x. Keyed by
+  // index in a plain ref (not state) and populated by every slide's own
+  // onLoad as it fires, not just the active one -- an off-screen slide can
+  // finish loading (and firing onLoad) well before the user swipes to it.
+  const naturalSizesRef = useRef({});
+  const getMaxScale = () => {
+    const sz = naturalSizesRef.current[idx];
+    if (!sz) return MAX_SCALE;
+    const rect = stageRef.current?.getBoundingClientRect();
+    if (!rect || !rect.width || !rect.height) return MAX_SCALE;
+    const imgAspect = sz.w / sz.h;
+    const boxAspect  = rect.width / rect.height;
+    const fitWidth = imgAspect > boxAspect ? rect.width : rect.height * imgAspect;
+    const scaleFor1to1 = sz.w / fitWidth;
+    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scaleFor1to1));
+  };
   const [dragStart, setDragStart] = useState(null);
   const [dragDelta, setDragDelta] = useState(0);
   const total = images.length;
@@ -998,7 +1020,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
     const localY = clientY - rect.top - rect.height / 2;
     const contentX = (localX - tx) / scale;
     const contentY = (localY - ty) / scale;
-    const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, targetScale));
+    const s = Math.max(MIN_SCALE, Math.min(getMaxScale(), targetScale));
     const p = clampPan(localX - s * contentX, localY - s * contentY, s);
     setScale(s); setTx(p.x); setTy(p.y);
   };
@@ -1042,7 +1064,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
     const g = gestureRef.current;
     if (g.pinching && e.touches.length === 2) {
       const newDist = dist(e.touches[0], e.touches[1]);
-      const s = Math.max(MIN_SCALE, Math.min(MAX_SCALE, g.startScale * (newDist / g.startDist)));
+      const s = Math.max(MIN_SCALE, Math.min(getMaxScale(), g.startScale * (newDist / g.startDist)));
       const rect = stageRef.current?.getBoundingClientRect();
       if (!rect) return;
       const localX0 = g.startMid.x - rect.left - rect.width / 2;
@@ -1145,7 +1167,9 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
                 display:'flex', alignItems:'center',justifyContent:'center',
                 overflow:'hidden',
               }}>
-                <img src={proxyImgUrl(src)} loading="lazy" decoding="async" style={{
+                <img src={proxyImgUrl(src)} loading="lazy" decoding="async"
+                  onLoad={e => { naturalSizesRef.current[i] = { w: e.target.naturalWidth, h: e.target.naturalHeight }; }}
+                  style={{
                   width:'100%', height:'100%',
                   objectFit:'contain',display:'block',
                   transform: active ? `translate(${tx}px, ${ty}px) scale(${scale})` : 'none',
