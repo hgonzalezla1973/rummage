@@ -692,7 +692,17 @@ function mapThumbUrl(lat, lng) {
 
 function detectType(text = '') {
   const t = text.toLowerCase();
-  if (/estate.sale|estate-sale/.test(t))             return 'estate';
+  // Was /estate.sale|estate-sale/ -- the `.` matches exactly one character,
+  // so that only ever caught "estate sale"/"estate-sale" as a literal
+  // adjacent phrase. A real listing titled "Estate Packed with clocks, oil
+  // lamps, & More" (confirmed live) doesn't say "sale" next to "estate" at
+  // all, so it fell through to the generic 'yard' default -- wrong for the
+  // type badge shown to users, and it also meant the same sale came back
+  // classified 'estate' from one source (EstateSales.org's own API field)
+  // and 'yard' from another (GSALR, title-detected), which blocked dedup
+  // from merging two copies of the identical listing. "estate" as its own
+  // word is already an unambiguous signal in this domain.
+  if (/\bestate\b/.test(t))                          return 'estate';
   if (/moving.sale|everything.must.go|liquidat/.test(t)) return 'moving';
   if (/auction/.test(t))                              return 'auction';
   if (/thrift|consign|resale|second.?hand/.test(t))   return 'yard';
@@ -3605,32 +3615,51 @@ function dedupeListings(listings) {
              distanceMiles(l.lat, l.lng, cand.lat, cand.lng) <= MERGE_RADIUS_ADDR)) {
           g = cand; break;
         }
-        // (b) same title, near each other, same sale type
-        if (hasCoords && cand.lat != null && l.type === cand.type) {
+        // (b) same title, near each other
+        if (hasCoords && cand.lat != null) {
           const dist = distanceMiles(l.lat, l.lng, cand.lat, cand.lng);
           const underCap = cand.members.length < GROUP_CAP;
+          const sameType = l.type === cand.type;
           if (tokens.size && cand.tokens.size) {
             const sim = tokenSimilarity(tokens, cand.tokens);
             const [small, big] = tokens.size <= cand.tokens.size
               ? [tokens, cand.tokens] : [cand.tokens, tokens];
-            const contained = small.size >= 2 && [...small].every(t => big.has(t));
+            // A single shared token is too weak a signal in general (two
+            // unrelated "Last-minute sale" posts miles apart would wrongly
+            // merge) -- but at essentially the same spot, it's a different
+            // story: confirmed live, two OfferUp posts at identical
+            // coordinates ("Last day of yard sale" / "Last day yard sale")
+            // didn't merge because one had already grown its group's token
+            // set via an earlier merge, diluting similarity below the tight
+            // threshold for this later single-token comparison. dist<=0.1mi
+            // + same type + one shared distinctive word is far stronger
+            // corroboration than the same word farther apart, so it gets
+            // its own, much tighter, allowance.
+            const contained = (small.size >= 2 || (small.size >= 1 && dist <= 0.1))
+              && [...small].every(t => big.has(t));
             const distinctive = tokens.size >= 3 && cand.tokens.size >= 3;
-            // GROUP_CAP exists to stop a GENERIC title ("Yard Sale") from
-            // pathologically over-merging every unrelated post in a dense
-            // area -- it doesn't apply to the distinctive-title match below.
-            // Confirmed live: a real "Community/Multi-Family Yard Sale"
-            // lists 10+ participating addresses, each scraped as its own
-            // listing sharing the identical distinctive title -- capping
-            // that merge at 8 just spilled the rest into 2-3 duplicate
-            // cards for the same event instead of the one it should've
-            // been. A 3+-token exact-ish title match this specific is
-            // already a reliable same-event signal on its own.
+            // GROUP_CAP and the same-type requirement both exist to stop a
+            // GENERIC title ("Yard Sale") from pathologically over-merging
+            // unrelated posts in a dense area -- neither applies to the
+            // distinctive-title match below. Confirmed live: a
+            // "Community/Multi-Family Yard Sale" listing 10+ participating
+            // addresses, each scraped as its own listing sharing the
+            // identical distinctive title -- capping that merge at 8 just
+            // spilled the rest into 2-3 duplicate cards. Confirmed live
+            // too: the exact same estate-sale listing came back 'estate'
+            // from one source (an explicit API field) and 'yard' from
+            // another (title-detected, and detectType's own pattern for
+            // this title had a separate bug) -- requiring type agreement
+            // blocked an otherwise-certain match over a label the two
+            // sources simply disagreed on. A 3+-token exact-ish title
+            // match this specific, this close together, is already a
+            // reliable same-event signal on its own.
             if (distinctive && sim >= 0.55 && dist <= MERGE_RADIUS_TITLE) {
               g = cand; break;
             }
-            if (underCap && contained && dist <= MERGE_RADIUS_ADDR) { g = cand; break; }
-            if (underCap && sim >= 0.8 && dist <= MERGE_RADIUS_TIGHT) { g = cand; break; }
-          } else if (underCap && !tokens.size && !cand.tokens.size &&
+            if (sameType && underCap && contained && dist <= MERGE_RADIUS_ADDR) { g = cand; break; }
+            if (sameType && underCap && sim >= 0.8 && dist <= MERGE_RADIUS_TIGHT) { g = cand; break; }
+          } else if (sameType && underCap && !tokens.size && !cand.tokens.size &&
                      normTitle && cand.normTitles.has(normTitle) && dist <= MERGE_RADIUS_TIGHT) {
             // Both titles are fully generic ("Yard Sale" — nothing left after
             // dropping filler words). Only merge on an identical normalized
