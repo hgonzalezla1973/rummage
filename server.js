@@ -31,6 +31,7 @@ const puppeteer = require('puppeteer');
 const sharp     = require('sharp');
 const path      = require('path');
 const fs        = require('fs');
+const crypto    = require('crypto');
 
 const app  = express();
 const PORT = process.env.PORT || 8080;
@@ -484,6 +485,19 @@ function toCache(key, data) {
   cache.delete(key); // re-set moves it to the end (most-recently-used)
   cache.set(key, { ts: Date.now(), data });
   while (cache.size > MAX_CACHE_ENTRIES) cache.delete(cache.keys().next().value);
+}
+
+// A listing created/edited/deleted via /api/my-listings has to show up (or
+// change, or disappear) immediately for the person who just acted on it --
+// the 8-minute getListingsForZip cache (key "all:<zip>:<radius>") doesn't
+// know anything changed. There's no cheap way to know which of the cached
+// zip/radius combos might include this one listing's location, so this
+// just drops all of them -- only runs right after an actual write, not on
+// every read, so the cost is a handful of forced re-scrapes, not a hot path.
+function invalidateListingsCache() {
+  for (const key of cache.keys()) {
+    if (key.startsWith('all:')) cache.delete(key);
+  }
 }
 
 // Separate, much longer-lived cache of per-listing OfferUp photos, keyed by
@@ -3796,7 +3810,19 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   for (const listing of all) {
     if (listing.images?.length) listing.images = listing.images.map(upgradeSmallThumbUrl);
   }
-  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length}`);
+
+  // User-posted listings (see /api/my-listings below) merge in last, after
+  // the scraped-source dedup -- they aren't a duplicate of anything by
+  // construction, so they don't need to go through that pass. Filtered to
+  // this search's own radius and to sales that haven't already ended, same
+  // as every scraped source effectively is upstream.
+  const userRecs = (await loadUserListings()).filter(isUserListingActive);
+  for (const rec of userRecs) {
+    const distMi = distanceMiles(center.lat, center.lng, rec.lat, rec.lng);
+    if (distMi <= radiusMi) all.push(hydrateUserListing(rec, center.lat, center.lng, radiusMi));
+  }
+
+  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length} USER=${userRecs.length}`);
 
   toCache(cacheKey, all);
   return all;
@@ -3921,6 +3947,177 @@ async function saveSubscribers(list) {
   }
   fs.writeFileSync(SUBSCRIBERS_FILE, JSON.stringify(list, null, 2));
 }
+
+// ── User-posted listings ─────────────────────────────────────────────────────
+// Same Upstash-Redis-with-local-JSON-fallback pattern as subscribers above --
+// "Post a Sale" used to just build a listing object in React state and throw
+// it away on refresh; it never touched the server at all, so a posted sale
+// never showed up for anyone else and there was no way to view or edit it
+// again. Each listing carries its own editToken (minted at creation, handed
+// back once to the poster and kept in their browser's localStorage) rather
+// than requiring a real signed-in session -- this app's whole auth posture
+// is already client-trust-based (the same email-only verification
+// subscribers use, savedIds/tripIds trusting localStorage outright), so a
+// per-listing secret the poster's own browser holds is consistent with that,
+// not a step down from it.
+const LISTINGS_FILE = path.join(__dirname, 'user-listings.json');
+const USER_LISTINGS_KEY = 'rummage:user-listings';
+
+async function loadUserListings() {
+  if (UPSTASH_URL && UPSTASH_TOKEN) {
+    try {
+      const r = await fetch(`${UPSTASH_URL}/get/${USER_LISTINGS_KEY}`, {
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}` },
+      });
+      const data = await r.json();
+      if (!r.ok) { console.error('Upstash load (listings) failed:', r.status, JSON.stringify(data)); return []; }
+      return data.result ? JSON.parse(data.result) : [];
+    } catch (err) {
+      console.error('Upstash load (listings) failed:', err.message);
+      return [];
+    }
+  }
+  try { return JSON.parse(fs.readFileSync(LISTINGS_FILE, 'utf8')); } catch { return []; }
+}
+async function saveUserListings(list) {
+  if (UPSTASH_URL && UPSTASH_TOKEN) {
+    try {
+      const r = await fetch(UPSTASH_URL, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${UPSTASH_TOKEN}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify(['SET', USER_LISTINGS_KEY, JSON.stringify(list)]),
+      });
+      if (!r.ok) console.error('Upstash save (listings) failed:', r.status, await r.text());
+    } catch (err) {
+      console.error('Upstash save (listings) failed:', err.message);
+    }
+    return;
+  }
+  fs.writeFileSync(LISTINGS_FILE, JSON.stringify(list, null, 2));
+}
+
+// Turns a stored user-posted listing into the same shape every scraped
+// listing already has. distanceMi/x/y are computed fresh against THIS
+// request's search center, same as every scraper does -- they're relative to
+// wherever the viewer is searching from, so they can't be precomputed once
+// at post time.
+function hydrateUserListing(rec, centerLat, centerLng, radiusMi) {
+  const distMi = parseFloat(distanceMiles(centerLat, centerLng, rec.lat, rec.lng).toFixed(1));
+  const px = pinXY(rec.lat, rec.lng, centerLat, centerLng, radiusMi);
+  return {
+    id: rec.id, source: 'user', type: rec.type, title: rec.title,
+    address: rec.address, neighborhood: rec.neighborhood, distanceMi: distMi,
+    lat: rec.lat, lng: rec.lng, dateLabel: rec.dateLabel, timeLabel: rec.timeLabel,
+    photoCount: (rec.images || []).length, images: rec.images || [], live: false,
+    blurb: rec.blurb || '', price: '', items: extractItemTags(rec.title, rec.blurb),
+    url: '', x: Math.max(10, Math.min(90, px.x)), y: Math.max(10, Math.min(90, px.y)),
+    isOwnListing: true,
+  };
+}
+
+// Listings whose sale has already ended don't belong in anyone's browse
+// results. Scraped sources age out of their own upstream feeds naturally; a
+// user-posted one needs this done explicitly here or it'd linger forever.
+function isUserListingActive(rec) {
+  const end = rec.endDate || rec.startDate;
+  if (!end) return true;
+  return end >= new Date().toISOString().slice(0, 10);
+}
+
+// POST /api/my-listings  { title, type, addr, zip, startDate, endDate, hrs,
+//   dateLabel, timeLabel, blurb, contact, images[], email? }
+// -> { ok, id, editToken, listing } -- the client stores id+editToken (plus
+// a local copy of `listing`) so it can show/edit/delete this specific
+// listing later without needing to be signed in.
+app.post('/api/my-listings', async (req, res) => {
+  const b = req.body || {};
+  const title = (b.title || '').trim();
+  const addr  = (b.addr || '').trim();
+  const zip   = String(b.zip || '').replace(/\D/g, '').slice(0, 5);
+  if (!title || !addr || zip.length !== 5 || !b.startDate) {
+    return res.status(400).json({ error: 'Missing required fields' });
+  }
+  const coords = await geocodeZip(zip);
+  if (!coords) return res.status(400).json({ error: 'Could not locate that ZIP code' });
+
+  const id = `user-${Date.now().toString(36)}-${stableHash(title + addr).slice(0, 6)}`;
+  const editToken = crypto.randomBytes(16).toString('hex');
+  const rec = {
+    id, editToken, email: (b.email || '').trim().toLowerCase() || null,
+    type: ['estate', 'yard', 'moving'].includes(b.type) ? b.type : 'yard',
+    title, addr, zip, address: `${addr}, ${zip}`, neighborhood: addr.split(',')[0] || 'Nearby',
+    lat: coords.lat, lng: coords.lng,
+    startDate: b.startDate, endDate: b.endDate || b.startDate, hrs: (b.hrs || '').trim(),
+    dateLabel: (b.dateLabel || '').trim(), timeLabel: (b.timeLabel || '').trim(),
+    blurb: (b.blurb || '').trim().slice(0, 1000),
+    images: Array.isArray(b.images) ? b.images.slice(0, 20) : [],
+    contact: (b.contact || '').trim(),
+    createdAt: Date.now(),
+  };
+  const all = await loadUserListings();
+  all.push(rec);
+  await saveUserListings(all);
+  invalidateListingsCache();
+  res.json({ ok: true, id, editToken, listing: rec });
+});
+
+// GET /api/my-listings/:id?editToken=... -- used by the edit screen to
+// re-fetch the current server copy (and confirm the caller still holds the
+// right token) before showing editable fields.
+app.get('/api/my-listings/:id', async (req, res) => {
+  const all = await loadUserListings();
+  const rec = all.find(l => l.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: 'Not found' });
+  if (req.query.editToken !== rec.editToken) return res.status(403).json({ error: 'Not authorized' });
+  res.json({ ok: true, listing: rec });
+});
+
+// PATCH /api/my-listings/:id  { editToken, ...fields to change }
+app.patch('/api/my-listings/:id', async (req, res) => {
+  const all = await loadUserListings();
+  const rec = all.find(l => l.id === req.params.id);
+  if (!rec) return res.status(404).json({ error: 'Not found' });
+  if (!req.body.editToken || req.body.editToken !== rec.editToken) {
+    return res.status(403).json({ error: 'Not authorized to edit this listing' });
+  }
+  const b = req.body;
+  if (b.title != null) rec.title = String(b.title).trim();
+  if (b.type != null && ['estate', 'yard', 'moving'].includes(b.type)) rec.type = b.type;
+  if (b.blurb != null) rec.blurb = String(b.blurb).trim().slice(0, 1000);
+  if (b.hrs != null) rec.hrs = String(b.hrs).trim();
+  if (b.startDate != null) rec.startDate = b.startDate;
+  if (b.endDate != null) rec.endDate = b.endDate;
+  if (b.dateLabel != null) rec.dateLabel = String(b.dateLabel).trim();
+  if (b.timeLabel != null) rec.timeLabel = String(b.timeLabel).trim();
+  if (b.contact != null) rec.contact = String(b.contact).trim();
+  if (Array.isArray(b.images)) rec.images = b.images.slice(0, 20);
+  if (b.addr != null && b.zip != null) {
+    const zip = String(b.zip).replace(/\D/g, '').slice(0, 5);
+    const addr = String(b.addr).trim();
+    if (zip.length === 5) {
+      const coords = await geocodeZip(zip);
+      if (coords) { rec.lat = coords.lat; rec.lng = coords.lng; }
+      rec.addr = addr; rec.zip = zip;
+      rec.address = `${addr}, ${zip}`;
+      rec.neighborhood = addr.split(',')[0] || rec.neighborhood;
+    }
+  }
+  await saveUserListings(all);
+  invalidateListingsCache();
+  res.json({ ok: true, listing: rec });
+});
+
+// DELETE /api/my-listings/:id  { editToken }
+app.delete('/api/my-listings/:id', async (req, res) => {
+  const all = await loadUserListings();
+  const rec = all.find(l => l.id === req.params.id);
+  if (!rec) return res.json({ ok: true }); // already gone
+  const token = req.body?.editToken || req.query.editToken;
+  if (token !== rec.editToken) return res.status(403).json({ error: 'Not authorized to delete this listing' });
+  await saveUserListings(all.filter(l => l.id !== req.params.id));
+  invalidateListingsCache();
+  res.json({ ok: true });
+});
 
 // POST /api/subscribe  { email, zip, radiusMi, saleTypes }
 app.post('/api/subscribe', async (req, res) => {

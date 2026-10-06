@@ -2434,6 +2434,30 @@ function TermsScreen({ onBack }) {
 // the Price Check block disabled below, rather than getting disabled along
 // with it (that exact mistake briefly broke ListScreen's photo upload with
 // a ReferenceError after Price Check was first shelved).
+// A posted listing's editToken is the only thing that proves "this browser
+// posted this sale" -- there's no real signed-in session backing it (see the
+// server-side comment on /api/my-listings). Kept as a flat {id: {editToken,
+// ...a display snapshot}} map, separate from any React state, since both
+// ListScreen (writes on publish/save) and DetailScreen (reads to decide
+// whether to show an Edit button) need it and aren't otherwise related.
+const MY_LISTINGS_KEY = 'rummage_my_listings';
+function getMyListings() {
+  try { return JSON.parse(localStorage.getItem(MY_LISTINGS_KEY) || '{}'); } catch { return {}; }
+}
+function saveMyListing(id, editToken, snapshot) {
+  const all = getMyListings();
+  all[id] = { editToken, ...snapshot };
+  localStorage.setItem(MY_LISTINGS_KEY, JSON.stringify(all));
+}
+function removeMyListing(id) {
+  const all = getMyListings();
+  delete all[id];
+  localStorage.setItem(MY_LISTINGS_KEY, JSON.stringify(all));
+}
+function getMyListingToken(id) {
+  return getMyListings()[id]?.editToken || null;
+}
+
 function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -2721,7 +2745,7 @@ function VintageStoresScreen({ onBack, zip, tripIds=[], onToggleTrip, onStoresLo
 }
 
 // ── Account Screen ─────────────────────────────────────────────────────────────
-function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough, tripIds=[], onToggleTrip, onStoresLoaded }) {
+function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut, onUpdateUser, userListings=[], onEditListing, onDeleteListing, onOpenSale, savedCount=0, onOpenNotifications, onReplayWalkthrough, tripIds=[], onToggleTrip, onStoresLoaded }) {
   const [name, setName] = useState(authUser?.name || 'Rummager');
   const [avatar, setAvatar] = useState(authUser?.avatar || null);
   const digestEmail = authUser?.email || '';
@@ -2988,6 +3012,10 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
                     <button type="button" onClick={()=>onOpenSale?.(listing.id)}
                       style={{height:32,padding:'0 12px',borderRadius:'var(--radius-btn)',background:'var(--brand-50,#ede9ff)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--secondary)',whiteSpace:'nowrap'}}>
                       View
+                    </button>
+                    <button type="button" onClick={()=>onEditListing?.(listing.id)}
+                      style={{height:32,padding:'0 12px',borderRadius:'var(--radius-btn)',background:'var(--surface-sunken)',border:'none',cursor:'pointer',fontFamily:'var(--font-sans)',fontWeight:600,fontSize:12,color:'var(--text-secondary)',whiteSpace:'nowrap'}}>
+                      Edit
                     </button>
                     <button type="button" onClick={()=>setDeleteConfirm(listing.id)}
                       style={{width:32,height:32,borderRadius:'50%',background:'var(--surface-sunken)',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -3670,12 +3698,18 @@ function ShareSheet({ sale, onClose }) {
   );
 }
 
-function DetailScreen({ sale, onBack, hideBack=false, hideSave=false, photoHeight, collapsibleMap=false, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems }) {
+function DetailScreen({ sale, onBack, hideBack=false, hideSave=false, photoHeight, collapsibleMap=false, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems, onEdit }) {
   const s = sale;
   const openDirections = () => openSaleDirections(s, onNavigateTo);
   const [shareOpen, setShareOpen] = useState(false);
   const [mapOpen, setMapOpen] = useState(!collapsibleMap);
   const { height: vh, isLandscape } = useViewport();
+  // The only "is this mine" signal that exists (see /api/my-listings' server
+  // comment) -- this browser holding the listing's editToken. No onEdit prop
+  // means a web context (SaleDetailPage, the desktop map-pin preview), which
+  // all reach the same place real navigation already uses for editing.
+  const myEditToken = getMyListingToken(s.id);
+  const goEdit = () => (onEdit ? onEdit(s.id) : (window.location.href = '/app?edit=' + encodeURIComponent(s.id)));
 
   return (
     <div style={{position:'absolute',inset:0,display:'flex',flexDirection:'column',background:'var(--surface-app)',overflow:'hidden'}}>
@@ -3697,6 +3731,14 @@ function DetailScreen({ sale, onBack, hideBack=false, hideSave=false, photoHeigh
             <SaleTypeTag type={s.type} />
           </div>
           <h1 style={{fontWeight:400,fontSize:28,lineHeight:1.15,textTransform:'uppercase',color:'var(--text-primary)'}}>{s.title}</h1>
+          {myEditToken && (
+            <div style={{marginTop:14, padding:'12px 14px', background:'var(--accent-soft)', border:'1px solid var(--accent-soft-bd)', borderRadius:'var(--radius-lg)', display:'flex', alignItems:'center', justifyContent:'space-between', gap:12}}>
+              <span style={{fontFamily:'var(--font-sans)', fontWeight:600, fontSize:13, color:'var(--text-primary)'}}>This is your listing</span>
+              <button type="button" onClick={goEdit} style={{height:32, padding:'0 14px', borderRadius:'var(--radius-btn)', border:'none', background:'var(--accent)', color:'#fff', fontFamily:'var(--font-sans)', fontWeight:700, fontSize:12.5, cursor:'pointer'}}>
+                Edit
+              </button>
+            </div>
+          )}
           {/* Plain label/value list instead of icon-in-a-circle rows -- no
               icon glyph needed to tell "when" from "where" apart when the
               mono uppercase label already says so. */}
@@ -4069,22 +4111,27 @@ function NotificationsScreen({ notifications, onBack, onOpenSale }) {
 }
 
 // ── List a Sale screen ────────────────────────────────────────────────────────
-function ListScreen({ onPublish }) {
-  const [step, setStep]           = useState(0);
-  const [saleType, setSaleType]   = useState('yard');
-  const [photos, setPhotos]       = useState([]);
-  const [title, setTitle]         = useState('');
-  const [addr, setAddr]           = useState('');
-  const [zip, setZip]             = useState('');
-  const [startDate, setStartDate] = useState('');
-  const [endDate, setEndDate]     = useState('');
-  const [hrs, setHrs]             = useState('');
-  const [desc, setDesc]           = useState('');
-  const [contact, setContact]     = useState('');
+function ListScreen({ onPublish, editingListing, onViewPublished }) {
+  const isEditing = !!editingListing;
+  // Edit mode skips the "Sell Your Stuff" intro -- landing straight on the
+  // form, already filled in, is what "edit this listing" means.
+  const [step, setStep]           = useState(isEditing ? 1 : 0);
+  const [saleType, setSaleType]   = useState(editingListing?.type || 'yard');
+  const [photos, setPhotos]       = useState(editingListing?.images || []);
+  const [title, setTitle]         = useState(editingListing?.title || '');
+  const [addr, setAddr]           = useState(editingListing?.addr || '');
+  const [zip, setZip]             = useState(editingListing?.zip || '');
+  const [startDate, setStartDate] = useState(editingListing?.startDate || '');
+  const [endDate, setEndDate]     = useState(editingListing?.endDate || '');
+  const [hrs, setHrs]             = useState(editingListing?.hrs || '');
+  const [desc, setDesc]           = useState(editingListing?.blurb || '');
+  const [contact, setContact]     = useState(editingListing?.contact || '');
   const [touched, setTouched]     = useState({});
   const [published, setPublished] = useState(null);
   const [previewIdx, setPreviewIdx] = useState(0);
   const [photoError, setPhotoError] = useState(null);
+  const [submitError, setSubmitError] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
   const { isLandscape } = useViewport();
 
   // Replaces the photo already sitting in slot `idx` (re-picking an existing tile).
@@ -4137,29 +4184,38 @@ function ListScreen({ onPublish }) {
     return months[m-1]+' '+d+', '+y;
   };
 
-  const publish = () => {
+  const publish = async () => {
     const dateStr = fmtDate(startDate) + (endDate && endDate!==startDate ? ' – '+fmtDate(endDate) : '');
-    const listing = {
-      id: 'u'+Date.now(),
-      type: saleType,
-      title: title.trim(),
-      address: addr.trim()+', '+zip.trim(),
-      neighborhood: 'Your listing',
-      distanceMi: 0.4,
-      dateLabel: dateStr,
-      timeLabel: hrs.trim() || 'Hours TBD',
-      photoCount: photos.filter(Boolean).length,
+    const body = {
+      title: title.trim(), type: saleType, addr: addr.trim(), zip: zip.trim(),
+      startDate, endDate: endDate || startDate, hrs: hrs.trim(),
+      dateLabel: dateStr, timeLabel: hrs.trim() || 'Hours TBD',
+      blurb: desc.trim(), contact: contact.trim(),
       images: photos.filter(Boolean),
-      blurb: desc.trim(),
-      price: '',
-      items: [],
-      x: 50, y: 50,
-      isOwnListing: true,
-      contact: contact.trim(),
     };
-    onPublish(listing);
-    setPublished(listing);
-    setStep(4);
+    setSubmitting(true);
+    setSubmitError(null);
+    try {
+      const url = isEditing ? `${API_BASE}/api/my-listings/${editingListing.id}` : `${API_BASE}/api/my-listings`;
+      const res = await fetch(url, {
+        method: isEditing ? 'PATCH' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(isEditing ? { ...body, editToken: editingListing.editToken } : body),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong — try again.');
+      const id = isEditing ? editingListing.id : data.id;
+      const editToken = isEditing ? editingListing.editToken : data.editToken;
+      const full = { ...data.listing, id, editToken, addr: body.addr, zip: body.zip };
+      saveMyListing(id, editToken, full);
+      onPublish?.(full);
+      setPublished(full);
+      setStep(4);
+    } catch (err) {
+      setSubmitError(err.message || 'Could not reach the server — check your connection and try again.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const inputStyle = {
@@ -4263,9 +4319,11 @@ function ListScreen({ onPublish }) {
         <div style={{width:88,height:88,borderRadius:0,background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center',marginBottom:24}}>
           {Icon('CheckCircle',44,{stroke:'var(--accent)'})}
         </div>
-        <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>You're live!</h1>
+        <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',margin:'0 0 10px'}}>{isEditing ? 'Listing updated!' : "You're live!"}</h1>
         <p style={{fontFamily:'var(--font-sans)',fontSize:15,color:'var(--text-muted)',lineHeight:1.6,margin:'0 0 32px',maxWidth:280}}>
-          Your {CAT[published.type]?.label.toLowerCase()} is on the map. Shoppers nearby can find it right now.
+          {isEditing
+            ? 'Your changes are live. Shoppers nearby see the updated listing now.'
+            : `Your ${CAT[published.type]?.label.toLowerCase()} is on the map. Shoppers nearby can find it right now.`}
         </p>
         <Card padded={false} style={{overflow:'hidden',width:'100%',maxWidth:320,marginBottom:28,textAlign:'left'}}>
           <div style={{height:120,background:'var(--surface-sunken)',position:'relative',overflow:'hidden'}}>
@@ -4285,9 +4343,16 @@ function ListScreen({ onPublish }) {
         </Card>
         {/* flex:'none' -- see the same override on the verify-email screen's
             button for why (this is the same vertical-centered-column shape). */}
-        <Btn variant="primary" size="lg" fullWidth style={{flex:'none'}} leadingIcon={Icon('Map',18)} onClick={()=>{setStep(0);setTitle('');setAddr('');setZip('');setStartDate('');setEndDate('');setHrs('');setDesc('');setContact('');setPhotos([]);setTouched({});setPublished(null);}}>
-          Back to Map
-        </Btn>
+        {isEditing ? (
+          <Btn variant="primary" size="lg" fullWidth style={{flex:'none'}} leadingIcon={Icon('Eye',18)}
+            onClick={()=> (onViewPublished ? onViewPublished(published.id) : (window.location.href = '/app?sale=' + encodeURIComponent(published.id)))}>
+            View Listing
+          </Btn>
+        ) : (
+          <Btn variant="primary" size="lg" fullWidth style={{flex:'none'}} leadingIcon={Icon('Map',18)} onClick={()=>{setStep(0);setTitle('');setAddr('');setZip('');setStartDate('');setEndDate('');setHrs('');setDesc('');setContact('');setPhotos([]);setTouched({});setPublished(null);}}>
+            Back to Map
+          </Btn>
+        )}
       </div>
     );
   }
@@ -4297,7 +4362,7 @@ function ListScreen({ onPublish }) {
       <div style={{paddingTop:'var(--safe-top)'}} />
       <div style={{padding:'8px 20px 0'}}>
         <h1 style={{fontSize:32,fontWeight:900,letterSpacing:'-0.03em',color:'var(--ink-900)',lineHeight:1.05,marginBottom:4}}>
-          {step===1 ? 'List Your Sale' : step===2 ? 'Sale Details' : 'Preview'}
+          {step===1 ? (isEditing ? 'Edit Your Sale' : 'List Your Sale') : step===2 ? 'Sale Details' : 'Preview'}
         </h1>
         <p style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',margin:'0 0 14px'}}>
           {step===1 ? 'What kind of sale are you hosting?' : step===2 ? 'Tell shoppers where and when to show up.' : 'This is how your listing will appear.'}
@@ -4535,9 +4600,18 @@ function ListScreen({ onPublish }) {
             </div>
           )}
 
+          {submitError && (
+            <div style={{background:'var(--danger-bg)',borderRadius:'var(--radius-lg)',padding:'12px 14px',display:'flex',gap:10,alignItems:'flex-start'}}>
+              {Icon('AlertCircle',16,{stroke:'var(--danger)'})}
+              <p style={{fontFamily:'var(--font-sans)',fontSize:12.5,color:'var(--danger)',margin:0,lineHeight:1.5}}>{submitError}</p>
+            </div>
+          )}
+
           <div style={{display:'flex',gap:10}}>
-            <Btn variant="secondary" size="lg" onClick={()=>setStep(2)}>Edit</Btn>
-            <Btn variant="primary" size="lg" fullWidth leadingIcon={Icon('Rocket',18)} onClick={publish}>Publish Listing</Btn>
+            <Btn variant="secondary" size="lg" disabled={submitting} onClick={()=>setStep(2)}>Edit</Btn>
+            <Btn variant="primary" size="lg" fullWidth disabled={submitting} leadingIcon={Icon(submitting?'Loader2':'Rocket',18)} onClick={publish}>
+              {submitting ? (isEditing ? 'Saving…' : 'Publishing…') : (isEditing ? 'Save Changes' : 'Publish Listing')}
+            </Btn>
           </div>
         </div>
       )}
@@ -5021,7 +5095,14 @@ function SaleDetailPage({ sale, apiStatus, onToggleSave, itemsView, setItemsView
 // browse page used to open ListScreen (a screen built for a ~390px phone
 // width, bottom tab-bar clearance and all) in a small 420px modal, which
 // read as the mobile app crammed into a popup rather than a real page.
-function PostSalePage() {
+// editId: present when reached via /app?edit=<id> (see PostSalePage's own
+// deep-link read below) -- looked up from this browser's own localStorage
+// cache (see getMyListings), the only place the editToken a PATCH needs
+// actually lives. No sign-in system to fall back on if it's missing (see
+// /api/my-listings' server-side comment), so a listing edited from a
+// different browser than the one that posted it just can't be found here.
+function PostSalePage({ editId }) {
+  const cached = editId ? getMyListings()[editId] : null;
   return (
     <div style={{position:'fixed', inset:0, background:'var(--surface-app)', display:'flex', flexDirection:'column'}}>
       <div style={{flexShrink:0, borderBottom:'1px solid var(--line)', background:'var(--surface)'}}>
@@ -5043,7 +5124,18 @@ function PostSalePage() {
             reading column, and stays comfortable at a narrower width instead of
             stretching inputs across the page. */}
         <div style={{position:'absolute', inset:0, left:'50%', transform:'translateX(-50%)', width:'100%', maxWidth:520}}>
-          <ListScreen onPublish={()=>{}} />
+          {editId && !cached ? (
+            <div style={{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',gap:10,textAlign:'center',padding:24}}>
+              <div style={{fontSize:44}}>🔒</div>
+              <p style={{fontFamily:'var(--font-display)',fontWeight:700,fontSize:18,margin:0}}>Can't edit this listing here</p>
+              <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',margin:'0 0 6px',maxWidth:320}}>
+                This browser doesn't have edit access to it — only the browser you posted it from does.
+              </p>
+              <Btn variant="primary" onClick={()=>{ window.location.href = '/app'; }}>Browse all sales</Btn>
+            </div>
+          ) : (
+            <ListScreen editingListing={cached} onPublish={()=>{}} />
+          )}
         </div>
       </div>
     </div>
@@ -5076,6 +5168,8 @@ function App() {
   const [deepLinkSaleId] = useState(() => new URLSearchParams(window.location.search).get('sale'));
   // Same convention as deepLinkSaleId, for /app?post=1 -- see PostSalePage.
   const [deepLinkPost] = useState(() => new URLSearchParams(window.location.search).get('post') === '1');
+  // /app?edit=<id> -- same page, edit mode (see PostSalePage's editId prop).
+  const [deepLinkEditId] = useState(() => new URLSearchParams(window.location.search).get('edit'));
   // Every "open this listing" entry point routes through here, regardless
   // of which screen (Explore, Saved, Search, notifications...) the tap
   // came from.
@@ -5133,7 +5227,27 @@ function App() {
       return next;
     });
   };
-  const [userListings, setUserListings] = useState([]);
+  // Seeded from localStorage (see getMyListings) so a sale posted in a
+  // previous session still shows under My Listings and can still be edited
+  // -- it used to live only in this one useState, gone the moment the tab
+  // closed. upsertUserListing replaces an existing entry by id (an edit)
+  // instead of always appending (which would duplicate it).
+  const [userListings, setUserListings] = useState(() => Object.values(getMyListings()));
+  const upsertUserListing = (listing) => setUserListings(prev => {
+    const i = prev.findIndex(l => l.id === listing.id);
+    if (i === -1) return [...prev, listing];
+    const next = [...prev]; next[i] = listing; return next;
+  });
+  // Set while editing an existing listing (via DetailScreen's Edit button or
+  // My Listings) so the List tab renders ListScreen in edit mode instead of
+  // a fresh post. Cleared on publish/cancel.
+  const [editingListing, setEditingListing] = useState(null);
+  const startEditListing = (id) => {
+    const rec = getMyListings()[id];
+    if (!rec) return;
+    setEditingListing({ id, ...rec });
+    setTab('list');
+  };
   const [apiListings, setApiListings]   = useState([]);
   const [apiStatus, setApiStatus]       = useState('idle'); // idle | loading | ok | error
   const [coverageMessage, setCoverageMessage] = useState(null);
@@ -5268,7 +5382,13 @@ function App() {
   const windowStart = todayStart.getTime() - PAST_WINDOW_MS;
   const windowEnd   = todayStart.getTime() + FUTURE_WINDOW_MS;
 
-  const allSales = [...ALL_SALES, ...apiListings, ...userListings]
+  // userListings not already reflected in apiListings (the server now folds
+  // a user's posted/edited listings into /api/listings itself, within their
+  // own search radius) covers the gap right after publishing/editing, before
+  // the next real refetch picks up the server's own copy -- filtered by id
+  // so a listing already present from the server isn't shown twice.
+  const freshUserListings = userListings.filter(l => !apiListings.some(a => a.id === l.id));
+  const allSales = [...ALL_SALES, ...apiListings, ...freshUserListings]
     .map(s => ({ ...s, saved: !!savedIds[s.id] }))
     .filter(s => {
       // If we can't determine when a sale is/was happening, we can't show it —
@@ -5426,7 +5546,9 @@ function App() {
             onSearch={()=>setTab('explore')} />
         )}
         {tab==='list' && (
-          <ListScreen onPublish={listing=>{setUserListings(p=>[...p,listing]);setTab('explore');}} />
+          <ListScreen editingListing={editingListing}
+            onPublish={listing=>{upsertUserListing(listing);setEditingListing(null);setTab('explore');}}
+            onViewPublished={id=>{setEditingListing(null);setTab('explore');openSaleDetail(id);}} />
         )}
         {tab==='account' && (
           authUser
@@ -5438,7 +5560,16 @@ function App() {
                 onUpdateUser={user=>setAuthUser(user)}
                 userListings={userListings}
                 savedCount={savedCount}
-                onDeleteListing={id=>setUserListings(p=>p.filter(l=>l.id!==id))}
+                onEditListing={startEditListing}
+                onDeleteListing={id=>{
+                  const token = getMyListingToken(id);
+                  fetch(`${API_BASE}/api/my-listings/${id}`, {
+                    method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ editToken: token }),
+                  }).catch(()=>{});
+                  removeMyListing(id);
+                  setUserListings(p=>p.filter(l=>l.id!==id));
+                }}
                 onOpenSale={openSaleDetail}
                 onOpenNotifications={()=>setNotificationsOpen(true)}
                 onReplayWalkthrough={()=>setShowWalkthrough(true)}
@@ -5452,7 +5583,7 @@ function App() {
         {/* Tab bar */}
         {!detailSale && (
           <div style={{position:'absolute',left:0,right:0,bottom:0,zIndex:30}}>
-            <TabBar active={tab} onChange={k=>{setTab(k);closeDetail();}} items={tabItems} />
+            <TabBar active={tab} onChange={k=>{setTab(k);closeDetail();if(k!=='list')setEditingListing(null);}} items={tabItems} />
           </div>
         )}
 
@@ -5469,7 +5600,7 @@ function App() {
         {/* Detail */}
         {detailSale && (
           <div style={{position:'absolute',inset:0,zIndex:60,overflow:'hidden'}}>
-            <DetailScreen sale={detailSale} onBack={closeDetail} onToggleSave={toggleSave}
+            <DetailScreen sale={detailSale} onBack={closeDetail} onToggleSave={toggleSave} onEdit={startEditListing}
               inTrip={tripIds.includes(detailSale.id)} onToggleTrip={()=>toggleTrip(detailSale.id)}
               onOpenItems={detailSale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined}
               onNavigateTo={() => {
@@ -5543,9 +5674,10 @@ function App() {
     );
   }
 
-  // Same idea for /app?post=1 -- see PostSalePage and deepLinkPost above.
-  if (deepLinkPost) {
-    return <PostSalePage />;
+  // Same idea for /app?post=1 and /app?edit=<id> -- see PostSalePage,
+  // deepLinkPost, and deepLinkEditId above.
+  if (deepLinkPost || deepLinkEditId) {
+    return <PostSalePage editId={deepLinkEditId} />;
   }
 
   // Desktop/mouse visitors (rummagedeals.com in a real browser) get the full
