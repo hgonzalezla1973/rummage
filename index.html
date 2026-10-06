@@ -5145,8 +5145,14 @@ function PostSalePage({ editId }) {
 // ── Main App ──────────────────────────────────────────────────────────────────
 function App() {
   const [tab, setTab] = useState('explore');
-  const [showWalkthrough, setShowWalkthrough] = useState(true);
-  const finishWalkthrough = () => setShowWalkthrough(false);
+  // Persisted so the walkthrough only shows on a visitor's actual first visit,
+  // not on every reload -- iOS Safari routinely discards and reloads a
+  // backgrounded tab's whole page (switching apps, locking the phone), which
+  // remounts App() from scratch. Without this flag that reload silently
+  // buried whatever the visitor was doing -- including a listing they'd just
+  // tapped into -- behind the intro walkthrough again.
+  const [showWalkthrough, setShowWalkthrough] = useState(() => !localStorage.getItem('rummage_walkthrough_seen'));
+  const finishWalkthrough = () => { localStorage.setItem('rummage_walkthrough_seen', '1'); setShowWalkthrough(false); };
   const [authUser, _setAuthUser] = useState(() => {
     try { return JSON.parse(localStorage.getItem('rummage_user') || 'null'); } catch { return null; }
   });
