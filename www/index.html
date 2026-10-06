@@ -497,7 +497,7 @@ function IconButton({ icon, shape, variant, size: sz, 'aria-label': label, onCli
   );
 }
 
-function RmgInput({ size: sz, leadingIcon, trailingIcon, placeholder, value, onChange, type='text', inputMode }) {
+function RmgInput({ size: sz, leadingIcon, trailingIcon, placeholder, value, onChange, onKeyDown, type='text', inputMode }) {
   const h = sz==='lg' ? 50 : 42;
   return (
     <div style={{position:'relative',display:'flex',alignItems:'center',width:'100%'}}>
@@ -508,7 +508,7 @@ function RmgInput({ size: sz, leadingIcon, trailingIcon, placeholder, value, onC
       )}
       <input
         type={type} inputMode={inputMode} placeholder={placeholder} value={value}
-        onChange={onChange}
+        onChange={onChange} onKeyDown={onKeyDown}
         style={{
           width:'100%', height:h, padding: `0 ${trailingIcon?42:16}px 0 ${leadingIcon?46:16}px`,
           border:'1px solid var(--border-default)', borderRadius:'var(--radius-btn)',
@@ -1216,7 +1216,7 @@ function PhotoLightbox({ images, startIndex=0, onClose }) {
   );
 }
 
-function PhotoGallery({ images, type, height=260, onBack, hideBack=false, saved, onSave, sale, onShare }) {
+function PhotoGallery({ images, type, height=260, onBack, hideBack=false, hideSave=false, saved, onSave, sale, onShare }) {
   const GRADS = {
     estate:['#E8E5DE','#E8E5DE','#E8E5DE'],
     yard:  ['#E8E5DE','#E8E5DE','#E8E5DE'],
@@ -1285,7 +1285,9 @@ function PhotoGallery({ images, type, height=260, onBack, hideBack=false, saved,
           )}
           <div style={{display:'flex',gap:8}}>
             <IconButton icon={Icon('Share',19)} shape="circle" aria-label="Share" onClick={()=>onShare && onShare()} />
-            <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
+            {!hideSave && (
+              <IconButton icon={Icon('Heart',19,sale&&sale.saved?{fill:'var(--coral)',stroke:'var(--coral)'}:{})} shape="circle" aria-label="Save" onClick={()=>onSave&&onSave()} />
+            )}
           </div>
         </div>
         {total > 1 && (
@@ -3668,7 +3670,7 @@ function ShareSheet({ sale, onClose }) {
   );
 }
 
-function DetailScreen({ sale, onBack, hideBack=false, photoHeight, collapsibleMap=false, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems }) {
+function DetailScreen({ sale, onBack, hideBack=false, hideSave=false, photoHeight, collapsibleMap=false, onToggleSave, inTrip=false, onToggleTrip, onNavigateTo, onOpenItems }) {
   const s = sale;
   const openDirections = () => openSaleDirections(s, onNavigateTo);
   const [shareOpen, setShareOpen] = useState(false);
@@ -3684,6 +3686,7 @@ function DetailScreen({ sale, onBack, hideBack=false, photoHeight, collapsibleMa
           height={photoHeight ?? (isLandscape ? Math.min(280, Math.round(vh * 0.35)) : 280)}
           onBack={onBack}
           hideBack={hideBack}
+          hideSave={hideSave}
           saved={s.saved}
           onSave={()=>onToggleSave(s.id)}
           sale={s}
@@ -4663,13 +4666,12 @@ function WalkthroughScreen({ onDone, userName }) {
 // isMobileDevice. Modeled on how dedicated yard-sale directory sites lay out
 // a browse page (location bar, day-of-week filters, photo strip, card grid)
 // rather than reusing the app's own single-screen-at-a-time mobile shell.
-function DesktopSaleCard({ sale: s, onClick, onToggleSave }) {
+function DesktopSaleCard({ sale: s, onClick }) {
   return (
     <Card interactive onClick={onClick} padded={false} elevation="sm" style={{display:'flex',flexDirection:'column',height:'100%'}}>
       <div style={{position:'relative'}}>
         <SaleImg src={s.images?.[0]} height={168} type={s.type} blurb={s.blurb} title={s.title} lat={s.lat} lng={s.lng} id={s.id} />
         <span style={{position:'absolute',top:10,left:10,background:'rgba(28,27,23,.72)',color:'#fff',fontFamily:'var(--font-mono)',fontWeight:700,fontSize:11,padding:'3px 9px',borderRadius:'var(--radius-pill)'}}>{s.distanceMi} mi</span>
-        <div style={{position:'absolute',top:8,right:8}}><HeartBtn saved={s.saved} onSave={onToggleSave} /></div>
       </div>
       <div style={{padding:'14px 16px 16px',display:'flex',flexDirection:'column',gap:6,flex:1}}>
         <SaleTypeTag type={s.type} size="sm" />
@@ -4694,23 +4696,31 @@ function DesktopSaleCard({ sale: s, onClick, onToggleSave }) {
 function WebHomeScreen({
   sales, zip, setZip, locating, locationDenied, onRequestLocation,
   radiusMi, setRadiusMi, activeTypes, setActiveTypes, keyword, setKeyword,
-  onToggleSave, apiStatus, coverageMessage, mapCenter, onOpenPost,
+  apiStatus, coverageMessage, mapCenter, onOpenPost,
 }) {
   const [dayFilter, setDayFilter] = useState(null); // null = All, else 0 (Sun) .. 6 (Sat)
   const [showMap, setShowMap] = useState(false);
-  const [savedOnly, setSavedOnly] = useState(false);
   const [zipDraft, setZipDraft] = useState('');
+  const [editingZip, setEditingZip] = useState(false);
+  // "Change" used to call onRequestLocation -- a geolocation re-request, not
+  // a way to type a different ZIP. Harmless once permission's already
+  // granted (the browser just silently re-resolves the same position, no
+  // visible prompt), which read as the button doing nothing at all.
+  const submitZipDraft = () => {
+    if (zipDraft.length !== 5) return;
+    setZip(zipDraft);
+    setEditingZip(false);
+    setZipDraft('');
+  };
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
 
-  const typeFiltered = sales.filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type));
-  const scoped = savedOnly ? typeFiltered.filter(s => s.saved) : typeFiltered;
+  const scoped = sales.filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type));
   const shown = (dayFilter==null ? scoped : scoped.filter(s => saleWeekdays(s.dateLabel).includes(dayFilter)))
     .slice().sort((a,b) => (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
 
   const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const dayCounts = DAY_LABELS.map((_,d) => scoped.filter(s => saleWeekdays(s.dateLabel).includes(d)).length);
   const maxDay = Math.max(1, ...dayCounts);
-  const savedCount = sales.filter(s=>s.saved).length;
   // Drawn from `shown` (not the unfiltered `sales`) so every thumbnail here
   // always has a matching card below to scroll to -- a sale hidden by the
   // active day/type/saved filter wouldn't have a rendered card at all.
@@ -4746,13 +4756,6 @@ function WebHomeScreen({
             <span style={{fontFamily:'var(--font-display)', fontWeight:900, fontSize:19, color:'var(--paper)'}}>Rummage</span>
           </div>
           <div style={{display:'flex', alignItems:'center', gap:14}}>
-            <button type="button" onClick={()=>setSavedOnly(v=>!v)} style={{
-              display:'inline-flex', alignItems:'center', gap:6, background:'none', border:'none', cursor:'pointer',
-              fontFamily:'var(--font-sans)', fontWeight:700, fontSize:14, color: savedOnly ? 'var(--accent)' : 'var(--ink-300)', padding:'8px 4px',
-            }}>
-              {Icon('Heart',17, savedOnly ? {fill:'var(--coral)',stroke:'var(--coral)'} : {stroke:'currentColor'})}
-              Saved{savedCount>0?` (${savedCount})`:''}
-            </button>
             <Btn variant="primary" onClick={onOpenPost}>Post a Sale</Btn>
           </div>
         </div>
@@ -4796,10 +4799,22 @@ function WebHomeScreen({
           <div style={{borderBottom:'1px solid var(--line)', background:'var(--surface)'}}>
             <div style={{...wrap, padding:'18px 28px'}}>
               <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:14, marginBottom:14}}>
-                <div style={{display:'flex', alignItems:'center', gap:8, fontFamily:'var(--font-sans)', fontWeight:700, fontSize:14, color:'var(--text-primary)'}}>
-                  {Icon('MapPin',16,{stroke:'var(--secondary)'})} Near {zip}
-                  <button type="button" onClick={onRequestLocation} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-link)',fontWeight:700,fontSize:13,textDecoration:'underline',padding:0}}>Change</button>
-                </div>
+                {editingZip ? (
+                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                    <div style={{width:140}}>
+                      <RmgInput leadingIcon={Icon('MapPin',16)} placeholder="ZIP code" inputMode="numeric"
+                        value={zipDraft} onChange={e=>setZipDraft(e.target.value.replace(/\D/g,'').slice(0,5))}
+                        onKeyDown={e=>{ if (e.key==='Enter') submitZipDraft(); if (e.key==='Escape') { setEditingZip(false); setZipDraft(''); } }} />
+                    </div>
+                    <Btn variant="primary" size="sm" disabled={zipDraft.length!==5} onClick={submitZipDraft}>Go</Btn>
+                    <button type="button" onClick={()=>{ setEditingZip(false); setZipDraft(''); }} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-muted)',fontWeight:700,fontSize:13,padding:0}}>Cancel</button>
+                  </div>
+                ) : (
+                  <div style={{display:'flex', alignItems:'center', gap:8, fontFamily:'var(--font-sans)', fontWeight:700, fontSize:14, color:'var(--text-primary)'}}>
+                    {Icon('MapPin',16,{stroke:'var(--secondary)'})} Near {zip}
+                    <button type="button" onClick={()=>{ setZipDraft(zip||''); setEditingZip(true); }} style={{background:'none',border:'none',cursor:'pointer',color:'var(--text-link)',fontWeight:700,fontSize:13,textDecoration:'underline',padding:0}}>Change</button>
+                  </div>
+                )}
                 <div style={{display:'flex', alignItems:'center', gap:10}}>
                   <svg width={DAY_LABELS.length*12} height="26" viewBox={`0 0 ${DAY_LABELS.length*12} 26`} style={{display:'block'}}>
                     {dayCounts.map((c,i) => {
@@ -4900,7 +4915,7 @@ function WebHomeScreen({
                     boxShadow: highlightId===s.id ? '0 0 0 3px var(--accent)' : 'none',
                     transform: highlightId===s.id ? 'translateY(-3px)' : 'none',
                   }}>
-                    <DesktopSaleCard sale={s} onClick={()=>goToSale(s.id)} onToggleSave={()=>onToggleSave(s.id)} />
+                    <DesktopSaleCard sale={s} onClick={()=>goToSale(s.id)} />
                   </div>
                 ))}
               </div>
@@ -4992,7 +5007,7 @@ function SaleDetailPage({ sale, apiStatus, onToggleSave, itemsView, setItemsView
               onSelectItem={idx=>setItemsView({mode:'item', idx})} />
           )}
           {sale && !itemsView && (
-            <DetailScreen sale={sale} onBack={backToBrowse} hideBack photoHeight={440} collapsibleMap onToggleSave={onToggleSave}
+            <DetailScreen sale={sale} onBack={backToBrowse} hideBack hideSave photoHeight={440} collapsibleMap onToggleSave={onToggleSave}
               onOpenItems={sale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined} />
           )}
         </div>
@@ -5548,7 +5563,6 @@ function App() {
         radiusMi={radiusMi} setRadiusMi={setRadiusMi}
         activeTypes={activeTypes} setActiveTypes={setActiveTypes}
         keyword={keyword} setKeyword={setKeyword}
-        onToggleSave={toggleSave}
         apiStatus={apiStatus} coverageMessage={coverageMessage} mapCenter={mapCenter}
         onOpenPost={()=>{ window.location.href = '/app?post=1'; }}
       />
@@ -5571,7 +5585,7 @@ function App() {
                 onSelectItem={idx=>setItemsView({mode:'item', idx})} />
             )}
             {!itemsView && (
-              <DetailScreen sale={detailSale} onBack={closeDetail} collapsibleMap onToggleSave={toggleSave}
+              <DetailScreen sale={detailSale} onBack={closeDetail} collapsibleMap hideSave onToggleSave={toggleSave}
                 onOpenItems={detailSale.items?.length>0 ? ()=>setItemsView({mode:'gallery'}) : undefined} />
             )}
           </div>
