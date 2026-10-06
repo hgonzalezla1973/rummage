@@ -5404,8 +5404,20 @@ function App() {
       const toDate = m => new Date(m[3] ? parseInt(m[3]) : todayStart.getFullYear(), MO_IDX[m[1].toLowerCase().slice(0,3)], parseInt(m[2])).getTime();
       const startDay = toDate(hits[0]);
       const endDay   = toDate(hits[hits.length - 1]);
+      // A user-posted listing is real, durable data -- the server already
+      // drops it the moment it ends (see isUserListingActive server-side),
+      // so it doesn't need the scraped-content assumption that anything
+      // dated further out is a stale, abandoned posting. Someone posting a
+      // sale for next weekend needs it visible *now* -- both so they get
+      // real confirmation "Edit"/"View" on it actually show something, and
+      // so anyone else planning ahead can find it -- not just once it
+      // happens to fall inside a window sized for close-to-date scraped
+      // posts. Confirmed live: without this, a freshly posted sale more
+      // than 2 days out was invisible to its own poster right after
+      // publishing, which read as the post having silently failed.
+      const effectiveWindowEnd = s.source === 'user' ? Infinity : windowEnd;
       // Overlap test: the sale's [startDay, endDay] range must intersect [windowStart, windowEnd].
-      return endDay >= windowStart && startDay <= windowEnd;
+      return endDay >= windowStart && startDay <= effectiveWindowEnd;
     });
   let salesInRadius = allSales.filter(s=>s.distanceMi<=radiusMi).filter(kwMatch);
   if (salesInRadius.length===0 && !keyword) salesInRadius = allSales.slice(0,1);
