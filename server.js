@@ -474,7 +474,12 @@ const upgradeSmallThumbUrl = url => {
 // Map preserves insertion order, so the oldest entry is always first.
 const cache        = new Map();
 const CACHE_TTL    = 8 * 60 * 1000; // 8 minutes
-const MAX_CACHE_ENTRIES = 150;
+// Lowered from 150 -- still recurring OOM alerts on the free-tier 512MB
+// instance even with that cap in place. Each entry can hold ~100 listings'
+// worth of photo arrays (and user-posted listings carry actual base64 image
+// data, not just URLs, unlike scraped ones), so steady-state cache size is a
+// real contributor, not just the transient Puppeteer-enrichment spikes.
+const MAX_CACHE_ENTRIES = 60;
 
 function fromCache(key, ttlMs = CACHE_TTL) {
   const hit = cache.get(key);
@@ -946,9 +951,19 @@ function createGate(max) {
       const next = queue.shift();
       if (next) next();
     },
+    get active() { return active; },
   };
 }
-const pageGate = createGate(5);
+// 5 real Chrome tabs was still enough to tip the free-tier 512MB instance
+// into repeated OOM crash loops (confirmed live via recurring "exceeded its
+// memory limit" alerts) -- each tab is a full browser process/renderer, not
+// a lightweight handle. Tried 3 first, but OfferUp's own enrichment already
+// asks for 3 concurrent tabs on its own (see fetchOfferUpPhotos) -- at
+// pageGate(3) that alone saturated the whole gate and starved every other
+// scraper, which then hit their 15s ceiling and returned zero results
+// (confirmed live: 77 listings dropped to 17). 4 leaves just enough room for
+// one other scraper's tab alongside OU's three.
+const pageGate = createGate(4);
 // A sale-detail page can have up to MAX_LISTING_PHOTOS (40) thumbnails, each
 // hitting /api/img at once -- capped separately from pageGate (lighter work,
 // no real browser page) so one detail-page view can't pile up 40 simultaneous
@@ -972,6 +987,24 @@ async function getBrowser() {
   _browser.on('disconnected', () => { _browser = null; });
   return _browser;
 }
+
+// Chrome's own memory footprint creeps up over a long-running process even
+// when every page/tab is closed correctly (internal caches, fragmentation) --
+// a contributor to the free-tier instance's recurring OOM alerts that
+// pageGate and the listings cache cap can't address, since they only bound
+// concurrent/cached *work*, not the browser process's own baseline growth.
+// Recycling it periodically resets that baseline. Only when pageGate is
+// fully idle, so an in-flight scrape's pages are never pulled out from
+// under it.
+const BROWSER_RECYCLE_MS = 30 * 60 * 1000;
+setInterval(() => {
+  if (_browser && pageGate.active === 0) {
+    console.log('Recycling idle Chrome instance (periodic memory reset)…');
+    const stale = _browser;
+    _browser = null;
+    stale.close().catch(() => {});
+  }
+}, BROWSER_RECYCLE_MS);
 
 async function newPage(browser) {
   const page = await browser.newPage();
@@ -3884,8 +3917,17 @@ app.get('/api/listings', async (req, res) => {
 });
 
 app.get('/api/health', (_req, res) => {
+  // rssMb is what actually counts against Render's 512MB limit (the whole
+  // process's resident memory, Chrome included) -- heap figures only cover
+  // this Node process's own JS objects, not the Chrome processes it spawns.
+  // Tracked here (not just in Render's dashboard) so a quick curl can
+  // confirm whether a given change actually moved the needle.
+  const mem = process.memoryUsage();
+  const mb = n => Math.round(n / 1024 / 1024);
   res.json({
     ok: true, cached: cache.size, uptime: Math.round(process.uptime()), chrome: CHROME_PATH,
+    memory: { rssMb: mb(mem.rss), heapUsedMb: mb(mem.heapUsed), heapTotalMb: mb(mem.heapTotal), externalMb: mb(mem.external) },
+    chromeOpenTabs: pageGate.active,
     // Presence-only booleans -- never the actual secret values -- so we can
     // remotely confirm env vars are wired up without exposing them.
     smsConfigured: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER),
