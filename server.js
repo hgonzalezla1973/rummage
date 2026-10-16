@@ -216,6 +216,15 @@ app.get('/api/img', async (req, res) => {
   // means that stretch becomes a uniform scale, no distortion.
   const w = Math.min(1200, parseInt(req.query.w, 10) || 0);
   const h = Math.min(1200, parseInt(req.query.h, 10) || 0);
+  // The app's own thumbnail requests opt into this (fit=noup) so a genuinely
+  // low-res source (confirmed live down to 250x250 for some OfferUp photos)
+  // doesn't get upscaled to the requested box -- the client uses the resulting
+  // small naturalWidth/Height to detect that and fall back to object-fit:contain
+  // instead of stretching it blurry. The email digest (proxyImgUrlForEmail)
+  // deliberately omits this flag: Outlook stretches to the <img> width/height
+  // attributes regardless of the source's real resolution, so it needs the
+  // output to always be exactly w×h, upscaled or not.
+  const noEnlarge = req.query.fit === 'noup';
 
   let parsed;
   try { parsed = new URL(url); } catch { return res.status(400).send('Invalid url'); }
@@ -253,7 +262,7 @@ app.get('/api/img', async (req, res) => {
     let outCt = ct;
     if (w && h) {
       try {
-        buf = await sharp(buf).resize(w, h, { fit: 'cover' }).jpeg({ quality: 82 }).toBuffer();
+        buf = await sharp(buf).resize(w, h, { fit: 'cover', withoutEnlargement: noEnlarge }).jpeg({ quality: 82 }).toBuffer();
         outCt = 'image/jpeg';
       } catch (err) {
         console.warn('Image resize failed, serving unresized:', err.message);

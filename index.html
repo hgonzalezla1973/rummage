@@ -836,17 +836,29 @@ function RealMap({ sales, selectedId, onSelect, centerLat, centerLng, zoom=13, i
 }
 
 // ── Sale card ─────────────────────────────────────────────────────────────────
-function proxyImgUrl(url) {
+// Caps how big a resize request we'll ever ask the proxy for -- matches the
+// server's own cap (see /api/img in server.js) so retina devices don't quietly
+// fall back to requesting the full original for a value this just clamps anyway.
+const PROXY_IMG_MAX = 1200;
+const DEVICE_PIXEL_RATIO = (typeof window !== 'undefined' && window.devicePixelRatio) ? Math.min(window.devicePixelRatio, 2.5) : 1;
+
+function proxyImgUrl(url, w, h) {
   try {
-    const h = new URL(url).hostname;
-    if (h === 'estatesales.org' || h.endsWith('.estatesales.org') ||
-        h === 'estatesales.net' || h.endsWith('.estatesales.net') ||
-        h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
-        h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
-        h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
-        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com') ||
-        h.endsWith('.nextdoor.com') || h === 'nextdoor.com')
-      return `${API_BASE}/api/img?url=${encodeURIComponent(url)}`;
+    const h2 = new URL(url).hostname;
+    if (h2 === 'estatesales.org' || h2.endsWith('.estatesales.org') ||
+        h2 === 'estatesales.net' || h2.endsWith('.estatesales.net') ||
+        h2.endsWith('.amazonaws.com') || h2.endsWith('.cloudfront.net') ||
+        h2.endsWith('.imgix.net') || h2.endsWith('.tlcdn.workers.dev') || h2 === 'eso-cdn.tlcdn.workers.dev' ||
+        h2 === 'images.craigslist.org' || h2 === 'maps.geoapify.com' ||
+        h2.endsWith('.fbcdn.net') || h2 === 'fbcdn.net' || h2.endsWith('.facebook.com') ||
+        h2.endsWith('.nextdoor.com') || h2 === 'nextdoor.com') {
+      let out = `${API_BASE}/api/img?url=${encodeURIComponent(url)}`;
+      // fit=noup tells the proxy not to upscale a smaller original past its
+      // own resolution -- preserves SaleImg's undersized-photo detection
+      // (see its own comment) instead of masking it behind a forced upscale.
+      if (w && h) out += `&w=${Math.min(PROXY_IMG_MAX, Math.round(w))}&h=${Math.min(PROXY_IMG_MAX, Math.round(h))}&fit=noup`;
+      return out;
+    }
   } catch(_) {}
   return url;
 }
@@ -916,10 +928,19 @@ function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }
     if (lat != null && lng != null) return <MapPlaceholder height={height} width={width} lat={lat} lng={lng} type={type} id={id} />;
     return <PhotoPlaceholder height={height} type={type} blurb={blurb} title={title} />;
   }
+  // Fixed-pixel boxes (thumbnail strip, card thumbs) ask the proxy to resize
+  // server-side instead of pulling the full original just to shrink it with
+  // CSS -- a 62px thumbnail doesn't need a multi-megabyte source photo. Fluid
+  // "100%" boxes (the full-bleed hero slide) skip resizing since we don't know
+  // the real rendered width here, and that one's worth keeping full quality.
+  const px = v => typeof v === 'number' ? v : null;
+  const sizeW = px(width) || px(height);
+  const sizeH = px(height) || px(width);
+  const [proxyW, proxyH] = sizeW ? [sizeW * DEVICE_PIXEL_RATIO, sizeH * DEVICE_PIXEL_RATIO] : [0, 0];
   return (
     <div ref={wrapRef} style={{ width: width || '100%', height, overflow:'hidden', background: undersized ? 'var(--surface-sunken)' : 'transparent', ...style }}>
       <img
-        src={proxyImgUrl(src)}
+        src={proxyImgUrl(src, proxyW, proxyH)}
         onError={() => setFailed(true)}
         onLoad={e => {
           const box = wrapRef.current?.getBoundingClientRect();
@@ -3526,7 +3547,7 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--brand-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{i + 1}</div>
                 {s.images?.[0]
-                  ? <img src={proxyImgUrl(s.images[0])} style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }} />
+                  ? <img src={proxyImgUrl(s.images[0], 44 * DEVICE_PIXEL_RATIO, 44 * DEVICE_PIXEL_RATIO)} style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }} />
                   : <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Icon('Image', 18, { stroke: 'var(--text-faint)' })}</div>
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
