@@ -1,0 +1,19 @@
+name: Keep Render instance awake
+
+# Render's free plan spins the service down after ~15 min with no incoming
+# requests, so the next real visitor eats a 30-60s cold start. Pinging the
+# health endpoint well under that window keeps it warm. Scheduled workflows
+# on GitHub aren't guaranteed to fire exactly on time (they can slip a few
+# minutes under load), so this runs every 10 minutes rather than cutting it
+# close to the 15-minute edge.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping /api/health
+        run: curl -fsS --max-time 20 https://rummagedeals.com/api/health
