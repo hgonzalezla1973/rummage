@@ -1,13 +1,30 @@
 /**
  * Rummage Backend — server.js
  *
- * Scrapes garage/estate/yard sale listings from Craigslist and OfferUp
- * using a headless Chrome browser (puppeteer-core + your installed Chrome).
+ * Scrapes garage/estate/yard sale listings from multiple sources using a
+ * headless Chrome browser (puppeteer).
  *
- * Sources:
- *   - Craigslist  garage & moving sales (gms category)
- *   - OfferUp     "yard sale" / "estate sale" keyword search
- *   - Google      optional — set GOOGLE_API_KEY + GOOGLE_CX in .env
+ * Active sources (fetchListingsFresh):
+ *   - OfferUp           "yard sale" / "estate sale" keyword search
+ *   - EstateSales.org    (scrapeEstateSales — Apify-backed, with a direct
+ *                         Puppeteer fallback)
+ *   - Facebook Marketplace
+ *   - Google             optional — set GOOGLE_API_KEY + GOOGLE_CX in .env
+ *   - EstateSales.net
+ *   - YardSaleSearch
+ *   - GarageSaleFinder
+ *   - Gsalr (gsalr.com)
+ *   - EstateSale.com
+ *   - Nextdoor
+ *   - AuctionNinja
+ *   - VarageSale        (best-effort — see scrapeVarageSale's own note)
+ *   - YardSales.net
+ *   - plus user-submitted listings (loadUserListings), merged in last
+ *
+ * Craigslist (scrapeCraigslist) is implemented below but intentionally not
+ * called from fetchListingsFresh — dropped from the live pipeline, not
+ * deleted, so it is easy to re-enable by adding it back to the
+ * Promise.allSettled list there if that decision changes.
  *
  * GET /api/listings?zip=90601&radius=10
  * GET /api/health
@@ -229,7 +246,7 @@ app.get('/api/img', async (req, res) => {
   let parsed;
   try { parsed = new URL(url); } catch { return res.status(400).send('Invalid url'); }
 
-  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com', 'nextdoor.com'];
+  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com', 'nextdoor.com', 'varagesale.com'];
   const host = parsed.hostname.replace(/^www\./, '');
   if (!allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
     return res.status(403).send('Domain not allowed');
@@ -620,7 +637,9 @@ async function geocodeZip(zip) {
   // Photon fallback — last resort, since a bare ZIP query is ambiguous
   // across countries (see note above).
   try {
-    const res  = await fetchTimeout(`https://photon.komoot.io/api/?q=${zip}&limit=1&lang=en&osm_tag=place:postcode`);
+    const res  = await fetchTimeout(`https://photon.komoot.io/api/?q=${zip}&limit=1&lang=en&osm_tag=place:postcode`, 5000, {
+      headers: { 'User-Agent': 'RummageApp/1.0 (local sale finder; contact via app feedback)' },
+    });
     const data = await res.json();
     // Extra guard beyond osm_tag filtering: a bare numeric query can still
     // match a non-US postcode, so require the result to actually say US.
@@ -674,7 +693,9 @@ async function geocodeCityName(cityName) {
   if (!key) return null;
   if (LA_NEIGHBORHOODS[key]) return LA_NEIGHBORHOODS[key];
   try {
-    const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(key + ' California')}&limit=1&lang=en`, 6000);
+    const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${encodeURIComponent(key + ' California')}&limit=1&lang=en`, 6000, {
+      headers: { 'User-Agent': 'RummageApp/1.0 (local sale finder; contact via app feedback)' },
+    });
     const data = await res.json();
     const f = data?.features?.[0];
     if (f) return { lat: f.geometry.coordinates[1], lng: f.geometry.coordinates[0] };
@@ -686,7 +707,9 @@ async function geocodeCityName(cityName) {
 // needs a city name to build its own search URL (we only start with a zip).
 async function reverseGeocodeCity(lat, lng) {
   try {
-    const res = await fetchTimeout(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}&limit=1`, 6000);
+    const res = await fetchTimeout(`https://photon.komoot.io/reverse?lon=${lng}&lat=${lat}&limit=1`, 6000, {
+      headers: { 'User-Agent': 'RummageApp/1.0 (local sale finder; contact via app feedback)' },
+    });
     const data = await res.json();
     const props = data?.features?.[0]?.properties;
     return props?.city || props?.name || null;
@@ -746,6 +769,72 @@ function detectType(text = '') {
 // scoped to real sale events the way EstateSales.org's own category is.
 const SALE_EVENT_RE = /\b(yard|garage|estate|moving|rummage|tag|multi-?family|block|barn)\s*sale\b/i;
 
+// Full state name (as geocoders return it) -> USPS code, for sources whose
+// URLs are keyed by the two-letter form (YardSales.net's /{city}-{state}/).
+const US_STATE_CODES = {
+  alabama: 'al', alaska: 'ak', arizona: 'az', arkansas: 'ar', california: 'ca',
+  colorado: 'co', connecticut: 'ct', delaware: 'de', 'district of columbia': 'dc',
+  florida: 'fl', georgia: 'ga', hawaii: 'hi', idaho: 'id', illinois: 'il',
+  indiana: 'in', iowa: 'ia', kansas: 'ks', kentucky: 'ky', louisiana: 'la',
+  maine: 'me', maryland: 'md', massachusetts: 'ma', michigan: 'mi',
+  minnesota: 'mn', mississippi: 'ms', missouri: 'mo', montana: 'mt',
+  nebraska: 'ne', nevada: 'nv', 'new hampshire': 'nh', 'new jersey': 'nj',
+  'new mexico': 'nm', 'new york': 'ny', 'north carolina': 'nc',
+  'north dakota': 'nd', ohio: 'oh', oklahoma: 'ok', oregon: 'or',
+  pennsylvania: 'pa', 'rhode island': 'ri', 'south carolina': 'sc',
+  'south dakota': 'sd', tennessee: 'tn', texas: 'tx', utah: 'ut',
+  vermont: 'vt', virginia: 'va', washington: 'wa', 'west virginia': 'wv',
+  wisconsin: 'wi', wyoming: 'wy',
+};
+
+// City + state for a ZIP, for sources whose URLs are keyed by place name
+// rather than coordinates (YardSales.net, VarageSale).
+//
+// Zippopotam first, and it is the right tool rather than a fallback: it is
+// purpose-built for postal codes and hands back the place name *and* the USPS
+// state abbreviation directly, which is exactly the shape these URLs need.
+// Reverse-geocoding a lat/lng through Photon was tried first and proved too
+// fragile to depend on — it timed out often enough in practice to zero out
+// two whole sources at once, and even on success returns the state's full
+// name, needing a second lookup to get the code.
+async function zipCityState(zip, centerLat, centerLng) {
+  const cacheKey = `zipcs:${zip}`;
+  const cached = fromCache(cacheKey);
+  if (cached) return cached;
+
+  try {
+    const res = await fetchTimeout(`https://api.zippopotam.us/us/${zip}`, 6000);
+    if (res.ok) {
+      const place = (await res.json())?.places?.[0];
+      const city = place?.['place name'];
+      const stateCode = place?.['state abbreviation'];
+      if (city && stateCode) {
+        const out = { city, stateCode: stateCode.toLowerCase(), state: place.state || null };
+        toCache(cacheKey, out);
+        return out;
+      }
+    }
+  } catch (_) { /* fall through to the reverse-geocode path below */ }
+
+  // Only reached when Zippopotam is unreachable or doesn't know the ZIP.
+  try {
+    const rev = await fetchTimeout(
+      `https://photon.komoot.io/reverse?lon=${centerLng}&lat=${centerLat}&limit=1`, 5000,
+      { headers: { 'User-Agent': 'RummageApp/1.0 (local sale finder; contact via app feedback)' } }
+    ).then(r => r.json());
+    const props = rev?.features?.[0]?.properties;
+    const city = props?.city || props?.name;
+    const state = props?.state;
+    if (city) {
+      const out = { city, stateCode: US_STATE_CODES[(state || '').toLowerCase()] || null, state: state || null };
+      toCache(cacheKey, out);
+      return out;
+    }
+  } catch (_) { /* nothing more to try */ }
+
+  return null;
+}
+
 // ── HTML entity decoding ────────────────────────────────────────────────────
 // Some sources (YardSaleSearch, GarageSaleFinder) hand back titles with raw
 // un-decoded entities ("&#039;", "&amp;") while others decode them before we
@@ -753,7 +842,21 @@ const SALE_EVENT_RE = /\b(yard|garage|estate|moving|rummage|tag|multi-?family|bl
 // non-alphanumeric chars from "&#039;" leaves the digits "039" behind, so the
 // same sale's title normalized differently across sources and dedup missed
 // real duplicates.
-const HTML_ENTITIES = { amp:'&', lt:'<', gt:'>', quot:'"', apos:"'", nbsp:' ' };
+// Typographic entities are here because real scraped titles are full of them
+// ("Community Wide Garage Sale &ndash; 60 homes", "Grandma&rsquo;s attic") and
+// an un-decoded entity shows up verbatim in the UI.
+const HTML_ENTITIES = {
+  amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ',
+  ndash: '–', mdash: '—', lsquo: '‘', rsquo: '’',
+  ldquo: '“', rdquo: '”', hellip: '…', middot: '·',
+  deg: '°', times: '×', frac12: '½', frac14: '¼', frac34: '¾',
+  // Accented letters show up constantly in real listings — Spanish-language
+  // sale titles especially ("Día de los Muertos", "Niños").
+  aacute: 'á', eacute: 'é', iacute: 'í', oacute: 'ó', uacute: 'ú',
+  ntilde: 'ñ', uuml: 'ü', ouml: 'ö', auml: 'ä', ccedil: 'ç',
+  Aacute: 'Á', Eacute: 'É', Iacute: 'Í', Oacute: 'Ó', Uacute: 'Ú',
+  Ntilde: 'Ñ', agrave: 'à', egrave: 'è', acirc: 'â', ecirc: 'ê',
+};
 function decodeHtmlEntities(str) {
   if (!str) return str;
   return str.replace(/&(#?\w+);/g, (m, ent) => {
@@ -1362,7 +1465,9 @@ async function geocodePlaceName(name, state) {
   if (!coords) {
     try {
       const q = encodeURIComponent(state ? `${name} ${state.toUpperCase()}` : name);
-      const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${q}&limit=1&lang=en`, 3000);
+      const res = await fetchTimeout(`https://photon.komoot.io/api/?q=${q}&limit=1&lang=en`, 3000, {
+        headers: { 'User-Agent': 'RummageApp/1.0 (local sale finder; contact via app feedback)' },
+      });
       const data = await res.json();
       const feat = data?.features?.[0];
       if (feat) { coords = { lat: feat.geometry.coordinates[1], lng: feat.geometry.coordinates[0] }; toCache(addrKey, coords); }
@@ -2774,6 +2879,122 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
   return results;
 }
 
+// ── AuctionNinja.com ─────────────────────────────────────────────────────────
+// A direct GET to its internal AJAX endpoint (estate-sales-ajax.php) skips
+// the rendered /estate-sales page entirely — found via the real browser
+// network tab while filling in its own zip/radius search form, same
+// approach used for GSALR above. No bot-protection on this endpoint
+// (confirmed: plain fetch works, no Incapsula/Cloudflare challenge).
+//
+// Its own "miles" param is NOT reliable: a 90601 search with miles=250
+// returned listings in Connecticut and North Carolina (2,000+ miles away),
+// confirmed live rather than assumed — so every result is independently
+// geocoded from its city/state text and re-filtered against the real
+// radius, the same discipline scrapeCraigslist's own comment describes
+// ("our geocoder then verifies the real distance and drops outliers").
+// Scoped to sale_type=Estate (its own "Estate Sales" category), so this
+// result set is inherently all real sale events -- no title filter needed,
+// same as GSALR/EstateSale.com/GarageSaleFinder.
+async function scrapeAuctionNinja(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `an:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  AN cache hit'); return cached; }
+
+  const results = [];
+  try {
+    const url = `https://www.auctionninja.com/estate-sales-ajax.php?srt=Date&miles=${Math.min(radiusMi, 250)}&auc_date=&sale_type=Estate&seller=&view=&city=&state=&zip=${encodeURIComponent(zip)}&auctiontype=&pgtype=${encodeURIComponent('https://www.auctionninja.com/estate-sales')}&shipping=s&pickup=p&ninjaship=`;
+    console.log(`  AN: ${url}`);
+    const res = await fetchTimeout(url, 9000, { headers: { 'User-Agent': SCRAPE_UA } });
+    if (!res.ok) { console.warn(`  AN HTTP ${res.status}`); toCache(cacheKey, results); return results; }
+
+    let data;
+    try { data = JSON.parse(await res.text()); }
+    catch (_) { console.warn('  AN: non-JSON response'); toCache(cacheKey, results); return results; }
+
+    const body = data?.body || '';
+    const blocks = body.split('<div class="location-result-box').slice(1);
+    console.log(`  AN raw blocks: ${blocks.length}`);
+
+    // Parsed, pre-geocode -- lat/lng filled in below from city/state.
+    const parsed = [];
+    for (const block of blocks) {
+      const titleMatch = block.match(/class="auctions-title"><a href="([^"]+)"[^>]*>([^<]+)<\/a>/);
+      const imgMatch    = block.match(/src="(https:\/\/www\.auctionninja\.com\/thumb_es\.php\?src=[^"]+)"/);
+      const locMatch    = block.match(/fa-map-marker[^>]*><\/i>\s*([^<]+)<\/span>/);
+      const dateMatch   = block.match(/class="auction-iteam-detail"[^>]*>([^<]*)<\/div>/);
+      const companyMatch = block.match(/class="auction-company-name"><a[^>]*>([^<]+)<\/a>/);
+      if (!titleMatch || !locMatch) continue;
+
+      const [, href, rawTitle] = titleMatch;
+      const title = decodeHtmlEntities(rawTitle.trim());
+      const locText = decodeHtmlEntities(locMatch[1].trim()); // "City, ST"
+      const [cityRaw, stateRaw] = locText.split(',').map(s => s?.trim());
+      if (!cityRaw) continue;
+      const dateText = dateMatch ? decodeHtmlEntities(dateMatch[1].trim()) : '';
+      const company = companyMatch ? decodeHtmlEntities(companyMatch[1].trim()) : '';
+
+      // thumb_es.php's own w/h query params control the served size --
+      // 279x190 in the search card, bumped here the same way GSALR/GSF
+      // upgrade their own thumbnail-proxy URLs to a larger on-detail size.
+      const image = imgMatch ? imgMatch[1].replace(/([?&])w=\d+&h=\d+/, '$1w=640&h=480') : null;
+
+      parsed.push({ href, title, city: cityRaw, state: stateRaw, dateText, company, image });
+    }
+
+    // Batch-geocode unique city/state pairs, small concurrency, per the
+    // Nominatim usage policy -- same pattern as batchGeocodePlaceNames,
+    // but keyed by "city|state" since AuctionNinja's results genuinely
+    // span many states (not a single-region source like Craigslist).
+    const uniqueKeys = [...new Set(parsed.map(p => `${p.city}|${p.state || ''}`))];
+    const coordMap = new Map();
+    const GEOCODE_CONCURRENCY = 3;
+    for (let i = 0; i < uniqueKeys.length; i += GEOCODE_CONCURRENCY) {
+      const batch = uniqueKeys.slice(i, i + GEOCODE_CONCURRENCY);
+      const coordsBatch = await Promise.all(batch.map(k => {
+        const [city, state] = k.split('|');
+        return geocodePlaceName(city, state);
+      }));
+      batch.forEach((k, idx) => coordMap.set(k, coordsBatch[idx]));
+    }
+
+    for (const p of parsed) {
+      const coords = coordMap.get(`${p.city}|${p.state || ''}`);
+      if (!coords) continue;
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, coords.lat, coords.lng).toFixed(1));
+      if (distMi > radiusMi) continue; // AN's own "miles" filter isn't trustworthy -- see comment above
+
+      const px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
+      results.push({
+        id:           `an-${coords.lat}-${coords.lng}-${results.length}`,
+        source:       'auctionninja',
+        type:         detectType(p.title) === 'yard' ? 'estate' : detectType(p.title), // category page is Estate-only; 'yard' is just detectType's generic fallback
+        title:        p.title,
+        address:      [p.city, p.state].filter(Boolean).join(', ') || 'Nearby',
+        neighborhood: p.city || 'Nearby',
+        distanceMi:   distMi,
+        lat: coords.lat, lng: coords.lng,
+        dateLabel:    p.dateText.replace(/^Sale runs\s*/i, ''),
+        timeLabel:    parseTimeFromText(p.dateText),
+        photoCount:   p.image ? 1 : 0,
+        images:       p.image ? [p.image] : [],
+        live:         false,
+        blurb:        p.company ? `Hosted by ${p.company}` : '',
+        price:        '',
+        items:        extractItemTags(p.title, p.dateText),
+        url:          p.href,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+
+    console.log(`  AN done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  AN error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
 // EstateSale.com's search/city pages sit behind Incapsula bot-protection that
 // rejects a plain fetch() outright (confirmed: returns a ~200-byte stub with
 // just the Incapsula challenge script, no content). A real browser navigation
@@ -3078,6 +3299,298 @@ async function scrapeNextdoor(zip, radiusMi, centerLat, centerLng) {
   return results;
 }
 
+// ── VarageSale ────────────────────────────────────────────────────────────────
+// Plain server-rendered HTML, no bot-protection (confirmed: a bare fetch()
+// with no cookies/session works). But unlike every other source here,
+// VarageSale exposes NO structured location at all -- no lat/lng, no
+// address field, no city field, on either the search-results page or an
+// item's own detail page (both checked directly). The only geo-signal is
+// which broad metro-region slug the search landed on (e.g.
+// "los-angeles-long-beach-anaheim-ca" -- a multi-county area, confirmed via
+// its own redirect from a location= query), which is too coarse to place
+// an honest pin: plotting every result at one region-wide centroid would
+// mean showing shoppers a precise-looking pin that's frequently miles from
+// the real sale, exactly the "wrong address" complaint this app's own
+// research (replica/fixes.md-equivalent reasoning) flags as a trust killer
+// elsewhere.
+//
+// So this is deliberately a best-effort, lower-recall scraper: only
+// listings where a real street address can be extracted from the seller's
+// own title text are geocoded and included (ADDRESS_RE below, verified
+// against real examples: matches "2085 n. Breckenridge st", skips bare
+// "Garage sale" with no address). Everything else is silently dropped, not
+// pinned to a guess. Expect this to surface meaningfully fewer results
+// than VarageSale's real inventory -- intentional, not a bug.
+//
+// Region-slug resolution: VarageSale's own search form posts a free-text
+// location string to /find, which 302s to /m/<region-slug>/find -- found
+// by resolving that once (reverse-geocoding our own center point to a
+// city/state via Photon, since we only start with a zip) and reusing the
+// resolved slug across all four keyword queries below, rather than
+// re-resolving it on every request.
+const ADDRESS_RE = /\b(\d{1,6}\s+(?:[NSEW]{1,2}\.?\s+)?(?:[A-Za-z][A-Za-z']*\.?\s+){1,4}(?:St|Ave|Blvd|Rd|Dr|Ct|Ln|Way|Pl|Ter|Cir|Pkwy|Hwy|Street|Avenue|Boulevard|Road|Drive|Court|Lane|Place|Terrace|Circle|Parkway|Highway)\.?)\b/i;
+
+async function scrapeVarageSale(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `vs:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  VS cache hit'); return cached; }
+
+  const results = [];
+  try {
+    // Resolve which metro-region slug covers this point, once.
+    const place = await zipCityState(zip, centerLat, centerLng);
+    const city  = place?.city;
+    const state = place?.state;
+    if (!city) { console.warn('  VS: could not resolve a city for this ZIP'); toCache(cacheKey, results); return results; }
+
+    const slugRes = await fetchTimeout(
+      `https://www.varagesale.com/find?location=${encodeURIComponent(state ? `${city}, ${state}` : city)}&q=sale`,
+      8000, { headers: { 'User-Agent': SCRAPE_UA }, redirect: 'follow' }
+    );
+    const slugMatch = slugRes.url.match(/\/m\/([^/]+)\/find/);
+    if (!slugMatch) { console.warn(`  VS: no region slug resolved for ${city}, ${state}`); toCache(cacheKey, results); return results; }
+    const regionSlug = slugMatch[1];
+    console.log(`  VS region: ${regionSlug} (from ${city}, ${state})`);
+
+    const queries = ['yard sale', 'garage sale', 'estate sale', 'moving sale'];
+    const pages = await Promise.all(queries.map(q =>
+      fetchTimeout(`https://www.varagesale.com/m/${regionSlug}/find?q=${encodeURIComponent(q)}`, 8000,
+        { headers: { 'User-Agent': SCRAPE_UA } })
+        .then(r => r.text()).catch(() => '')
+    ));
+
+    const seen = new Set(); // item slug -> dedupe across the 4 queries
+    const candidates = [];
+    for (const html of pages) {
+      const blocks = html.split('<div class="col-1-2 col-sm-1-3 col-md-1-4">').slice(1);
+      for (const block of blocks) {
+        const hrefMatch  = block.match(/href="(\/items\/([^"]+))"/);
+        const titleMatch = block.match(/<p class="b-margin-0" title="([^"]+)"/);
+        const imgMatch   = block.match(/data-src="(https:\/\/pixl\.varagesale\.com\/[^"]+)"/);
+        if (!hrefMatch || !titleMatch) continue;
+        const itemSlug = hrefMatch[2];
+        if (seen.has(itemSlug)) continue;
+        seen.add(itemSlug);
+
+        const title = decodeHtmlEntities(titleMatch[1].trim());
+        if (!SALE_EVENT_RE.test(title)) continue; // most VarageSale posts are single items, not sale events
+        const addrMatch = title.match(ADDRESS_RE);
+        if (!addrMatch) continue; // no extractable address -- see file comment above, dropped not guessed
+
+        candidates.push({
+          itemSlug, title,
+          href: `https://www.varagesale.com${hrefMatch[1]}`,
+          address: addrMatch[1].trim(),
+          image: imgMatch ? imgMatch[1].split('&s=')[0] : null, // strip the signed-URL token param; the base image URL still resolves
+        });
+      }
+    }
+    console.log(`  VS candidates with a real address in title: ${candidates.length}`);
+
+    // Batch-geocode the extracted addresses (small concurrency, matches
+    // batchGeocodePlaceNames' own Nominatim-usage-policy reasoning).
+    //
+    // Geocode the address alone (plus the broad state, for disambiguation)
+    // -- NOT appended with `city`, the *search origin's* city. A real bug
+    // caught by actually reading the output, not assumed: ADDRESS_RE's
+    // matches routinely already carry their own city ("2364 Roycroft ave
+    // Long Beach 90815"), since that's exactly what makes them a usable
+    // address in the first place. Appending an unrelated city onto an
+    // address that already names a different one produced a contradictory
+    // query ("...Long Beach 90815, Whittier") that the geocoder quietly
+    // resolved to the search origin's own coordinates instead of failing
+    // loudly -- three listings in three different cities all landing on
+    // the exact same point, confirmed live before this fix.
+    const GEOCODE_CONCURRENCY = 3;
+    const coordMap = new Map();
+    for (let i = 0; i < candidates.length; i += GEOCODE_CONCURRENCY) {
+      const batch = candidates.slice(i, i + GEOCODE_CONCURRENCY);
+      const coordsBatch = await Promise.all(batch.map(c => geocodePlaceName(c.address, state)));
+      batch.forEach((c, idx) => coordMap.set(c.itemSlug, coordsBatch[idx]));
+    }
+
+    // In-radius survivors only, so the reverse-geocode batch below isn't
+    // spent on candidates about to be dropped anyway.
+    const inRadius = candidates
+      .map(c => ({ c, coords: coordMap.get(c.itemSlug) }))
+      .filter(x => x.coords)
+      .map(x => ({ ...x, distMi: parseFloat(distanceMiles(centerLat, centerLng, x.coords.lat, x.coords.lng).toFixed(1)) }))
+      .filter(x => x.distMi <= radiusMi);
+
+    // `neighborhood` must be the listing's own city, not the search
+    // origin's (the same bug class as the geocode fix above -- a sale in
+    // Long Beach showing "Whittier" as its neighborhood because that's
+    // where the search started, not where the sale actually is).
+    // Reverse-geocoded from each listing's real resolved point, batched
+    // the same way as the forward geocode above.
+    const neighborhoodMap = new Map();
+    for (let i = 0; i < inRadius.length; i += GEOCODE_CONCURRENCY) {
+      const batch = inRadius.slice(i, i + GEOCODE_CONCURRENCY);
+      const namesBatch = await Promise.all(batch.map(x => reverseGeocodeCity(x.coords.lat, x.coords.lng)));
+      batch.forEach((x, idx) => neighborhoodMap.set(x.c.itemSlug, namesBatch[idx]));
+    }
+
+    for (const { c, coords, distMi } of inRadius) {
+      const px = pinXY(coords.lat, coords.lng, centerLat, centerLng, radiusMi);
+      results.push({
+        id:           `vs-${coords.lat}-${coords.lng}-${results.length}`,
+        source:       'varagesale',
+        type:         detectType(c.title),
+        title:        c.title,
+        address:      c.address,
+        neighborhood: neighborhoodMap.get(c.itemSlug) || city,
+        distanceMi:   distMi,
+        lat: coords.lat, lng: coords.lng,
+        dateLabel:    '',
+        timeLabel:    parseTimeFromText(c.title),
+        photoCount:   c.image ? 1 : 0,
+        images:       c.image ? [c.image] : [],
+        live:         false,
+        blurb:        '',
+        price:        '',
+        items:        extractItemTags(c.title),
+        url:          c.href,
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+
+    console.log(`  VS done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  VS error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
+// ── YardSales.net ────────────────────────────────────────────────────────────
+// A dedicated yard/estate-sale directory with city pages at
+// /{city}-{state}/ (e.g. /los-angeles-ca/). Each page embeds a `pageData`
+// JSON blob whose `sales` array already carries real lat/lon, title, address,
+// city and sale type per listing -- so this reads the JSON rather than
+// scraping the rendered cards, and only dips into the card markup for the
+// date label, which the JSON omits.
+//
+// Two things confirmed live and worth knowing:
+//   * The site's own ?radius= parameter is ignored (every response comes back
+//     radius=25 regardless), so distance is recomputed here from each sale's
+//     real coordinates and filtered against the caller's radius -- the same
+//     discipline scrapeAuctionNinja already applies for the same reason.
+//   * `type: 7` is "Online Sale" -- not a physical sale event anyone can drive
+//     to, so those are dropped. (Same call as skipping LiveAuctioneers: an
+//     online-bidding listing is a different product, not a sale on a map.)
+//
+// Addresses are sometimes withheld by the poster until the sale opens
+// ("Address hidden until Thu, Oct 22"). Those still have real coordinates and
+// a real city, so they are kept with the city as the address rather than
+// dropped -- the pin is honest, just coarse.
+const YSN_SALE_TYPES = {
+  0: 'yard',    // Garage/Yard Sale
+  1: 'moving',  // Moving Sale
+  2: 'yard',    // Multi-family Sale
+  3: 'estate',  // Estate Sale
+};
+
+async function scrapeYardSalesNet(zip, radiusMi, centerLat, centerLng) {
+  const cacheKey = `ysn:${zip}:${radiusMi}`;
+  const cached = fromCache(cacheKey);
+  if (cached) { console.log('  YSN cache hit'); return cached; }
+
+  const results = [];
+  try {
+    const place = await zipCityState(zip, centerLat, centerLng);
+    if (!place?.city || !place?.stateCode) {
+      console.warn('  YSN: could not resolve a city/state for this ZIP');
+      toCache(cacheKey, results); return results;
+    }
+    const { city } = place;
+
+    const slug = `${city.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}-${place.stateCode}`;
+    const url  = `https://yardsales.net/${slug}/`;
+    console.log(`  YSN: ${url}`);
+
+    const res  = await fetchTimeout(url, 10000, { headers: { 'User-Agent': SCRAPE_UA } });
+    if (!res.ok) {
+      console.warn(`  YSN: ${slug} returned ${res.status}`);
+      toCache(cacheKey, results); return results;
+    }
+    const html = await res.text();
+
+    const blobMatch = html.match(/var pageData = (\{[\s\S]*?\});\s*<\/script>/);
+    if (!blobMatch) {
+      console.warn('  YSN: no pageData blob found (page structure may have changed)');
+      toCache(cacheKey, results); return results;
+    }
+    let sales = [];
+    try {
+      sales = JSON.parse(blobMatch[1]).sales || [];
+    } catch (err) {
+      console.warn('  YSN: pageData did not parse —', err.message);
+      toCache(cacheKey, results); return results;
+    }
+    console.log(`  YSN raw sales: ${sales.length}`);
+
+    // Date label and photo live in the rendered card, not the JSON — index
+    // them by the card's own data-id so they can be matched back on.
+    const cardInfo = new Map();
+    for (const block of html.split(/<div class="mb-20 type--sale listing card/).slice(1)) {
+      const id = (block.match(/data-id="(\d+)"/) || [])[1];
+      if (!id) continue;
+      const rawDates = (block.match(/card__dates-wrap[\s\S]{0,400}?<div>([\s\S]*?)<\/div>/) || [])[1] || '';
+      cardInfo.set(id, {
+        dateLabel: decodeHtmlEntities(rawDates.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()),
+        image: (block.match(/data-src="(https?:\/\/[^"]+)"/) || block.match(/<img[^>]+src="(https?:\/\/[^"]+)"/) || [])[1] || null,
+      });
+    }
+
+    for (const s of sales) {
+      const type = YSN_SALE_TYPES[s.type];
+      if (!type) continue; // online sales (7) and any unknown future code
+      const lat = parseFloat(s.lat), lng = parseFloat(s.lon);
+      if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+
+      const distMi = parseFloat(distanceMiles(centerLat, centerLng, lat, lng).toFixed(1));
+      if (distMi > radiusMi) continue;
+
+      const info  = cardInfo.get(String(s.id)) || {};
+      const title = decodeHtmlEntities(s.title || '').trim();
+      // Withheld until the sale opens — fall back to the city, which is real.
+      const address = s.isHidden
+        ? (s.city ? `${s.city}, ${s.state_code}` : '')
+        : decodeHtmlEntities(s.address || '');
+      const px = pinXY(lat, lng, centerLat, centerLng, radiusMi);
+
+      results.push({
+        id:           `ysn-${s.id}`,
+        source:       'yardsalesnet',
+        type,
+        title:        title || 'Sale',
+        address,
+        neighborhood: s.city || city,
+        distanceMi:   distMi,
+        lat, lng,
+        dateLabel:    info.dateLabel || '',
+        timeLabel:    parseTimeFromText(title),
+        photoCount:   info.image ? 1 : 0,
+        images:       info.image ? [info.image] : [],
+        live:         false,
+        blurb:        '',
+        price:        '',
+        items:        extractItemTags(title),
+        url:          s.url ? `https://yardsales.net${s.url}` : '',
+        x:            Math.max(10, Math.min(90, px.x)),
+        y:            Math.max(10, Math.min(90, px.y)),
+      });
+    }
+
+    console.log(`  YSN done — ${results.length} listings`);
+  } catch (err) {
+    console.warn('  YSN error:', err.message);
+  }
+  toCache(cacheKey, results);
+  return results;
+}
+
 // ── Facebook Marketplace — Apify actor ───────────────────────────────────────
 // Actor: apify/facebook-marketplace-scraper. Its input is real Marketplace
 // search URLs (startUrls: [{url}]), not a free-text query/zip pair -- and its
@@ -3251,182 +3764,91 @@ async function fetchGoogleListings(zip) {
   return results;
 }
 
-/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review
-   feedback. Re-enable by removing this opening block-comment marker and
-   its matching closing one just before "Vintage store locator" below,
-   then restore the frontend entry point in index.html: the
-   PriceCheckScreen component, its Account -> Tools row, and the
-   page==='pricecheck' route. See memory file price-check-feature for
-   the accuracy work already done and where it was left off (CD-vs-vinyl
-   format disambiguation still unresolved -- Vision has no signal for it
-   on the tested photos).
+// ── Price Check (Claude vision) ─────────────────────────────────────────────
+// Identifies an item from a photo via Claude's vision, then asks Claude for a
+// resale value estimate from its own knowledge -- no live price search, so
+// results are an estimate, not quotes from real listings. Previously went
+// through Google Vision (identification) + Serper (live price search); see
+// memory file price-check-feature for that history, including the
+// CD-vs-vinyl identification problem this replacement is meant to fix --
+// Claude can read format cues (track listings, spine shape, printed text) in
+// the photo itself rather than relying on generic label detection.
 
-// ── Price Check (Google Vision + Serper) ────────────────────────────────────
-// Identifies an item from a photo via Vision API's Web Detection (the same
-// reverse-image-search tech behind Google Lens), then runs a real Google
-// search for that item via Serper (google.serper.dev) and pulls price
-// mentions out of the result snippets to build a high/low estimate with
-// cited sources. Google's own Custom Search JSON API is closed to new
-// customers as of 2026, hence the separate provider here -- identification
-// still goes through Vision/GOOGLE_API_KEY, only the price search moved.
+const ANTHROPIC_MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5';
+// Overridable for local testing against a local OmniRoute-style gateway
+// (speaks real Anthropic Messages format) instead of the real Anthropic API
+// -- lets this be tried out without a paid ANTHROPIC_API_KEY. Leave unset in
+// production.
+const ANTHROPIC_BASE_URL = process.env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com';
 
-const PRICE_RE = /\$\s?(\d{1,3}(?:,\d{3})*(?:\.\d{1,2})?)/g;
-
-function extractPrices(text) {
-  if (!text) return [];
-  const out = [];
-  let m;
-  PRICE_RE.lastIndex = 0;
-  while ((m = PRICE_RE.exec(text))) {
-    const n = parseFloat(m[1].replace(/,/g, ''));
-    // Sanity range -- filters out stray dollar amounts that are clearly not
-    // a resale price for a secondhand item (e.g. "$1 million" mentions).
-    if (Number.isFinite(n) && n >= 1 && n <= 50000) out.push(n);
-  }
-  return out;
-}
-
-async function identifyItemFromImage(base64Image) {
-  const key = process.env.GOOGLE_API_KEY;
-  const body = {
-    requests: [{
-      image: { content: base64Image },
-      features: [
-        { type: 'WEB_DETECTION', maxResults: 10 },
-        // 5 wasn't enough on a real test -- Vision's labels for a CD photo
-        // were all generic ("Publication", "Box", "Advertising") with
-        // nothing format-specific in the top 5; raised in case a useful
-        // one (e.g. "Compact disc") exists further down the ranked list.
-        { type: 'LABEL_DETECTION', maxResults: 15 },
-        { type: 'OBJECT_LOCALIZATION', maxResults: 15 },
-        { type: 'TEXT_DETECTION' },
-      ],
-    }],
-  };
-  const res = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${key}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+async function callClaude(messages, maxTokens) {
+  const key = process.env.ANTHROPIC_API_KEY;
+  const res = await fetch(`${ANTHROPIC_BASE_URL}/v1/messages`, {
+    method: 'POST',
+    headers: { 'x-api-key': key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' },
+    body: JSON.stringify({ model: ANTHROPIC_MODEL, max_tokens: maxTokens, messages }),
   });
   const data = await res.json();
-  if (!res.ok) throw new Error(data.error?.message || 'Vision API error');
-  const annotation = data.responses?.[0];
-  const web = annotation?.webDetection;
-  const bestGuess = web?.bestGuessLabels?.[0]?.label;
-  const webEntity = web?.webEntities?.find(e => e.description && e.score > 0.5)?.description;
-  const topLabel = annotation?.labelAnnotations?.[0]?.description;
-  const topObject = annotation?.localizedObjectAnnotations?.[0]?.name;
-  const allLabels = (annotation?.labelAnnotations || []).map(l => l.description);
-  const allObjects = (annotation?.localizedObjectAnnotations || []).map(o => o.name);
-  // Web Detection identifies "what famous thing does this look like",
-  // which for a CD or book tends to land on the artist/brand rather than
-  // the specific title -- printed titles on a CD/book/box are exact and
-  // right there, so read them directly instead of guessing from visual
-  // similarity. Takes the first two lines with at least 3 letters in a row
-  // (skips barcodes and stray 1-2 character noise), in Vision's reading
-  // order (roughly top-to-bottom) -- one line alone isn't enough: on a CD
-  // spine the band name is typically printed first/largest with the
-  // specific album title right below it (confirmed on a real photo: Vision
-  // correctly read "MINISTRY" / "'TWITCH'" as separate lines, but taking
-  // only the first line searched for the band alone and found unrelated
-  // "Ministry"-named books instead of that specific album). Quote
-  // characters are stripped since they're cover-art styling, not something
-  // a real listing's title would literally match against.
-  const ocrLines = (annotation?.textAnnotations?.[0]?.description || '').split('\n')
-    .map(s => s.trim().replace(/['"''""]/g, ''))
-    .filter(line => /[a-zA-Z]{3,}/.test(line));
-  const ocrText = ocrLines.slice(0, 2).join(' ') || undefined;
-  // webEntity is confidence-scored (score > 0.5, above); bestGuess has no
-  // exposed confidence at all and can be a fluent, totally wrong guess when
-  // the photo doesn't closely match anything Google has indexed (a plain
-  // CD, an unbranded item) -- prefer the scored signal, and only fall back
-  // to the unscored one when nothing scored survives.
-  const itemName = ocrText || webEntity || bestGuess || topLabel || topObject;
+  if (!res.ok) throw new Error(data.error?.message || 'Claude API error');
+  return data.content?.[0]?.text || '';
+}
+
+// Claude sometimes wraps JSON in a ```json fence despite being told not to --
+// strip it before parsing rather than trusting the instruction alone.
+function parseJsonResponse(text) {
+  const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
+  return JSON.parse(stripped);
+}
+
+async function identifyItemFromImage(base64Image, mediaType) {
+  const prompt = `Look at this photo of a secondhand item (from a yard sale, estate sale, or thrift store) and identify it as specifically as possible. Read any visible text on the item or its packaging -- an exact title/model read directly off the item is far more useful than a generic guess (e.g. the specific album and artist on a CD, not just "CD").
+
+Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName": string or null, "category": string or null}. "category" is a short physical-format word if identifiable (e.g. "vinyl record", "paperback book", "board game") -- this matters because the same title can have very different resale value in a different format. If you genuinely cannot identify the item, respond with {"itemName": null, "category": null}.`;
+
+  const text = await callClaude([{
+    role: 'user',
+    content: [
+      { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image } },
+      { type: 'text', text: prompt },
+    ],
+  }], 300);
+
+  let parsed;
+  try { parsed = parseJsonResponse(text); } catch { parsed = {}; }
+  const { itemName, category } = parsed;
   if (!itemName) throw new Error("Couldn't identify this item from the photo -- try a clearer or closer shot.");
 
-  // Web Detection (bestGuess/webEntity) works by reverse-image visual
-  // matching, which can confidently latch onto an unrelated famous
-  // brand/entity that just happens to look visually similar -- a plain CD
-  // once came back "Twitch", presumably on nothing more than a color/layout
-  // coincidence. Label/Object detection instead recognize concrete physical
-  // categories ("CD", "Publication") and don't share that failure mode.
-  // Handed to searchItemPrices as supporting context alongside itemName,
-  // not merged into it here -- see there for why.
-  //
-  // The single top label/object is frequently too generic to be useful --
-  // a real CD photo's top label came back "Publication", which doesn't
-  // distinguish it from a vinyl pressing of the same album (different
-  // resale value) any better than no category at all. Vision returns up
-  // to 5 labels; scan all of them (objects first -- Object Localization
-  // targets concrete physical types, Label Detection is broader) for a
-  // known physical-media/format word before falling back to whichever
-  // ranked first.
-  // Also scanned against the *full* OCR block, not just the two lines used
-  // for itemName -- physical media routinely prints its format outright
-  // ("COMPACT DISC", near a barcode, on a spine) even when Vision's own
-  // labels stay generic. Word-boundary matching, not a plain substring
-  // check: "record" bare would also match inside "recorded"/"recording",
-  // which show up constantly in the kind of liner-note/credits text OCR
-  // picks up off real packaging.
-  const FORMAT_WORDS = ['compact disc', 'cd', 'vinyl', 'record', 'dvd', 'blu-ray', 'cassette', 'hardcover', 'paperback', 'book', 'board game', 'video game'];
-  const escapeRe = s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const formatHaystack = [...allObjects, ...allLabels, annotation?.textAnnotations?.[0]?.description || ''].join(' ');
-  const specificFormat = FORMAT_WORDS.find(w => new RegExp(`\\b${escapeRe(w)}\\b`, 'i').test(formatHaystack));
-  const category = specificFormat || topObject || topLabel;
-
-  console.log(`Price Check identification -- ocrText=${JSON.stringify(ocrText)} webEntity=${JSON.stringify(webEntity)} bestGuess=${JSON.stringify(bestGuess)} allLabels=${JSON.stringify(allLabels)} allObjects=${JSON.stringify(allObjects)} -> itemName="${itemName}" category="${category}"`);
+  console.log(`Price Check identification -> itemName="${itemName}" category="${category}"`);
   return { itemName, category };
 }
 
-// Resale/secondhand marketplaces, biased toward estate-sale-typical items
-// (furniture, antiques, collectibles) rather than general retail -- a plain
-// "{item} price" search mostly surfaces new-retail listings and unrelated
-// products that happen to share a name, neither of which reflects what a
-// used item actually sells for.
-const RESALE_SITES = ['ebay.com', 'etsy.com', 'worthpoint.com', 'rubylane.com'];
+async function estimateItemValue(itemName, category) {
+  const categoryPart = category ? ` (${category})` : '';
+  const prompt = `Estimate a realistic secondhand resale price range in USD for this item: "${itemName}"${categoryPart}. Base this on typical resale prices for this kind of item on marketplaces like eBay, Etsy, Mercari, and similar secondhand/collectibles markets, assuming used/good condition unless the name implies otherwise.
 
-async function searchItemPrices(itemName, category) {
-  const key = process.env.SERPER_API_KEY;
-  const siteFilter = RESALE_SITES.map(s => `site:${s}`).join(' OR ');
-  // Quoting itemName forces an exact-phrase match instead of Google loosely
-  // matching its individual words across unrelated pages -- category stays
-  // unquoted supporting context, not folded into the quoted phrase, since
-  // "{name} {category}" is our own construction and won't literally appear
-  // as an adjacent phrase on a real page even when the identification is
-  // otherwise correct.
-  const categoryPart = (category && !itemName.toLowerCase().includes(category.toLowerCase())) ? ` ${category}` : '';
-  const q = `"${itemName}"${categoryPart} used price (${siteFilter})`;
-  const res = await fetch('https://google.serper.dev/search', {
-    method: 'POST',
-    headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ q }),
-  });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.message || 'Search API error');
-  const sources = [];
-  // Trust Serper's own relevance ranking -- a result ranked 8th or 9th
-  // sharing just a stray word with the query is far more likely to be
-  // noise than a genuine match, so only the top few feed the price range.
-  for (const item of (data.organic || []).slice(0, 5)) {
-    const prices = extractPrices(`${item.title} ${item.snippet || ''}`);
-    if (prices.length) sources.push({ title: item.title, url: item.link, price: prices[0] });
-  }
-  return sources;
+Respond with ONLY a JSON object, no markdown fences, no other text: {"low": number or null, "high": number or null, "reasoning": string}. "reasoning" is one short sentence explaining the basis for the estimate (condition/edition assumptions, or why you couldn't estimate it). If you have no reasonable basis to estimate a price, set low and high to null and explain why in "reasoning".`;
+
+  const text = await callClaude([{ role: 'user', content: prompt }], 300);
+  try { return parseJsonResponse(text); } catch { throw new Error("Couldn't parse a price estimate -- try again."); }
 }
 
-// POST /api/identify-item  { image: base64 (with or without data: prefix) }
+// POST /api/identify-item  { image: base64 data URL }
 // Split from /api/price-check so the app can show the guessed name and let
-// the user correct it before spending a Serper query on a search -- auto
+// the user correct it before spending a call on an estimate -- auto
 // identification is good but not perfect (a CD's specific title vs. just
 // recognizing the band, for example), and there's no fixing that after the
-// fact once a search already ran on the wrong name.
+// fact once an estimate already ran on the wrong name.
 app.post('/api/identify-item', async (req, res) => {
-  if (!process.env.GOOGLE_API_KEY) {
-    return res.status(503).json({ error: "Price Check isn't set up yet — add GOOGLE_API_KEY in the server environment." });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "Price Check isn't set up yet — add ANTHROPIC_API_KEY in the server environment." });
   }
-  const image = (req.body.image || '').replace(/^data:image\/\w+;base64,/, '');
+  const match = /^data:image\/(\w+);base64,(.+)$/.exec(req.body.image || '');
+  const image = match ? match[2] : (req.body.image || '');
+  const mediaType = match ? `image/${match[1]}` : 'image/jpeg';
   if (!image) return res.status(400).json({ error: 'No photo provided' });
 
   try {
-    const { itemName, category } = await identifyItemFromImage(image);
+    const { itemName, category } = await identifyItemFromImage(image, mediaType);
     res.json({ itemName, category });
   } catch (err) {
     console.error('Identify item error:', err.message);
@@ -3436,24 +3858,21 @@ app.post('/api/identify-item', async (req, res) => {
 
 // POST /api/price-check  { itemName: string, category?: string }
 app.post('/api/price-check', async (req, res) => {
-  if (!process.env.SERPER_API_KEY) {
-    return res.status(503).json({ error: "Price Check isn't set up yet — add SERPER_API_KEY in the server environment." });
+  if (!process.env.ANTHROPIC_API_KEY) {
+    return res.status(503).json({ error: "Price Check isn't set up yet — add ANTHROPIC_API_KEY in the server environment." });
   }
   const itemName = (req.body.itemName || '').trim();
   if (!itemName) return res.status(400).json({ error: 'No item name provided' });
   const category = req.body.category || null;
 
   try {
-    const sources = await searchItemPrices(itemName, category);
-    if (!sources.length) return res.json({ itemName, low: null, high: null, sources: [] });
-    const prices = sources.map(s => s.price);
-    res.json({ itemName, low: Math.min(...prices), high: Math.max(...prices), sources: sources.slice(0, 8) });
+    const { low, high, reasoning } = await estimateItemValue(itemName, category);
+    res.json({ itemName, low: low ?? null, high: high ?? null, reasoning: reasoning ?? null });
   } catch (err) {
     console.error('Price Check error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
-*/
 
 // ── Vintage store locator (Google Places API) ──────────────────────────────
 // Google has no "thrift_store" / "antique_store" place type, so this leans on
@@ -3641,8 +4060,9 @@ function addressKey(address) {
 // sites first (stable pages, real addresses), generic marketplaces last.
 const SOURCE_RANK = {
   estatesales: 1, estatesalesnet: 2, estatesalecom: 3, gsalr: 4,
-  yardsalesearch: 5, garagesalefinder: 6, craigslist: 7, offerup: 8, nextdoor: 9,
-  facebook: 10, google: 11,
+  yardsalesnet: 5, yardsalesearch: 6, garagesalefinder: 7, auctionninja: 8,
+  craigslist: 9, offerup: 10, nextdoor: 11, varagesale: 12, facebook: 13,
+  google: 14,
 };
 const sourceRank = s => SOURCE_RANK[s] || 99;
 
@@ -3741,7 +4161,17 @@ function dedupeListings(listings) {
   }
 
   return groups.map(g => {
-    if (g.members.length === 1) return g.members[0];
+    // Even a non-duplicate (single-member) listing can carry a stale
+    // photoCount from an earlier, optimistic estimate in whichever scraper
+    // produced it (e.g. "this source usually has a photo" before the real
+    // detail fetch ran) -- normalize here too, not just in the multi-member
+    // merge below, so a listing whose actual source turned out to have no
+    // (or fewer) photos than first guessed doesn't show empty gallery slots.
+    if (g.members.length === 1) {
+      const only = g.members[0];
+      const realCount = only.images?.length || 0;
+      return only.photoCount === realCount ? only : { ...only, photoCount: realCount };
+    }
 
     // Deterministic primary (best-trusted source, then smallest id) so a
     // saved sale keeps the same id run to run regardless of which copies a
@@ -3758,8 +4188,13 @@ function dedupeListings(listings) {
     // a separately-tracked "true" total -- so the badge can never promise
     // more photos than the gallery actually holds (confirmed live: a listing
     // with hundreds of real photos showed a count far bigger than its capped
-    // gallery, reading as "photos missing").
-    if (richest.images?.length) { out.images = richest.images; out.photoCount = richest.images.length; }
+    // gallery, reading as "photos missing"). Unconditional, not just when
+    // richest has more than primary -- if every member in the group turned
+    // out to have zero real images, out.photoCount must drop to 0 too
+    // instead of keeping whatever primary's (possibly stale/optimistic)
+    // photoCount was from the initial spread above.
+    out.images = richest.images || [];
+    out.photoCount = out.images.length;
 
     const hasStreet = a => a && /\d/.test(a) && a !== 'Nearby';
     for (const m of g.members) {
@@ -3807,9 +4242,9 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   // straggler can't hold up the other nine.
   const CEILING_MS = 15000;
   const timed = (label, p) => { const t0 = Date.now(); return withCeiling(p, CEILING_MS, label).then(v => { console.log(`  [timing] ${label}: ${Date.now()-t0}ms`); return v; }); };
-  const [clListings, ouListings, esListings, fbListings, googleListings,
-         esnListings, yssListings, gsfListings, gsalrListings, escListings, ndListings] = await Promise.allSettled([
-    timed('CL', scrapeCraigslist(zip, radiusMi, center.lat, center.lng)),
+  const [ouListings, esListings, fbListings, googleListings,
+         esnListings, yssListings, gsfListings, gsalrListings, escListings, ndListings,
+         anListings, vsListings, ysnListings] = await Promise.allSettled([
     timed('OU', scrapeOfferUp(zip, radiusMi, center.lat, center.lng)),
     timed('ES', scrapeEstateSales(zip, radiusMi, center.lat, center.lng)),
     timed('FB', scrapeFacebookMarketplace(zip, radiusMi, center.lat, center.lng)),
@@ -3820,34 +4255,43 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
     timed('GSALR', scrapeGsalr(zip, radiusMi, center.lat, center.lng)),
     timed('ESC', scrapeEstateSaleCom(zip, radiusMi, center.lat, center.lng)),
     timed('ND', scrapeNextdoor(zip, radiusMi, center.lat, center.lng)),
+    timed('AN', scrapeAuctionNinja(zip, radiusMi, center.lat, center.lng)),
+    timed('VS', scrapeVarageSale(zip, radiusMi, center.lat, center.lng)),
+    timed('YSN', scrapeYardSalesNet(zip, radiusMi, center.lat, center.lng)),
   ]).then(results => results.map(r => r.status === 'fulfilled' ? r.value : []));
 
   // Dedicated sale-listing platforms (EstateSales.org, EstateSales.net,
-  // YardSaleSearch, GarageSaleFinder, GSALR, EstateSale.com) are exempt from
-  // the title filter — their whole category is estate/yard sales by
-  // definition, so filtering by title would only create false negatives.
-  // Generic marketplaces (Craigslist, OfferUp, Facebook, Google, Nextdoor)
-  // still need it -- Nextdoor's "garage-sales" category also carries plain
-  // single-item give-away posts alongside real sale events.
+  // YardSaleSearch, YardSales.net, GarageSaleFinder, GSALR, EstateSale.com,
+  // AuctionNinja) are exempt from the title filter — their whole category is
+  // estate/yard sales by definition, so filtering by title would only
+  // create false negatives. Generic marketplaces (OfferUp, Facebook,
+  // Google, Nextdoor) still need it -- Nextdoor's "garage-sales" category
+  // also carries plain single-item give-away posts alongside real sale
+  // events. VarageSale is also exempt here -- not because its category is
+  // sale-only (it isn't, it's a general marketplace like OfferUp), but
+  // because scrapeVarageSale already applies this exact same SALE_EVENT_RE
+  // filter internally, before its (more expensive) address-extraction
+  // step -- re-filtering here would be redundant, not wrong.
   const onlySaleEvents = list => list.filter(l => SALE_EVENT_RE.test(l.title || ''));
-  const clKept = onlySaleEvents(clListings);
   const ouKept = onlySaleEvents(ouListings);
   const fbKept = onlySaleEvents(fbListings);
   const gKept  = onlySaleEvents(googleListings);
   const ndKept = onlySaleEvents(ndListings);
 
-  const combined = [...clKept, ...ouKept, ...esListings, ...fbKept, ...gKept,
-                    ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings, ...ndKept]
-    .map(l => ({ ...l, title: decodeHtmlEntities(l.title), address: decodeHtmlEntities(l.address), neighborhood: decodeHtmlEntities(l.neighborhood) }));
+  const combined = [...ouKept, ...esListings, ...fbKept, ...gKept,
+                    ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings, ...ndKept, ...anListings, ...vsListings, ...ysnListings]
+    // blurb is decoded here too — it is rendered as prose in the UI, so a raw
+    // "&hellip;" or "&amp;" shows up verbatim the same way it would in a title.
+    .map(l => ({ ...l, title: decodeHtmlEntities(l.title), address: decodeHtmlEntities(l.address), neighborhood: decodeHtmlEntities(l.neighborhood), blurb: decodeHtmlEntities(l.blurb) }));
 
   // EstateSales.org, EstateSales.net, YardSaleSearch, GarageSaleFinder, and
   // GSALR often share the same underlying estate-sale syndication feed, so the
   // exact same physical sale comes back from several of them at once — each
   // with its own title wording, its own slightly-off geocode, and a different
-  // subset of photos/dates. Craigslist cross-posts and our two EstateSales
-  // code paths add still more copies. dedupeListings collapses all of that to
-  // one card, keeping the richest fields across the duplicates. See the helper
-  // for how it decides two listings are the same sale.
+  // subset of photos/dates. Our two EstateSales code paths add still more
+  // copies. dedupeListings collapses all of that to one card, keeping the
+  // richest fields across the duplicates. See the helper for how it decides
+  // two listings are the same sale.
   const all = dedupeListings(combined);
   for (const listing of all) {
     if (listing.images?.length) listing.images = listing.images.map(upgradeSmallThumbUrl);
@@ -3864,7 +4308,7 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
     if (distMi <= radiusMi) all.push(hydrateUserListing(rec, center.lat, center.lng, radiusMi));
   }
 
-  console.log(`Total: ${all.length} (deduped from ${combined.length}) — CL=${clKept.length}/${clListings.length} OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length} USER=${userRecs.length}`);
+  console.log(`Total: ${all.length} (deduped from ${combined.length}) — OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length} AN=${anListings.length} VS=${vsListings.length} YSN=${ysnListings.length} USER=${userRecs.length}`);
 
   toCache(cacheKey, all);
   return all;
@@ -4981,6 +5425,5 @@ app.listen(PORT, () => {
   console.log(`   Health:   /api/health`);
   console.log(`   Chrome:   ${CHROME_PATH}`);
   console.log(`   Google:   ${process.env.GOOGLE_API_KEY ? 'configured ✓' : 'not configured (optional)'}\n`);
-  // Price Check (Serper) is disabled -- see the block comment around it in this file.
-  // console.log(`   Serper:   ${process.env.SERPER_API_KEY ? 'configured ✓' : 'not configured (optional -- Price Check needs it)'}\n`);
+  console.log(`   Claude:   ${process.env.ANTHROPIC_API_KEY ? 'configured ✓' : 'not configured (optional -- Price Check needs it)'}\n`);
 });
