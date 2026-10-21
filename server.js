@@ -51,6 +51,10 @@ const fs        = require('fs');
 const crypto    = require('crypto');
 
 const app  = express();
+// Render sits behind a reverse proxy — without this, req.ip is always the
+// proxy's own address, which would make the Price Check rate limit below
+// (keyed by IP) limit everyone as one shared bucket instead of per visitor.
+app.set('trust proxy', true);
 const PORT = process.env.PORT || 8080;
 // Email images need absolute URLs (unlike the app's own relative /api/img
 // calls), so digest emails need to know their own public origin to build them.
@@ -3800,15 +3804,24 @@ function parseJsonResponse(text) {
   return JSON.parse(stripped);
 }
 
-async function identifyItemFromImage(base64Image, mediaType) {
-  const prompt = `Look at this photo of a secondhand item (from a yard sale, estate sale, or thrift store) and identify it as specifically as possible. Read any visible text on the item or its packaging -- an exact title/model read directly off the item is far more useful than a generic guess (e.g. the specific album and artist on a CD, not just "CD").
+// `images`: [{ data: base64string, mediaType: 'image/jpeg' }, ...], 1-2
+// entries. A second photo (the client's "Multi Mode") is a close-up of a
+// mark, label or signature the first photo doesn't resolve clearly --
+// mentioned explicitly in the prompt when present so Claude knows what it's
+// for rather than treating it as a second, unrelated item.
+async function identifyItemFromImage(images) {
+  const prompt = images.length > 1
+    ? `Look at these two photos of a secondhand item (from a yard sale, estate sale, or thrift store). The first shows the item itself; the second is a close-up of an identifying mark, label, or signature on it. Identify the item as specifically as possible, using the close-up to read any text, maker's mark, or signature the first photo doesn't show clearly.
+
+Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName": string or null, "category": string or null}. "category" is a short physical-format word if identifiable (e.g. "vinyl record", "paperback book", "board game") -- this matters because the same title can have very different resale value in a different format. If you genuinely cannot identify the item, respond with {"itemName": null, "category": null}.`
+    : `Look at this photo of a secondhand item (from a yard sale, estate sale, or thrift store) and identify it as specifically as possible. Read any visible text on the item or its packaging -- an exact title/model read directly off the item is far more useful than a generic guess (e.g. the specific album and artist on a CD, not just "CD").
 
 Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName": string or null, "category": string or null}. "category" is a short physical-format word if identifiable (e.g. "vinyl record", "paperback book", "board game") -- this matters because the same title can have very different resale value in a different format. If you genuinely cannot identify the item, respond with {"itemName": null, "category": null}.`;
 
   const text = await callClaude([{
     role: 'user',
     content: [
-      { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64Image } },
+      ...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })),
       { type: 'text', text: prompt },
     ],
   }], 300);
@@ -3832,23 +3845,57 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"low": numb
   try { return parseJsonResponse(text); } catch { throw new Error("Couldn't parse a price estimate -- try again."); }
 }
 
-// POST /api/identify-item  { image: base64 data URL }
+// There's no billing gate on this feature yet (the client app's own paywall
+// is a stub -- see the clone app's replica/thriftai/architecture.md), so an
+// unlimited free endpoint in front of a real, metered ANTHROPIC_API_KEY
+// would be an unbounded cost. Per-IP, resets hourly, shared across both
+// routes below since both spend a real Claude call. In-memory only -- fine
+// for a single Render instance, would need a shared store (Upstash, already
+// a dependency for the digest subscriber list) if this ever runs on more
+// than one.
+const PRICE_CHECK_LIMIT_PER_HOUR = 20;
+const PRICE_CHECK_WINDOW_MS = 60 * 60 * 1000;
+const priceCheckCounts = new Map(); // ip -> { count, resetAt }
+
+function priceCheckRateLimit(req, res, next) {
+  const ip = req.ip || req.socket.remoteAddress || 'unknown';
+  const now = Date.now();
+  const entry = priceCheckCounts.get(ip);
+  if (!entry || now > entry.resetAt) {
+    priceCheckCounts.set(ip, { count: 1, resetAt: now + PRICE_CHECK_WINDOW_MS });
+    return next();
+  }
+  if (entry.count >= PRICE_CHECK_LIMIT_PER_HOUR) {
+    const retryInMin = Math.max(1, Math.ceil((entry.resetAt - now) / 60000));
+    return res.status(429).json({ error: `Too many scans for now — try again in about ${retryInMin} minute${retryInMin === 1 ? '' : 's'}.` });
+  }
+  entry.count += 1;
+  next();
+}
+
+// POST /api/identify-item  { image: base64 data URL } or { images: [base64 data URL, ...] }
 // Split from /api/price-check so the app can show the guessed name and let
 // the user correct it before spending a call on an estimate -- auto
 // identification is good but not perfect (a CD's specific title vs. just
 // recognizing the band, for example), and there's no fixing that after the
 // fact once an estimate already ran on the wrong name.
-app.post('/api/identify-item', async (req, res) => {
+//
+// `images` (plural) is the newer, "Multi Mode" shape -- up to 2 photos, the
+// second a close-up mark/signature. `image` (singular) still works for the
+// original one-photo call.
+app.post('/api/identify-item', priceCheckRateLimit, async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: "Price Check isn't set up yet — add ANTHROPIC_API_KEY in the server environment." });
   }
-  const match = /^data:image\/(\w+);base64,(.+)$/.exec(req.body.image || '');
-  const image = match ? match[2] : (req.body.image || '');
-  const mediaType = match ? `image/${match[1]}` : 'image/jpeg';
-  if (!image) return res.status(400).json({ error: 'No photo provided' });
+  const rawImages = Array.isArray(req.body.images) ? req.body.images : [req.body.image];
+  const images = rawImages.filter(Boolean).slice(0, 2).map(raw => {
+    const match = /^data:image\/(\w+);base64,(.+)$/.exec(raw);
+    return { data: match ? match[2] : raw, mediaType: match ? `image/${match[1]}` : 'image/jpeg' };
+  });
+  if (images.length === 0) return res.status(400).json({ error: 'No photo provided' });
 
   try {
-    const { itemName, category } = await identifyItemFromImage(image, mediaType);
+    const { itemName, category } = await identifyItemFromImage(images);
     res.json({ itemName, category });
   } catch (err) {
     console.error('Identify item error:', err.message);
@@ -3857,7 +3904,7 @@ app.post('/api/identify-item', async (req, res) => {
 });
 
 // POST /api/price-check  { itemName: string, category?: string }
-app.post('/api/price-check', async (req, res) => {
+app.post('/api/price-check', priceCheckRateLimit, async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: "Price Check isn't set up yet — add ANTHROPIC_API_KEY in the server environment." });
   }
