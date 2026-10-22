@@ -471,12 +471,16 @@ const LA_NEIGHBORHOODS = {
 };
 
 // Some estate-sale companies upload hundreds of item photos to a single sale
-// (a full-house liquidation can genuinely have 500+) -- fine for correctness,
-// but holding that many detail-page fetches/arrays in memory at once across
-// ten concurrent scrapers pushed the free-tier 512MB instance into repeated
-// OOM crash loops. Cap what any one listing keeps; still a rich gallery, just
-// not an unbounded one.
-const MAX_LISTING_PHOTOS = 40;
+// (a full-house liquidation can genuinely have 500+; a real EstateSales.net
+// listing was seen with 261). The original OOM crash loop this cap was added
+// for was about simultaneous thumbnail fetch/convert load on the free-tier
+// instance, not the URL arrays themselves (plain strings, a few hundred
+// bytes each even at 500 of them) -- and that load is already bounded
+// independently by imgProxyGate below, which caps /api/img to 8 concurrent
+// conversions regardless of how many photos a listing has. Raised from the
+// original 40 to 100: covers nearly every real listing seen so far, with
+// the actual memory risk still capped by the gate, not this number.
+const MAX_LISTING_PHOTOS = 100;
 const capPhotos = arr => (arr && arr.length > MAX_LISTING_PHOTOS) ? arr.slice(0, MAX_LISTING_PHOTOS) : arr;
 
 // EstateSales.org's Apify feed, YardSaleSearch's search-result fallback, and
@@ -1080,10 +1084,12 @@ function createGate(max) {
 // (confirmed live: 77 listings dropped to 17). 4 leaves just enough room for
 // one other scraper's tab alongside OU's three.
 const pageGate = createGate(4);
-// A sale-detail page can have up to MAX_LISTING_PHOTOS (40) thumbnails, each
-// hitting /api/img at once -- capped separately from pageGate (lighter work,
-// no real browser page) so one detail-page view can't pile up 40 simultaneous
-// upstream fetches + sharp conversions on the free-tier instance.
+// A sale-detail page can have up to MAX_LISTING_PHOTOS (100) thumbnails,
+// each hitting /api/img at once -- capped separately from pageGate (lighter
+// work, no real browser page) so one detail-page view can't pile up 100
+// simultaneous upstream fetches + sharp conversions on the free-tier
+// instance. This is the gate that actually keeps that load safe regardless
+// of MAX_LISTING_PHOTOS -- see that constant's own comment.
 const imgProxyGate = createGate(8);
 
 async function getBrowser() {
