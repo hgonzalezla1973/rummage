@@ -4439,6 +4439,7 @@ app.get('/api/health', (_req, res) => {
     smsConfigured: !!(process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER),
     smsMissing: ['TWILIO_ACCOUNT_SID','TWILIO_AUTH_TOKEN','TWILIO_PHONE_NUMBER'].filter(k => !process.env[k]),
     emailConfigured: !!process.env.RESEND_API_KEY,
+    anthropicConfigured: !!process.env.ANTHROPIC_API_KEY,
   });
 });
 
