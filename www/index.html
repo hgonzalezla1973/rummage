@@ -836,17 +836,29 @@ function RealMap({ sales, selectedId, onSelect, centerLat, centerLng, zoom=13, i
 }
 
 // ── Sale card ─────────────────────────────────────────────────────────────────
-function proxyImgUrl(url) {
+// Caps how big a resize request we'll ever ask the proxy for -- matches the
+// server's own cap (see /api/img in server.js) so retina devices don't quietly
+// fall back to requesting the full original for a value this just clamps anyway.
+const PROXY_IMG_MAX = 1200;
+const DEVICE_PIXEL_RATIO = (typeof window !== 'undefined' && window.devicePixelRatio) ? Math.min(window.devicePixelRatio, 2.5) : 1;
+
+function proxyImgUrl(url, w, h) {
   try {
-    const h = new URL(url).hostname;
-    if (h === 'estatesales.org' || h.endsWith('.estatesales.org') ||
-        h === 'estatesales.net' || h.endsWith('.estatesales.net') ||
-        h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
-        h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
-        h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
-        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com') ||
-        h.endsWith('.nextdoor.com') || h === 'nextdoor.com')
-      return `${API_BASE}/api/img?url=${encodeURIComponent(url)}`;
+    const h2 = new URL(url).hostname;
+    if (h2 === 'estatesales.org' || h2.endsWith('.estatesales.org') ||
+        h2 === 'estatesales.net' || h2.endsWith('.estatesales.net') ||
+        h2.endsWith('.amazonaws.com') || h2.endsWith('.cloudfront.net') ||
+        h2.endsWith('.imgix.net') || h2.endsWith('.tlcdn.workers.dev') || h2 === 'eso-cdn.tlcdn.workers.dev' ||
+        h2 === 'images.craigslist.org' || h2 === 'maps.geoapify.com' ||
+        h2.endsWith('.fbcdn.net') || h2 === 'fbcdn.net' || h2.endsWith('.facebook.com') ||
+        h2.endsWith('.nextdoor.com') || h2 === 'nextdoor.com') {
+      let out = `${API_BASE}/api/img?url=${encodeURIComponent(url)}`;
+      // fit=noup tells the proxy not to upscale a smaller original past its
+      // own resolution -- preserves SaleImg's undersized-photo detection
+      // (see its own comment) instead of masking it behind a forced upscale.
+      if (w && h) out += `&w=${Math.min(PROXY_IMG_MAX, Math.round(w))}&h=${Math.min(PROXY_IMG_MAX, Math.round(h))}&fit=noup`;
+      return out;
+    }
   } catch(_) {}
   return url;
 }
@@ -916,10 +928,19 @@ function SaleImg({ src, height, width, style, type, blurb, title, lat, lng, id }
     if (lat != null && lng != null) return <MapPlaceholder height={height} width={width} lat={lat} lng={lng} type={type} id={id} />;
     return <PhotoPlaceholder height={height} type={type} blurb={blurb} title={title} />;
   }
+  // Fixed-pixel boxes (thumbnail strip, card thumbs) ask the proxy to resize
+  // server-side instead of pulling the full original just to shrink it with
+  // CSS -- a 62px thumbnail doesn't need a multi-megabyte source photo. Fluid
+  // "100%" boxes (the full-bleed hero slide) skip resizing since we don't know
+  // the real rendered width here, and that one's worth keeping full quality.
+  const px = v => typeof v === 'number' ? v : null;
+  const sizeW = px(width) || px(height);
+  const sizeH = px(height) || px(width);
+  const [proxyW, proxyH] = sizeW ? [sizeW * DEVICE_PIXEL_RATIO, sizeH * DEVICE_PIXEL_RATIO] : [0, 0];
   return (
     <div ref={wrapRef} style={{ width: width || '100%', height, overflow:'hidden', background: undersized ? 'var(--surface-sunken)' : 'transparent', ...style }}>
       <img
-        src={proxyImgUrl(src)}
+        src={proxyImgUrl(src, proxyW, proxyH)}
         onError={() => setFailed(true)}
         onLoad={e => {
           const box = wrapRef.current?.getBoundingClientRect();
@@ -2404,7 +2425,7 @@ function TermsScreen({ onBack }) {
         </Section>
 
         <Section title="Sale listings aren't verified">
-          Rummage aggregates listings from third-party sources (Craigslist, OfferUp, EstateSales.org, and others) in addition to sales users list directly. We don't inspect, verify, or endorse any listing. Use your own judgment when visiting a sale or contacting a seller.
+          Rummage aggregates listings from third-party sources (OfferUp, EstateSales.org, Facebook Marketplace, and others) in addition to sales users list directly. We don't inspect, verify, or endorse any listing. Use your own judgment when visiting a sale or contacting a seller.
         </Section>
 
         <Section title="No warranty">
@@ -2480,13 +2501,6 @@ function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
   });
 }
 
-/* DISABLED 2026-08-27 -- shelved to focus on Apple App Store review feedback.
-   Re-enable by removing this opening comment marker and its matching
-   closing one just before "Vintage Stores" below, then restore the
-   Account > Tools entry point and the page==='pricecheck' route further
-   down this file. See memory file price-check-feature for the accuracy
-   work already done and where it was left off.
-
 // ── Price Check ───────────────────────────────────────────────────────────────
 function PriceCheckScreen({ onBack }) {
   const [photo, setPhoto]           = useState(null); // data URL, downscaled
@@ -2548,7 +2562,7 @@ function PriceCheckScreen({ onBack }) {
         {!photo && (
           <>
             <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',lineHeight:1.5,margin:0}}>
-              Snap or upload a photo of an item — Rummage identifies it and estimates a value range from real prices found across the web.
+              Snap or upload a photo of an item — Rummage identifies it and gives you an AI-estimated resale value range.
             </p>
             <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={onFilePicked} />
             <button type="button" onClick={()=>fileInputRef.current?.click()} style={{
@@ -2593,8 +2607,12 @@ function PriceCheckScreen({ onBack }) {
         )}
 
         {photo && !identifying && itemName && !result && (
+          // flex:'none' overrides Btn's own flex:1 (meant for filling a row
+          // next to a sibling button) -- inside this screen's vertical
+          // scrolling column it would otherwise stretch to fill all the
+          // leftover height instead of sizing to its own content.
           <Btn variant="primary" size="lg" fullWidth onClick={checkValue}
-            style={{opacity:checking?.6:1,pointerEvents:checking?'none':'auto'}}
+            style={{flex:'none',opacity:checking?.6:1,pointerEvents:checking?'none':'auto'}}
             leadingIcon={checking?Icon('Loader',18,{stroke:'#fff'}):Icon('Search',18)}>
             {checking ? 'Checking value…' : 'Check Value'}
           </Btn>
@@ -2615,34 +2633,20 @@ function PriceCheckScreen({ onBack }) {
               )}
             </div>
 
-            {result.sources?.length > 0 && (
-              <div>
-                <div className="rmg-eyebrow" style={{marginBottom:8}}>Sources</div>
-                <Card padded={false}>
-                  {result.sources.map((s,i) => (
-                    <a key={i} href={s.url} target="_blank" rel="noopener noreferrer" style={{
-                      display:'flex',alignItems:'center',gap:10,padding:'12px 14px',textDecoration:'none',
-                      borderTop: i>0 ? '1px solid var(--line)' : 'none',
-                    }}>
-                      <div style={{flex:1,minWidth:0}}>
-                        <div style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:13,color:'var(--text-primary)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{s.title}</div>
-                        <div style={{fontFamily:'var(--font-mono)',fontSize:11,color:'var(--text-faint)',marginTop:1,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{new URL(s.url).hostname.replace(/^www\./,'')}</div>
-                      </div>
-                      <div style={{fontFamily:'var(--font-mono)',fontWeight:700,fontSize:14,color:'var(--secondary)',flexShrink:0}}>${s.price}</div>
-                    </a>
-                  ))}
-                </Card>
+            {result.reasoning && (
+              <div style={{display:'flex',alignItems:'flex-start',gap:10,background:'var(--surface-sunken)',borderRadius:'var(--radius-lg)',padding:'12px 14px'}}>
+                {Icon('Info',16,{stroke:'var(--text-faint)'})}
+                <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.5}}>{result.reasoning}</span>
               </div>
             )}
 
-            <Btn variant="ghost" size="lg" fullWidth leadingIcon={Icon('RotateCcw',16)} onClick={reset}>Check another item</Btn>
+            <Btn variant="ghost" size="lg" fullWidth style={{flex:'none'}} leadingIcon={Icon('RotateCcw',16)} onClick={reset}>Check another item</Btn>
           </>
         )}
       </div>
     </div>
   );
 }
-*/
 
 // ── Vintage Stores ────────────────────────────────────────────────────────────
 function VintageStoreCard({ store, inTrip, onToggleTrip }) {
@@ -3030,13 +3034,10 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
 
         {/* Vintage Stores access moved to the Explore screen's "Thrift Stores"
             chip, so its Account entry was removed. */}
-        {/* Price Check disabled 2026-08-27 -- see the block comment around
-            PriceCheckScreen for why and how to re-enable.
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Tools</div>
         <Card padded={false}>
           <ListRow first icon={Icon('Camera',18)} label="Price Check" sublabel="Snap a photo, get an estimated value" trailing={chev} onClick={()=>setPage('pricecheck')} />
         </Card>
-        */}
 
         {/* Support */}
         <div className="rmg-eyebrow" style={{padding:'0 4px 8px',marginTop:22}}>Support</div>
@@ -3203,9 +3204,7 @@ function AccountScreen({ radiusMi, setRadiusMi, zip, setZip, authUser, onSignOut
       {page==='feedback' && <FeedbackScreen onBack={()=>setPage(null)} userEmail={authUser?.email} />}
       {page==='terms'    && <TermsScreen    onBack={()=>setPage(null)} />}
       {page==='privacy'  && <PrivacyScreen  onBack={()=>setPage(null)} />}
-      {/* Price Check disabled 2026-08-27, see PriceCheckScreen's block comment.
       {page==='pricecheck' && <PriceCheckScreen onBack={()=>setPage(null)} />}
-      */}
       {page==='vintagestores' && <VintageStoresScreen onBack={()=>setPage(null)} zip={zip} tripIds={tripIds} onToggleTrip={onToggleTrip} onStoresLoaded={onStoresLoaded} />}
       {digestToast && (
         <div style={{position:'fixed',bottom:100,left:16,right:16,background:'var(--ink-900)',color:'#fff',borderRadius:'var(--radius-xl)',padding:'14px 18px',fontWeight:600,fontSize:14,textAlign:'center',boxShadow:'var(--shadow-lg)',zIndex:100}}>
@@ -3526,7 +3525,7 @@ function TripPlannerPanel({ allSales, tripIds, onToggleTrip, onClearTrip, onClos
                 style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '11px 0', borderBottom: '1px solid var(--border-default)', cursor: 'pointer' }}>
                 <div style={{ width: 30, height: 30, borderRadius: '50%', background: 'var(--brand-500)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{i + 1}</div>
                 {s.images?.[0]
-                  ? <img src={proxyImgUrl(s.images[0])} style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }} />
+                  ? <img src={proxyImgUrl(s.images[0], 44 * DEVICE_PIXEL_RATIO, 44 * DEVICE_PIXEL_RATIO)} style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', objectFit: 'cover', flexShrink: 0 }} />
                   : <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: 'var(--surface-sunken)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{Icon('Image', 18, { stroke: 'var(--text-faint)' })}</div>
                 }
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -4841,7 +4840,7 @@ function WebHomeScreen({
             <>
               <h1 style={{color:'var(--ink-900)', fontSize:34, maxWidth:620, lineHeight:1.12, textTransform:'uppercase'}}>Yard sales, estate sales &amp; moving sales near {zip}.</h1>
               <p style={{color:'var(--ink-600)', fontFamily:'var(--font-mono)', fontSize:13.5, maxWidth:560, margin:'12px 0 0', lineHeight:1.6}}>
-                // Pulled live from Craigslist, OfferUp, EstateSales.org — updated every few minutes.
+                // Pulled live from OfferUp, EstateSales.org, Facebook Marketplace &amp; more — updated every few minutes.
               </p>
               <Btn variant="primary" size="sm" leadingIcon={Icon('Map',14)} onClick={()=>setShowMap(v=>!v)} style={{marginTop:16}}>
                 {showMap ? 'Hide map' : 'Show map'}
