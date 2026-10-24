@@ -3841,13 +3841,69 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName":
   return { itemName, category };
 }
 
+// Grounds the price estimate in real, current web results instead of only
+// Claude's trained knowledge. Originally built on Google's Custom Search
+// JSON API (reusing GOOGLE_API_KEY/GOOGLE_CX from fetchGoogleListings
+// above), but Google closed that API to new accounts on 2026-01-20 -- any
+// project created after that date gets a permanent 403
+// ("This project does not have the access to Custom Search JSON API"),
+// confirmed live against this project. Switched to Serper
+// (google.serper.dev), a paid third-party Google-results API -- 2,500 free
+// queries, no card required, $0.30/1000 after. Degrades the same way
+// either way: no key configured means no search context, not an error.
+// Restricted to real resale/collectibles marketplaces rather than the open
+// web -- an unrestricted search for a branded collectible (tested live:
+// "pink hobnail fairy lamp") pulled in generic retail and a cheaper,
+// mass-produced lookalike line (Indiana Glass) ahead of the pricier
+// collector brand (Fenton) that actually matches the item, visibly dragging
+// the estimate down. The same query scoped to these sites surfaced the
+// right brand and real prices ($55-$350) instead.
+const PRICE_SEARCH_SITES = ['ebay.com', 'worthpoint.com', 'rubylane.com', 'chairish.com', 'etsy.com'];
+
+async function fetchPriceSearchSnippets(itemName, category) {
+  const key = process.env.SERPER_API_KEY;
+  if (!key) return [];
+
+  const siteFilter = `(${PRICE_SEARCH_SITES.map(s => `site:${s}`).join(' OR ')})`;
+  // "sold" is a mild nudge, not a real filter -- tested live, it barely
+  // changes which pages rank (an "or Best Offer" asking-price listing
+  // showed up in the results either way). eBay's actual sold-items filter
+  // is a client-side UI feature, not something an indexed web search can
+  // reach; the real fix is estimateItemValue's prompt below, which teaches
+  // Claude to read "or Best Offer"/"New"/active-listing language as weaker
+  // evidence than an explicit sold price.
+  const q = `${itemName}${category ? ' ' + category : ''} sold ${siteFilter}`;
+  try {
+    const res = await fetch('https://google.serper.dev/search', {
+      method: 'POST',
+      headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q, num: 10 }),
+    });
+    const data = await res.json();
+    if (!Array.isArray(data.organic)) return [];
+    return data.organic.slice(0, 10).map(item => ({ title: item.title || '', snippet: item.snippet || '' }));
+  } catch (err) {
+    console.warn('Price search error:', err.message);
+    return [];
+  }
+}
+
 async function estimateItemValue(itemName, category) {
   const categoryPart = category ? ` (${category})` : '';
-  const prompt = `Estimate a realistic secondhand resale price range in USD for this item: "${itemName}"${categoryPart}. Base this on typical resale prices for this kind of item on marketplaces like eBay, Etsy, Mercari, and similar secondhand/collectibles markets, assuming used/good condition unless the name implies otherwise.
+  const snippets = await fetchPriceSearchSnippets(itemName, category);
+  const searchContext = snippets.length
+    ? `\n\nReal, current marketplace listings for this item -- weigh these over generic knowledge wherever they're relevant.
 
-Respond with ONLY a JSON object, no markdown fences, no other text: {"low": number or null, "high": number or null, "reasoning": string}. "reasoning" is one short sentence explaining the basis for the estimate (condition/edition assumptions, or why you couldn't estimate it). If you have no reasonable basis to estimate a price, set low and high to null and explain why in "reasoning".`;
+If they name different makers/brands for what looks like the same item, that usually means the item's exact maker is genuinely uncertain from the name alone -- prefer listings whose description most closely matches the full item name given above, and say so in "reasoning" rather than silently averaging across unrelated brands (a well-known collectible brand and a generic mass-produced equivalent are not interchangeable even if the item type matches).
 
-  const text = await callClaude([{ role: 'user', content: prompt }], 300);
+Separately, and just as important: a listing's displayed price is not the same as what it actually sold for. "or Best Offer", "New", "Buy It Now" asking prices, and un-sold "for sale" pages are what a seller *wants*, often optimistically -- treat these as weaker evidence. An explicit "sold", "sold for", or a completed-sale price is real evidence of what buyers actually paid -- treat these as stronger evidence and prefer them when both kinds appear. If every price you have is an asking price with no confirmed sales, say so plainly in "reasoning" (e.g. "based on current asking prices; no confirmed sales found") rather than presenting the estimate as if it reflects real transactions.\n${snippets.map((s, i) => `${i + 1}. "${s.title}" -- ${s.snippet}`).join('\n')}`
+    : '';
+
+  const prompt = `Estimate a realistic secondhand resale price range in USD for this item: "${itemName}"${categoryPart}. Base this on typical resale prices for this kind of item on marketplaces like eBay, Etsy, Mercari, and similar secondhand/collectibles markets, assuming used/good condition unless the name implies otherwise.${searchContext}
+
+Respond with ONLY a JSON object, no markdown fences, no other text: {"low": number or null, "mid": number or null, "high": number or null, "reasoning": string, "groundedInSearch": boolean, "basedOnAskingPrices": boolean}. "mid" is your single best-guess typical resale price -- not necessarily the arithmetic midpoint of low/high, since real pricing is rarely symmetric. "groundedInSearch" is true only if the search results above meaningfully informed this estimate (false if there were none, or none were relevant). "basedOnAskingPrices" is true if the estimate leans on asking/listed prices because no confirmed sold price was found among the results (false if grounded in explicit sold prices, or if not grounded in search at all). "reasoning" is one short sentence explaining the basis (condition/edition assumptions, what the search results showed, or why you couldn't estimate it). If you have no reasonable basis to estimate a price, set low/mid/high to null and explain why in "reasoning".`;
+
+  const text = await callClaude([{ role: 'user', content: prompt }], 350);
   try { return parseJsonResponse(text); } catch { throw new Error("Couldn't parse a price estimate -- try again."); }
 }
 
@@ -3919,8 +3975,16 @@ app.post('/api/price-check', priceCheckRateLimit, async (req, res) => {
   const category = req.body.category || null;
 
   try {
-    const { low, high, reasoning } = await estimateItemValue(itemName, category);
-    res.json({ itemName, low: low ?? null, high: high ?? null, reasoning: reasoning ?? null });
+    const { low, mid, high, reasoning, groundedInSearch, basedOnAskingPrices } = await estimateItemValue(itemName, category);
+    res.json({
+      itemName,
+      low: low ?? null,
+      mid: mid ?? null,
+      high: high ?? null,
+      reasoning: reasoning ?? null,
+      groundedInSearch: Boolean(groundedInSearch),
+      basedOnAskingPrices: Boolean(basedOnAskingPrices),
+    });
   } catch (err) {
     console.error('Price Check error:', err.message);
     res.status(500).json({ error: err.message });
