@@ -1048,6 +1048,7 @@ function parseTimeFromText(text = '') {
 
 // ── Browser pool (reuse one browser instance) ─────────────────────────────────
 let _browser = null;
+let _browserLaunching = null;
 
 // Per-function concurrency (fetchListingImages, fetchEstateSalesImages, etc.)
 // only bounds tabs *within* a single scrape. Two different zip/radius
@@ -1092,10 +1093,24 @@ const pageGate = createGate(4);
 // of MAX_LISTING_PHOTOS -- see that constant's own comment.
 const imgProxyGate = createGate(8);
 
+// A single search fans out to many scrapers in parallel (EstateSales.org,
+// Nextdoor, OfferUp, ...), several of which call getBrowser() within
+// milliseconds of each other. `_browser = await puppeteer.launch(...)`
+// doesn't actually assign `_browser` until the launch *resolves* -- so
+// every one of those concurrent callers saw `_browser` still null and each
+// launched its OWN full Chrome process, confirmed live: three
+// "Launching Chrome…" log lines one second apart, right before the
+// instance OOM-crashed. pageGate only ever bounded tabs *within* one
+// browser; it had no way to stop this, since from its point of view each
+// of those orphaned browsers looked like a normal, separate page. Sharing
+// one in-flight launch promise (not just the resolved browser) means every
+// concurrent caller joins the same launch instead of starting a new one.
 async function getBrowser() {
   if (_browser && _browser.connected) return _browser;
+  if (_browserLaunching) return _browserLaunching;
+
   console.log('Launching Chrome…');
-  _browser = await puppeteer.launch({
+  _browserLaunching = puppeteer.launch({
     executablePath: CHROME_PATH,
     headless: true,
     args: [
@@ -1105,9 +1120,17 @@ async function getBrowser() {
       '--disable-gpu',
       '--window-size=1280,900',
     ],
+  }).then((browser) => {
+    browser.on('disconnected', () => { _browser = null; });
+    _browser = browser;
+    _browserLaunching = null;
+    return browser;
+  }).catch((err) => {
+    _browserLaunching = null;
+    throw err;
   });
-  _browser.on('disconnected', () => { _browser = null; });
-  return _browser;
+
+  return _browserLaunching;
 }
 
 // Chrome's own memory footprint creeps up over a long-running process even
