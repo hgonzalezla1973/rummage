@@ -1062,9 +1062,15 @@ function createGate(max) {
 // into repeated OOM crash loops (confirmed live via recurring "exceeded its
 // memory limit" alerts) -- each tab is a full browser process/renderer, not
 // a lightweight handle. 4 was the value settled on while OfferUp's own
-// photo-enrichment step (since removed) alone asked for 3 concurrent tabs;
-// worth revisiting now that no single scraper claims that many at once.
-const pageGate = createGate(4);
+// photo-enrichment step (since removed) alone asked for 3 concurrent tabs on
+// top of whatever else was running, which needed a 4th slot just to avoid
+// starving everything else. With OfferUp gone, the only remaining
+// pageGate users (fetchEstateSalesImages, fetchEstateSaleComPhotos, and
+// each scraper's own single search-page tab) never request more than 3 at
+// once themselves, so 3 is the new ceiling: it still lets one full batch
+// through without internal queuing, just with one less Chrome process
+// resident at the peak.
+const pageGate = createGate(3);
 // A sale-detail page can have up to MAX_LISTING_PHOTOS (100) thumbnails,
 // each hitting /api/img at once -- capped separately from pageGate (lighter
 // work, no real browser page) so one detail-page view can't pile up 100
