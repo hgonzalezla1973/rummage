@@ -280,21 +280,30 @@ app.get('/api/img', async (req, res) => {
     // photos as .webp, which silently fails to decode there (though it's
     // fine in a regular browser). Converting to JPEG here fixes it for
     // every client uniformly, not just iOS.
+    //
+    // .rotate() with no args reads the source's EXIF orientation tag,
+    // physically rotates the pixels to match, and strips the tag from the
+    // output -- without it, sharp leaves the pixels exactly as the phone
+    // that took the photo stored them (often sideways with an orientation
+    // flag saying "rotate me"), then re-encodes without that flag, so every
+    // downstream viewer just shows the raw, unrotated photo with nothing
+    // left to correct it. Confirmed live: a landscape photo in the app's
+    // lightbox rendered sideways. This used to only run for the w/h
+    // (thumbnail) branch and for webp sources specifically -- a plain JPEG
+    // with bad orientation requested at full size (the lightbox's own
+    // request, no w/h) skipped sharp entirely and got served as-is, still
+    // sideways. Now it always runs, so every image this proxy ever serves
+    // -- thumbnail or full-size, whatever the source format -- comes out
+    // upright once, instead of depending on each client's own decoder to
+    // get EXIF handling right.
     let outCt = ct;
-    if (w && h) {
-      try {
-        buf = await sharp(buf).resize(w, h, { fit: 'cover', withoutEnlargement: noEnlarge }).jpeg({ quality: 82 }).toBuffer();
-        outCt = 'image/jpeg';
-      } catch (err) {
-        console.warn('Image resize failed, serving unresized:', err.message);
-      }
-    } else if (ct.includes('webp') || /\.webp(\?|$)/i.test(url)) {
-      try {
-        buf = await sharp(buf).jpeg({ quality: 85 }).toBuffer();
-        outCt = 'image/jpeg';
-      } catch (err) {
-        console.warn('WebP->JPEG conversion failed, serving original:', err.message);
-      }
+    try {
+      let img = sharp(buf).rotate();
+      if (w && h) img = img.resize(w, h, { fit: 'cover', withoutEnlargement: noEnlarge });
+      buf = await img.jpeg({ quality: w && h ? 82 : 85 }).toBuffer();
+      outCt = 'image/jpeg';
+    } catch (err) {
+      console.warn('Image normalize failed, serving original:', err.message);
     }
 
     res.set('Content-Type', outCt);
