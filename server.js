@@ -5,7 +5,6 @@
  * headless Chrome browser (puppeteer).
  *
  * Active sources (fetchListingsFresh):
- *   - OfferUp           "yard sale" / "estate sale" keyword search
  *   - EstateSales.org    (scrapeEstateSales — Apify-backed, with a direct
  *                         Puppeteer fallback)
  *   - Facebook Marketplace
@@ -250,7 +249,7 @@ app.get('/api/img', async (req, res) => {
   let parsed;
   try { parsed = new URL(url); } catch { return res.status(400).send('Invalid url'); }
 
-  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'offerup.com', 'offerupcdn.com', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com', 'nextdoor.com', 'varagesale.com'];
+  const allowed = ['estatesales.org', 'www.estatesales.org', 'estatesales.net', 'picturescdn.estatesales.net', 'images.craigslist.org', 'thumbs3.ebaystatic.com', 'amazonaws.com', 'cloudfront.net', 'tlcdn.workers.dev', 'imgix.net', 'maps.geoapify.com', 'fbcdn.net', 'facebook.com', 'scontent.fnonstd.com', 'tlstatic.com', 'esgtphotos.com', 'liveauctioneers.com', 'estatesale.com', 'auctionninja.com', 'gsalr.com', 'nextdoor.com', 'varagesale.com'];
   const host = parsed.hostname.replace(/^www\./, '');
   if (!allowed.some(h => parsed.hostname === h || parsed.hostname.endsWith('.' + h))) {
     return res.status(403).send('Domain not allowed');
@@ -546,31 +545,6 @@ function invalidateListingsCache() {
   for (const key of cache.keys()) {
     if (key.startsWith('all:')) cache.delete(key);
   }
-}
-
-// Separate, much longer-lived cache of per-listing OfferUp photos, keyed by
-// listing URL rather than zip/radius. OfferUp enrichment visits a real
-// browser tab per listing (see fetchOfferUpPhotos) and is time-budgeted, so
-// any one request only gets through a handful before its budget runs out --
-// without this, every fresh scrapeOfferUp() call (every 8 minutes, per the
-// main `cache` TTL above) would re-attempt enrichment from scratch and hit
-// the same budget wall forever, never actually converging on full coverage.
-// Keyed separately (not reusing `cache`) so one large search's worth of
-// listings can't evict other sources' entries out of that shared, much
-// smaller 150-entry cache. 24h TTL because a listing's own photos rarely
-// change after it's posted.
-const ouPhotoCache    = new Map();
-const OU_PHOTO_TTL    = 24 * 60 * 60 * 1000;
-const OU_PHOTO_MAX    = 3000;
-function ouPhotoFromCache(url) {
-  const hit = ouPhotoCache.get(url);
-  if (hit && Date.now() - hit.ts < OU_PHOTO_TTL) return hit.data;
-  return null;
-}
-function ouPhotoToCache(url, data) {
-  ouPhotoCache.delete(url);
-  ouPhotoCache.set(url, { ts: Date.now(), data });
-  while (ouPhotoCache.size > OU_PHOTO_MAX) ouPhotoCache.delete(ouPhotoCache.keys().next().value);
 }
 
 // Promises for a scrape that's currently in flight, keyed the same as
@@ -1087,12 +1061,9 @@ function createGate(max) {
 // 5 real Chrome tabs was still enough to tip the free-tier 512MB instance
 // into repeated OOM crash loops (confirmed live via recurring "exceeded its
 // memory limit" alerts) -- each tab is a full browser process/renderer, not
-// a lightweight handle. Tried 3 first, but OfferUp's own enrichment already
-// asks for 3 concurrent tabs on its own (see fetchOfferUpPhotos) -- at
-// pageGate(3) that alone saturated the whole gate and starved every other
-// scraper, which then hit their 15s ceiling and returned zero results
-// (confirmed live: 77 listings dropped to 17). 4 leaves just enough room for
-// one other scraper's tab alongside OU's three.
+// a lightweight handle. 4 was the value settled on while OfferUp's own
+// photo-enrichment step (since removed) alone asked for 3 concurrent tabs;
+// worth revisiting now that no single scraper claims that many at once.
 const pageGate = createGate(4);
 // A sale-detail page can have up to MAX_LISTING_PHOTOS (100) thumbnails,
 // each hitting /api/img at once -- capped separately from pageGate (lighter
@@ -1679,305 +1650,6 @@ async function scrapeCraigslist(zip, radiusMi, centerLat, centerLng) {
   console.log(`  CL done — ${results.length} listings with images`);
   toCache(cacheKey, results);
 
-  return results;
-}
-
-// The search feed's GraphQL only returns one thumbnail per listing, but each
-// listing's own detail page embeds a full __NEXT_DATA__ blob with a real
-// photos array (Apollo cache, keyed as `listing({"listingId":"..."})`).
-//
-// A plain fetch() here used to work but no longer does -- OfferUp's item
-// detail pages (unlike their GraphQL search endpoint) now sit behind a
-// Cloudflare JS challenge ("Just a moment...") that only a real browser can
-// solve, so every fetch just got the challenge page back, __NEXT_DATA__
-// never matched, and every OfferUp listing silently sat at its one
-// search-result thumbnail. Confirmed live (2026-10-03) that a real
-// headless-Chrome tab clears the challenge automatically in ~2-4s (it's a
-// transparent JS proof-of-work, not an interactive checkbox) and lands on
-// the real page -- so this now drives one through getBrowser()/pageGate,
-// the same mechanism already used for Craigslist/EstateSales.org detail
-// pages. Unlike those, JavaScript must stay ENABLED (the challenge requires
-// running it) and only pure assets are blocked -- blocking scripts or
-// XHR/fetch here would block the challenge's own verification round-trip.
-// `deadline` is an absolute Date.now()-style timestamp, not a duration --
-// scrapeOfferUp computes it from its OWN start time (see call site) because
-// this whole function's elapsed time (GraphQL search + geocoding, both
-// before this ever runs) already eats into the 15s ceiling the caller races
-// scrapeOfferUp against. Checked only *between* batches, not wrapped around
-// the whole call: a batch already in flight is left to finish and its
-// results kept, rather than the all-or-nothing discard a Promise.race
-// against the whole function would give (confirmed live: that approach lost
-// every listing's data, not just its photos, whenever the budget ran out
-// mid-enrichment). Listings past the deadline just keep their single
-// search-result thumbnail for this response. Every listing is also checked
-// against ouPhotoCache first (a 24h, per-listing cache -- see its own
-// comment) so one enriched by some *earlier* request, for this zip/radius
-// or any overlapping one, costs no browser visit and no budget here at all
-// -- that's what lets coverage actually keep climbing across the normal
-// 8-minute result-cache cycle instead of re-hitting the same time budget
-// from zero every time.
-async function fetchOfferUpPhotos(listings, deadline, concurrency = 3) {
-  const browser = await getBrowser();
-  const detailMap = new Map(); // listing.url -> { images: string[], description: string }
-  const work = [];
-  for (const l of listings) {
-    if (!l.url) continue;
-    const cachedPhoto = ouPhotoFromCache(l.url);
-    if (cachedPhoto) { detailMap.set(l.url, cachedPhoto); continue; }
-    work.push(l);
-  }
-  console.log(`  OU: ${detailMap.size} from photo cache, fetching ${work.length} fresh via headless Chrome (${concurrency} at a time)...`);
-
-  let visited = 0;
-  for (let i = 0; i < work.length; i += concurrency) {
-    if (Date.now() > deadline) {
-      console.log(`  OU: photo budget used up -- visited ${visited}/${work.length}, rest keep their thumbnail`);
-      break;
-    }
-    const batch = work.slice(i, i + concurrency);
-    await Promise.all(batch.map(async listing => {
-      await pageGate.acquire();
-      let page;
-      try {
-        page = await browser.newPage();
-        await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36');
-        await page.setRequestInterception(true);
-        page.on('request', req => {
-          ['image', 'font', 'media', 'stylesheet'].includes(req.resourceType()) ? req.abort() : req.continue();
-        });
-        // Real-world challenge solves land in 2-5s (confirmed live) -- these
-        // stay well above that but short enough that one hung listing can't
-        // single-handedly drag a batch past the deadline check above by much.
-        await page.goto(listing.url, { waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => {});
-        // domcontentloaded fires on the *challenge* page almost instantly --
-        // the real content only shows up after Cloudflare's own redirect, so
-        // wait for __NEXT_DATA__ itself rather than trusting goto's resolve.
-        await page.waitForSelector('#__NEXT_DATA__', { timeout: 7000 });
-
-        const detail = await page.evaluate(() => {
-          try {
-            const data = JSON.parse(document.getElementById('__NEXT_DATA__').textContent);
-            const rootQuery = data?.props?.pageProps?.initialApolloState?.ROOT_QUERY || {};
-            const key = Object.keys(rootQuery).find(k => k.startsWith('listing('));
-            const listingData = key ? rootQuery[key] : null;
-            if (!listingData) return null;
-            const photos = listingData.photos;
-            const urls = Array.isArray(photos)
-              ? photos.map(p => p?.detailFull?.url || p?.detail?.url || p?.list?.url).filter(Boolean)
-              : [];
-            return { images: urls, description: listingData.description || '' };
-          } catch (_) { return null; }
-        });
-
-        visited++;
-        if (detail) {
-          detailMap.set(listing.url, detail);
-          ouPhotoToCache(listing.url, detail);
-          if (detail.images.length) console.log(`    ${listing.title?.slice(0,40)} → ${detail.images.length} image(s)`);
-        }
-      } catch (_) {
-        // Non-fatal: listing just keeps its single search-result thumbnail and no date
-      } finally {
-        if (page) await page.close().catch(() => {});
-        pageGate.release();
-      }
-    }));
-  }
-
-  return detailMap;
-}
-
-// ── OfferUp scraper (GraphQL API) ─────────────────────────────────────────────
-const OU_GQL_QUERY = `query GetModularFeed($searchParams: [SearchParam]) {
-  modularFeed(params: $searchParams) {
-    looseTiles {
-      ...modularTileListing
-      ...modularTileSellerAd
-    }
-  }
-}
-fragment modularTileListing on ModularFeedTileListing {
-  tileId listing { ...modularListing } tileType
-}
-fragment modularTileSellerAd on ModularFeedTileSellerAd {
-  tileId listing { ...modularListing } tileType
-}
-fragment modularListing on ModularFeedListing {
-  listingId title price locationName flags
-  image { url height width }
-}`;
-
-async function scrapeOfferUp(zip, radiusMi, centerLat, centerLng) {
-  const cacheKey = `ou:${zip}:${radiusMi}`;
-  const cached   = fromCache(cacheKey);
-  if (cached) { console.log('  OU cache hit'); return cached; }
-
-  // The /api/listings caller races this whole function against a 15s
-  // ceiling (withCeiling) and discards it entirely if it loses -- so the
-  // photo-enrichment deadline below is computed from *this* start time, at
-  // 12s, leaving 3s of margin for that outer ceiling regardless of how long
-  // the GraphQL search + geocoding above already took.
-  const __scrapeStart = Date.now();
-  const results = [];
-  const seen    = new Set();
-
-  try {
-    // Step 1: GET offerup.com to collect session cookies
-    const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
-    const initRes = await fetchTimeout('https://offerup.com', 8000, { headers: { 'User-Agent': UA } });
-    const rawCookies = (initRes.headers.getSetCookie ? initRes.headers.getSetCookie() : [initRes.headers.get('set-cookie') || ''])
-      .map(c => c.split(';')[0].trim()).filter(Boolean).join('; ');
-
-    const gqlHeaders = {
-      'Content-Type': 'application/json',
-      'User-Agent':   UA,
-      'Referer':      'https://offerup.com/',
-      'Origin':       'https://offerup.com',
-      ...(rawCookies ? { 'Cookie': rawCookies } : {}),
-    };
-
-    const queries = ['yard sale', 'garage sale', 'estate sale', 'moving sale'];
-
-    // Step 2: run all 4 search queries, collecting raw tiles without
-    // geocoding yet. Geocoding every tile inline (the original approach)
-    // meant a sequential Photon call per listing, hardcoded to "California"
-    // — outside LA that fails every time and burns up to 8s per listing,
-    // which is what made nationwide searches hang for minutes. Instead we
-    // dedupe city names across all 4 queries and geocode them once, in
-    // parallel, after the search loop (same fix as scrapeCraigslist).
-    //
-    // The 4 queries themselves also run in parallel rather than one after
-    // another -- they're independent requests, and running them sequentially
-    // meant a slow response on any one of them (or its own 15s timeout
-    // ceiling) added straight onto the total instead of overlapping with the
-    // other 3. Safe to push into the shared `rawTiles`/`seen` from inside
-    // Promise.all: each callback's tile-processing loop is fully synchronous
-    // (no awaits inside it), so JS's single-threaded event loop runs it to
-    // completion without interleaving, same as the sequential version did.
-    const rawTiles = []; // { tile, q }
-    await Promise.all(queries.map(async q => {
-      const searchParams = [
-        { key: 'q',               value: q },
-        { key: 'distance',        value: String(radiusMi) },
-        { key: 'platform',        value: 'web' },
-        { key: 'lon',             value: String(centerLng) },
-        { key: 'lat',             value: String(centerLat) },
-        { key: 'limit',           value: '40' },
-        { key: 'SORT',            value: '-posted' },
-        { key: 'DELIVERY_FLAGS',  value: 'p' },
-        { key: 'searchSessionId', value: '' },
-      ];
-
-      const body = JSON.stringify({
-        operationName: 'GetModularFeed',
-        variables: { searchParams },
-        query: OU_GQL_QUERY,
-      });
-
-      const res  = await fetchTimeout('https://offerup.com/api/graphql', 9000, {
-        method: 'POST', headers: gqlHeaders, body,
-      });
-
-      if (!res.ok) { console.warn(`  OU GraphQL "${q}" → HTTP ${res.status}`); return; }
-
-      const data  = await res.json();
-      const tiles = data?.data?.modularFeed?.looseTiles || [];
-      console.log(`  OU GraphQL "${q}" → ${tiles.length} tiles`);
-
-      for (const tile of tiles) {
-        const listing = tile.listing;
-        if (!listing?.title || seen.has(listing.listingId)) continue;
-        seen.add(listing.listingId);
-        rawTiles.push({ tile, q });
-      }
-    }));
-
-    const ouState = stateFromZip(zip);
-    const cityCoords = await batchGeocodePlaceNames(
-      rawTiles.map(({ tile }) => (tile.listing.locationName || '').toLowerCase().replace(/,.*$/, '').trim()),
-      ouState
-    );
-
-    for (const { tile, q } of rawTiles) {
-      const listing = tile.listing;
-      const locationName = listing.locationName || '';
-      const cityKey = locationName.toLowerCase().replace(/,.*$/, '').trim();
-      let ouLat = null, ouLng = null, distMi = null;
-
-      const coords = cityKey ? cityCoords.get(cityKey) : null;
-      if (coords) {
-        ouLat = coords.lat; ouLng = coords.lng;
-        distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
-        if (distMi > radiusMi) continue;
-      } else {
-        // No resolvable city — place loosely near search center rather than
-        // dropping the listing entirely.
-        ouLat = centerLat + (Math.random()-0.5)*0.05;
-        ouLng = centerLng + (Math.random()-0.5)*0.05;
-        distMi = parseFloat(distanceMiles(centerLat, centerLng, ouLat, ouLng).toFixed(1));
-      }
-
-      const imgUrl = listing.image?.url || '';
-      const price  = listing.price != null ? `$${listing.price}` : '';
-      const px     = pinXY(ouLat, ouLng, centerLat, centerLng, radiusMi);
-
-      results.push({
-        id:          `ou-${listing.listingId}`,
-        source:      'offerup',
-        type:        detectType(listing.title + ' ' + q),
-        title:       listing.title,
-        address:     locationName,
-        neighborhood:locationName || 'Nearby',
-        distanceMi:  distMi,
-        lat:         ouLat,
-        lng:         ouLng,
-        dateLabel:   SALE_EVENT_RE.test(listing.title) ? parseCLDate(listing.title) : '',
-        timeLabel:   parseTimeFromText(listing.title),
-        photoCount:  imgUrl ? 1 : 0,
-        images:      imgUrl ? [imgUrl] : [],
-        live:        false,
-        blurb:       '',
-        price,
-        items:       extractItemTags(listing.title, q),
-        url:         `https://offerup.com/item/detail/${listing.listingId}`,
-        x:           px.x,
-        y:           px.y,
-      });
-    }
-
-    // The search feed only gives one thumbnail per listing — visit each
-    // listing's own page to pull its full photo set instead, budgeted
-    // against __scrapeStart above (see fetchOfferUpPhotos for why).
-    const detailMap = await fetchOfferUpPhotos(results, __scrapeStart + 12000);
-    for (const listing of results) {
-      const detail = detailMap.get(listing.url);
-      if (!detail) continue;
-      if (detail.images.length) { listing.images = capPhotos(detail.images); listing.photoCount = listing.images.length; }
-      // OfferUp titles rarely state a date, but sellers often write it into
-      // the description instead ("Saturday & Sunday 7/11-7/12") — try there
-      // before giving up on the listing entirely. (Listings whose title
-      // never mentioned a sale event get filtered out downstream regardless
-      // of dateLabel, so no need to re-check that gate here.)
-      if (!listing.dateLabel && detail.description) {
-        listing.dateLabel = parseCLDate(detail.description);
-      }
-      if (!listing.timeLabel && detail.description) {
-        listing.timeLabel = parseTimeFromText(detail.description);
-      }
-      // OfferUp's API only ever gives a city ("Whittier, CA") — never a real
-      // street address — but sellers often write it into the description.
-      if (detail.description) {
-        const street = extractStreetAddress(detail.description);
-        const city = listing.neighborhood && listing.neighborhood !== 'Nearby' ? listing.neighborhood : '';
-        if (street) listing.address = city ? `${street}, ${city}` : street;
-      }
-    }
-  } catch (err) {
-    console.warn('  OU GraphQL error:', err.message);
-  }
-
-  console.log(`  OU total: ${results.length} listings`);
-  toCache(cacheKey, results);
   return results;
 }
 
@@ -4210,7 +3882,7 @@ function addressKey(address) {
 const SOURCE_RANK = {
   estatesales: 1, estatesalesnet: 2, estatesalecom: 3, gsalr: 4,
   yardsalesnet: 5, yardsalesearch: 6, garagesalefinder: 7, auctionninja: 8,
-  craigslist: 9, offerup: 10, nextdoor: 11, varagesale: 12, facebook: 13,
+  craigslist: 9, nextdoor: 11, varagesale: 12, facebook: 13,
   google: 14,
 };
 const sourceRank = s => SOURCE_RANK[s] || 99;
@@ -4391,10 +4063,9 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   // straggler can't hold up the other nine.
   const CEILING_MS = 15000;
   const timed = (label, p) => { const t0 = Date.now(); return withCeiling(p, CEILING_MS, label).then(v => { console.log(`  [timing] ${label}: ${Date.now()-t0}ms`); return v; }); };
-  const [ouListings, esListings, fbListings, googleListings,
+  const [esListings, fbListings, googleListings,
          esnListings, yssListings, gsfListings, gsalrListings, escListings, ndListings,
          anListings, vsListings, ysnListings] = await Promise.allSettled([
-    timed('OU', scrapeOfferUp(zip, radiusMi, center.lat, center.lng)),
     timed('ES', scrapeEstateSales(zip, radiusMi, center.lat, center.lng)),
     timed('FB', scrapeFacebookMarketplace(zip, radiusMi, center.lat, center.lng)),
     timed('Google', fetchGoogleListings(zip)),
@@ -4413,21 +4084,20 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
   // YardSaleSearch, YardSales.net, GarageSaleFinder, GSALR, EstateSale.com,
   // AuctionNinja) are exempt from the title filter — their whole category is
   // estate/yard sales by definition, so filtering by title would only
-  // create false negatives. Generic marketplaces (OfferUp, Facebook,
-  // Google, Nextdoor) still need it -- Nextdoor's "garage-sales" category
+  // create false negatives. Generic marketplaces (Facebook, Google,
+  // Nextdoor) still need it -- Nextdoor's "garage-sales" category
   // also carries plain single-item give-away posts alongside real sale
   // events. VarageSale is also exempt here -- not because its category is
-  // sale-only (it isn't, it's a general marketplace like OfferUp), but
+  // sale-only (it isn't, it's a general marketplace), but
   // because scrapeVarageSale already applies this exact same SALE_EVENT_RE
   // filter internally, before its (more expensive) address-extraction
   // step -- re-filtering here would be redundant, not wrong.
   const onlySaleEvents = list => list.filter(l => SALE_EVENT_RE.test(l.title || ''));
-  const ouKept = onlySaleEvents(ouListings);
   const fbKept = onlySaleEvents(fbListings);
   const gKept  = onlySaleEvents(googleListings);
   const ndKept = onlySaleEvents(ndListings);
 
-  const combined = [...ouKept, ...esListings, ...fbKept, ...gKept,
+  const combined = [...esListings, ...fbKept, ...gKept,
                     ...esnListings, ...yssListings, ...gsfListings, ...gsalrListings, ...escListings, ...ndKept, ...anListings, ...vsListings, ...ysnListings]
     // blurb is decoded here too — it is rendered as prose in the UI, so a raw
     // "&hellip;" or "&amp;" shows up verbatim the same way it would in a title.
@@ -4457,7 +4127,7 @@ async function fetchListingsFresh(cacheKey, zip, radiusMi) {
     if (distMi <= radiusMi) all.push(hydrateUserListing(rec, center.lat, center.lng, radiusMi));
   }
 
-  console.log(`Total: ${all.length} (deduped from ${combined.length}) — OU=${ouKept.length}/${ouListings.length} ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length} AN=${anListings.length} VS=${vsListings.length} YSN=${ysnListings.length} USER=${userRecs.length}`);
+  console.log(`Total: ${all.length} (deduped from ${combined.length}) — ES=${esListings.length} FB=${fbKept.length}/${fbListings.length} G=${gKept.length}/${googleListings.length} ESN=${esnListings.length} YSS=${yssListings.length} GSF=${gsfListings.length} GSALR=${gsalrListings.length} ESC=${escListings.length} ND=${ndKept.length}/${ndListings.length} AN=${anListings.length} VS=${vsListings.length} YSN=${ysnListings.length} USER=${userRecs.length}`);
 
   toCache(cacheKey, all);
   return all;
@@ -5019,8 +4689,7 @@ function proxyImgUrlForEmail(url) {
         h.endsWith('.amazonaws.com') || h.endsWith('.cloudfront.net') ||
         h.endsWith('.imgix.net') || h.endsWith('.tlcdn.workers.dev') || h === 'eso-cdn.tlcdn.workers.dev' ||
         h === 'images.craigslist.org' || h === 'maps.geoapify.com' ||
-        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com') ||
-        h === 'offerup.com' || h.endsWith('.offerup.com') || h === 'offerupcdn.com' || h.endsWith('.offerupcdn.com'))
+        h.endsWith('.fbcdn.net') || h === 'fbcdn.net' || h.endsWith('.facebook.com'))
       // 536x240 = 2x the card's actual display box (~268x120), same ratio --
       // see the w/h comment on /api/img for why matching the ratio matters.
       return `${PUBLIC_BASE_URL}/api/img?url=${encodeURIComponent(url)}&w=536&h=240`;
