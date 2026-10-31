@@ -4,27 +4,35 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Rummage — Every yard sale, estate sale, and moving sale on one map</title>
-<meta name="description" content="Rummage pulls every yard sale, estate sale, and moving sale near you — from Craigslist, OfferUp, EstateSales.org and more — onto one live map. Free, no account required to browse.">
+<meta name="description" content="Rummage pulls every yard sale, estate sale, and moving sale near you — from EstateSales.org, GSALR, Nextdoor and more — onto one live map. Free, no account required to browse.">
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Mohave:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
+  /*
+   * Retokened to match the app's own design system (replica/design/tokens.json
+   * / components/ui/colors.ts) -- same navy-on-white "Field Utility Modern"
+   * palette and Plus Jakarta Sans/JetBrains Mono pairing, rounded-md corners
+   * instead of this page's old full pills, and the real estate/yard/moving
+   * category colors (not a borrowed teal brand hue the app never actually
+   * has anywhere). Structure and copy below are unchanged -- this is a
+   * reskin, not a rewrite.
+   */
   :root {
-    --paper:#F6F6F6; --paper-2:#F6F6F6; --surface:#FFFFFF; --surface-tint:#FFFFFF;
-    --ink-900:#211D17; --ink-800:#332E24; --ink-700:#4A4335; --ink-600:#6B6252;
-    --ink-500:#8A8069; --ink-400:#9C9280; --ink-300:#C4B593; --ink-200:#D8CBB0; --line:#D8CBB0;
-    --brand-50:#F0FDFA; --brand-100:#CCFBF1; --brand-400:#2DD4BF; --brand-500:#14B8A6; --brand-600:#0D9488; --brand-700:#0F766E;
-    --tape-100:#F8E8B0; --tape-300:#F0C550; --tape-500:#E8B923; --tape-700:#8A6A0D;
-    --type-estate-fg:#2C4A7C; --type-estate-bg:#DCE4EF;
-    --type-yard-fg:#3F5E3A;   --type-yard-bg:#E1E8D6;
-    --type-moving-fg:#8A5A12; --type-moving-bg:#F1E0B8;
-    --font-display:'Mohave','Arial Narrow',system-ui,sans-serif;
-    --font-sans:'Mohave',system-ui,-apple-system,'Segoe UI',sans-serif;
-    --font-mono:'Mohave',ui-monospace,'SF Mono',Menlo,monospace;
-    --radius-lg:14px; --radius-xl:20px; --radius-2xl:28px; --radius-pill:999px; --radius-btn:8px;
-    --shadow-card:0 1px 3px rgba(33,29,23,.08), 0 12px 32px rgba(33,29,23,.10);
-    --shadow-lg:0 24px 60px rgba(33,29,23,.22);
+    --paper:#F8FAFC; --paper-2:#F8FAFC; --surface:#FFFFFF; --surface-tint:#F8FAFC;
+    --ink-900:#0F172A; --ink-800:#1E293B; --ink-700:#334155; --ink-600:#475569;
+    --ink-500:#64748B; --ink-400:#94A3B8; --ink-300:#CBD5E1; --ink-200:#E2E8F0; --line:#E2E8F0;
+    --brand-50:#F1F5F9; --brand-100:#E2E8F0; --brand-400:#2B6CB0; --brand-500:#0F172A; --brand-600:#0F172A; --brand-700:#0F172A;
+    --type-estate-fg:#B5542C; --type-estate-bg:#F3E4DC;
+    --type-yard-fg:#6B7A2A;   --type-yard-bg:#E9EDD9;
+    --type-moving-fg:#2B6CB0; --type-moving-bg:#DDE7F3;
+    --font-display:'Plus Jakarta Sans',system-ui,sans-serif;
+    --font-sans:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
+    --radius-lg:10px; --radius-xl:12px; --radius-2xl:16px; --radius-pill:8px; --radius-btn:8px;
+    --shadow-card:0 1px 3px rgba(15,23,42,.08), 0 12px 32px rgba(15,23,42,.10);
+    --shadow-lg:0 24px 60px rgba(15,23,42,.22);
   }
   * { box-sizing: border-box; }
   html, body { margin: 0; padding: 0; }
@@ -37,68 +45,70 @@
     overflow-x: hidden;
   }
   a { color: inherit; }
+  svg.icon { width: 1em; height: 1em; stroke: currentColor; }
   .wrap { max-width: 1140px; margin: 0 auto; padding: 0 24px; }
   h1, h2, h3 { font-family: var(--font-display); letter-spacing: -0.02em; margin: 0; text-wrap: balance; }
 
   /* ── Nav ─────────────────────────────────────────────── */
-  nav { position: sticky; top: 0; z-index: 20; background: rgba(246,246,246,.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
+  nav { position: sticky; top: 0; z-index: 20; background: rgba(248,250,252,.92); backdrop-filter: blur(16px); border-bottom: 1px solid var(--line); }
   nav .wrap { display: flex; align-items: center; justify-content: space-between; height: 72px; }
-  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 20px; letter-spacing: -0.02em; text-decoration: none; color: var(--ink-900); }
+  .brand { display: flex; align-items: center; gap: 10px; font-family: var(--font-display); font-size: 20px; letter-spacing: -0.02em; text-decoration: none; color: var(--ink-900); font-weight: 700; }
   .brand img { width: 34px; height: 34px; }
   .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-family: var(--font-sans); font-weight: 700; font-size: 15px; text-decoration: none; cursor: pointer; border: none; border-radius: var(--radius-btn); padding: 13px 26px; transition: transform .15s ease, box-shadow .15s ease; }
   .btn:hover { transform: translateY(-1px); }
-  .btn-primary { background: var(--ink-900); color: #fff; box-shadow: 0 10px 28px rgba(33,29,23,.28); }
-  .btn-primary:hover { box-shadow: 0 14px 34px rgba(33,29,23,.35); }
+  .btn-primary { background: var(--ink-900); color: #fff; box-shadow: 0 10px 28px rgba(15,23,42,.28); }
+  .btn-primary:hover { box-shadow: 0 14px 34px rgba(15,23,42,.35); }
   .btn-dark { background: var(--ink-900); color: #fff; }
   .btn-ghost { background: #fff; color: var(--ink-900); border: 1.5px solid var(--ink-900); }
 
   /* ── Hero ────────────────────────────────────────────── */
   .hero { padding: 72px 0 40px; position: relative; }
   .hero .wrap { display: grid; grid-template-columns: 1.05fr 0.95fr; gap: 56px; align-items: center; }
-  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-sans); font-weight: 700; font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--brand-500); background: var(--brand-50); border: 1px solid var(--brand-100); padding: 7px 14px 7px 10px; border-radius: var(--radius-pill); margin-bottom: 20px; }
-  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--brand-600); }
+  .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-family: var(--font-sans); font-weight: 700; font-size: 12.5px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-900); background: var(--brand-50); border: 1px solid var(--brand-100); padding: 7px 14px 7px 10px; border-radius: var(--radius-pill); margin-bottom: 20px; }
+  .eyebrow .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-900); }
   .hero h1 { font-size: 52px; line-height: 1.03; color: var(--ink-900); }
   .hero h1 .hl { color: var(--brand-400); }
   .hero p.sub { font-size: 18px; color: var(--ink-600); margin: 22px 0 30px; max-width: 480px; line-height: 1.6; }
   .hero-ctas { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 22px; }
   .hero-note { font-family: var(--font-mono); font-size: 12.5px; color: var(--ink-500); }
   .sources { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 28px; }
-  .source-chip { font-family: var(--font-sans); font-size: 12.5px; font-weight: 600; color: var(--ink-600); background: var(--surface); border: 1px solid var(--line); padding: 6px 12px; border-radius: var(--radius-pill); }
+  .source-chip { font-family: var(--font-sans); font-size: 12.5px; font-weight: 600; color: var(--ink-600); background: var(--surface); border: 1px solid var(--line); padding: 6px 12px; border-radius: var(--radius-btn); }
 
   .phone-shot { position: relative; display: flex; justify-content: center; padding: 0 54px; }
-  .phone-shot img { width: 100%; max-width: 320px; border-radius: 40px; box-shadow: var(--shadow-lg); display: block; }
-  .float-tag { position: absolute; background: #fff; border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 10px 16px; font-family: var(--font-sans); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px; white-space: nowrap; z-index: 2; }
-  .float-tag.t1 { top: 18%; left: 0; color: var(--tape-700); }
-  .float-tag.t2 { bottom: 16%; right: 0; color: var(--brand-500); }
+  .phone-shot img { width: 100%; max-width: 320px; border-radius: 32px; box-shadow: var(--shadow-lg); display: block; }
+  .float-tag { position: absolute; background: #fff; border: 1px solid var(--line); border-radius: var(--radius-lg); box-shadow: var(--shadow-card); padding: 10px 16px; font-family: var(--font-sans); font-weight: 700; font-size: 13px; display: flex; align-items: center; gap: 8px; white-space: nowrap; z-index: 2; color: var(--ink-900); }
+  .float-tag.t1 { top: 18%; left: 0; }
+  .float-tag.t2 { bottom: 16%; right: 0; }
   .float-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
 
   /* ── Sources strip ───────────────────────────────────── */
   .strip { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: var(--surface); padding: 22px 0; }
   .strip .wrap { display: flex; align-items: center; justify-content: center; gap: 36px; flex-wrap: wrap; font-family: var(--font-mono); font-size: 13px; color: var(--ink-500); text-align: center; }
+  .strip .wrap span { display: inline-flex; align-items: center; gap: 7px; }
+  .strip svg.icon { color: var(--ink-400); }
 
   /* ── Features ────────────────────────────────────────── */
   .section { padding: 96px 0; }
   .section-head { max-width: 620px; margin: 0 0 52px; }
-  .section-head .tag { display: inline-block; font-family: var(--font-sans); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--tape-700); background: var(--tape-300); padding: 4px 12px; border-radius: 3px; transform: rotate(-1.5deg); margin-bottom: 18px; }
+  .section-head .tag { display: inline-block; font-family: var(--font-sans); font-weight: 800; font-size: 12px; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-900); background: var(--brand-50); border: 1px solid var(--brand-100); padding: 4px 12px; border-radius: var(--radius-btn); margin-bottom: 18px; }
   .section-head h2 { font-size: 36px; margin-bottom: 14px; }
   .section-head p { font-size: 17px; color: var(--ink-600); line-height: 1.6; }
 
   .grid-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
   .feature-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-xl); padding: 28px; }
-  .feature-icon { width: 46px; height: 46px; border-radius: 12px; display: flex; align-items: center; justify-content: center; margin-bottom: 18px; font-size: 22px; }
+  .feature-icon { width: 46px; height: 46px; border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center; margin-bottom: 18px; font-size: 20px; background: var(--brand-50); color: var(--ink-900); }
   .feature-card h3 { font-family: var(--font-sans); font-weight: 800; font-size: 17px; margin-bottom: 8px; letter-spacing: -0.01em; }
   .feature-card p { font-size: 14.5px; color: var(--ink-600); line-height: 1.6; margin: 0; }
 
   /* ── How it works ────────────────────────────────────── */
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 32px; counter-reset: step; }
   .step { position: relative; padding-left: 4px; }
-  .step-num { font-family: var(--font-display); font-size: 40px; color: var(--brand-100); line-height: 1; margin-bottom: 12px; }
+  .step-num { font-family: var(--font-mono); font-weight: 700; font-size: 34px; color: var(--ink-300); line-height: 1; margin-bottom: 12px; }
   .step h3 { font-size: 18px; font-weight: 800; font-family: var(--font-sans); margin-bottom: 8px; }
   .step p { font-size: 14.5px; color: var(--ink-600); line-height: 1.6; margin: 0; }
 
   /* ── CTA band ────────────────────────────────────────── */
   .cta-band { background: var(--ink-900); border-radius: var(--radius-2xl); padding: 64px 48px; text-align: center; position: relative; overflow: hidden; }
-  .cta-band::before { content: ''; position: absolute; inset: 0; background: radial-gradient(circle at 20% 20%, rgba(45,212,191,.35), transparent 55%), radial-gradient(circle at 85% 80%, rgba(232,185,35,.18), transparent 50%); }
   .cta-band > * { position: relative; }
   .cta-band h2 { color: #fff; font-size: 34px; margin-bottom: 14px; }
   .cta-band p { color: var(--ink-300); font-size: 16px; margin-bottom: 30px; }
@@ -136,7 +146,7 @@
         <img src="/assets/logo-mark.svg" alt="">
         Rummage
       </a>
-      <a class="btn btn-primary" href="/app">Open the app</a>
+      <a class="btn btn-primary" href="https://apps.apple.com/us/app/rummage-yard-estate-sales/id6796180855">Download the app</a>
     </div>
   </nav>
 
@@ -145,17 +155,17 @@
       <div>
         <span class="eyebrow"><span class="dot"></span> Live across the United States</span>
         <h1>Every yard sale,<br>estate sale, and<br><span class="hl">moving sale</span> —<br>one map.</h1>
-        <p class="sub">Rummage pulls listings from Craigslist, OfferUp, EstateSales.org, and half a dozen other sites into a single live map — so you stop tab-hopping and start driving.</p>
+        <p class="sub">Rummage pulls listings from EstateSales.org, GSALR, Nextdoor, and half a dozen other sites into a single live map — so you stop tab-hopping and start driving.</p>
         <div class="hero-ctas">
           <a class="btn btn-primary" href="/app">Find sales near you</a>
           <a class="btn btn-ghost" href="/app">List your own sale — free</a>
         </div>
         <div class="hero-note">No account needed to browse. Free to list.</div>
         <div class="sources">
-          <span class="source-chip">Craigslist</span>
-          <span class="source-chip">OfferUp</span>
           <span class="source-chip">EstateSales.org</span>
           <span class="source-chip">EstateSales.net</span>
+          <span class="source-chip">GSALR</span>
+          <span class="source-chip">Nextdoor</span>
           <span class="source-chip">GarageSaleFinder</span>
           <span class="source-chip">+ more</span>
         </div>
@@ -170,10 +180,10 @@
 
   <div class="strip">
     <div class="wrap">
-      <span>🗺️ Every listing on one map</span>
-      <span>🔔 Alerts for what you're after</span>
-      <span>🧭 Turn-by-turn sale routes</span>
-      <span>📬 Optional daily digest</span>
+      <span><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg> Every listing on one map</span>
+      <span><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg> Alerts for what you're after</span>
+      <span><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg> Turn-by-turn sale routes</span>
+      <span><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg> Optional daily digest</span>
     </div>
   </div>
 
@@ -182,36 +192,36 @@
       <div class="section-head">
         <span class="tag">Why Rummage</span>
         <h2>Stop checking five sites before breakfast.</h2>
-        <p>Yard sale listings are scattered across Craigslist, Facebook, OfferUp, and a dozen estate-sale directories — each with its own format, and none of them talk to each other. Rummage does the aggregating for you.</p>
+        <p>Yard sale listings are scattered across Facebook, Nextdoor, and a dozen estate-sale directories — each with its own format, and none of them talk to each other. Rummage does the aggregating for you.</p>
       </div>
       <div class="grid-features">
         <div class="feature-card">
-          <div class="feature-icon" style="background:var(--type-estate-bg);color:var(--type-estate-fg)">🗺️</div>
+          <div class="feature-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.106 5.553a2 2 0 0 0 1.788 0l3.659-1.83A1 1 0 0 1 21 4.619v12.764a1 1 0 0 1-.553.894l-4.553 2.277a2 2 0 0 1-1.788 0l-4.212-2.106a2 2 0 0 0-1.788 0l-3.659 1.83A1 1 0 0 1 3 19.381V6.618a1 1 0 0 1 .553-.894l4.553-2.277a2 2 0 0 1 1.788 0z"/><path d="M15 5.764v15"/><path d="M9 3.236v15"/></svg></div>
           <h3>One map, every source</h3>
-          <p>Craigslist, OfferUp, EstateSales.org, EstateSales.net, and more — deduplicated and dropped onto a single live map, sorted by distance from wherever you are.</p>
+          <p>EstateSales.org, EstateSales.net, GSALR, Nextdoor, and more — deduplicated and dropped onto a single live map, sorted by distance from wherever you are.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon" style="background:var(--type-yard-bg);color:var(--type-yard-fg)">🔔</div>
+          <div class="feature-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg></div>
           <h3>Alerts for what you're after</h3>
           <p>Pick your interests — furniture, tools, vinyl records, and more — and get a push notification the moment a nearby sale lists something that matches.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon" style="background:var(--type-moving-bg);color:var(--type-moving-fg)">🧭</div>
+          <div class="feature-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="3 11 22 2 13 21 11 13 3 11"/></svg></div>
           <h3>Plan your route</h3>
           <p>Add sales to your trip and get turn-by-turn directions between every stop — built for a Saturday morning circuit, not a single address.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon" style="background:var(--brand-50);color:var(--brand-500)">📍</div>
+          <div class="feature-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></div>
           <h3>Search anywhere</h3>
           <p>Traveling? Rummage detects when you're away from your home ZIP and automatically searches near where you actually are.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon" style="background:var(--tape-100);color:var(--tape-700)">🏷️</div>
+          <div class="feature-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg></div>
           <h3>List your own sale</h3>
           <p>Running a sale this weekend? Post it in under a minute — free — and it shows up on the map alongside everything else immediately.</p>
         </div>
         <div class="feature-card">
-          <div class="feature-icon" style="background:var(--surface-tint, #FBF8F0);color:var(--ink-700);border:1px solid var(--line)">📬</div>
+          <div class="feature-icon"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 7-8.991 5.727a2 2 0 0 1-2.009 0L2 7"/><rect x="2" y="4" width="20" height="16" rx="2"/></svg></div>
           <h3>Daily digest, if you want it</h3>
           <p>Opt in to a morning email with that day's sales near you — or skip it entirely and just browse. Your call.</p>
         </div>
@@ -249,8 +259,8 @@
     <div class="wrap">
       <div class="cta-band">
         <h2>Your next great find is a few blocks away.</h2>
-        <p>Free to browse. Free to list. No app store required.</p>
-        <a class="btn btn-primary" href="/app">Open Rummage</a>
+        <p>Free to browse. Free to list. No account required.</p>
+        <a class="btn btn-primary" href="https://apps.apple.com/us/app/rummage-yard-estate-sales/id6796180855">Download the app</a>
       </div>
     </div>
   </section>

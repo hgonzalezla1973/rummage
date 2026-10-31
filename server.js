@@ -58,6 +58,12 @@ const PORT = process.env.PORT || 8080;
 // Email images need absolute URLs (unlike the app's own relative /api/img
 // calls), so digest emails need to know their own public origin to build them.
 const PUBLIC_BASE_URL = process.env.PUBLIC_BASE_URL || 'https://rummage-lgxw.onrender.com';
+// The live App Store listing (id6796180855) -- the original Capacitor app,
+// which the new yard-sale-treasure-map-clone project is replacing. Until
+// that replacement actually ships, this is the one thing a "download the
+// app" link in a real subscriber's inbox can honestly point to -- the new
+// app is TestFlight-only right now, not something the public can install.
+const APP_STORE_URL = 'https://apps.apple.com/us/app/rummage-yard-estate-sales/id6796180855';
 
 app.use(cors());
 // Default 100kb is way too small for a base64-encoded photo upload (Price
@@ -4478,12 +4484,14 @@ app.get('/unsubscribe', async (req, res) => {
   const subscribers = await loadSubscribers();
   const existing = subscribers.find(s => s.email === email);
   if (existing) { existing.active = false; await saveSubscribers(subscribers); }
-  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Unsubscribed</title></head>
-  <body style="margin:0;background:#F3ECDF;font-family:Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box;">
-    <div style="max-width:420px;text-align:center;background:#FFFFFF;border:1px solid #E5DDCE;border-radius:20px;padding:36px 28px;">
-      <div style="font-size:32px;">${existing ? '👋' : '🤔'}</div>
-      <h1 style="font-size:20px;color:#1C1917;margin:12px 0 6px;">${existing ? "You're unsubscribed" : "We couldn't find that email"}</h1>
-      <p style="font-size:14px;color:#57534E;line-height:1.5;margin:0;">${existing
+  res.send(`<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Unsubscribed</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700&display=swap" rel="stylesheet"></head>
+  <body style="margin:0;background:#F8FAFC;font-family:'Plus Jakarta Sans',Arial,Helvetica,sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;padding:24px;box-sizing:border-box;">
+    <div style="max-width:420px;text-align:center;background:#FFFFFF;border:1px solid #E2E8F0;border-radius:12px;padding:36px 28px;">
+      <div style="width:40px;height:40px;margin:0 auto;border-radius:50%;background:#0F172A;color:#FFFFFF;font-size:18px;font-weight:700;line-height:40px;">${existing ? '✓' : '?'}</div>
+      <h1 style="font-size:20px;color:#0F172A;margin:14px 0 6px;">${existing ? "You're unsubscribed" : "We couldn't find that email"}</h1>
+      <p style="font-size:14px;color:#64748B;line-height:1.5;margin:0;">${existing
         ? `${digestEscapeHtml(email)} won't receive the daily digest anymore. You can turn it back on anytime in the app.`
         : `${digestEscapeHtml(email)} isn't on our digest list, so there's nothing to do here.`}</p>
     </div>
@@ -4783,17 +4791,27 @@ function digestEscapeHtml(s) {
 // PLACEHOLDER_STYLES (the photo-less card gradient) -- `icon` is the same
 // glyph SaleTypeTag shows in its small solid circle (no text label, that
 // badge style was dropped from the app).
+// Same colors and single-letter glyphs the app's own map pins use for each
+// type (lib/listings-api.ts's LISTING_TYPE_PIN_STYLE) -- the email used to
+// carry its own unrelated emoji-and-gradient set, which is exactly the kind
+// of drift a redesign exists to fix. No "auction" entry: AuctionNinja
+// listings are filed under "yard" upstream (see scrapeAuctionNinja's own
+// comment) -- there's no fourth type in the app to match against.
 const DIGEST_TYPE_STYLES = {
-  estate:  { icon: '&#127968;', gradFrom: '#DCE4EF', gradTo: '#A8BEDA', iconFg: '#2C4A7C' },
-  yard:    { icon: '&#127991;&#65039;', gradFrom: '#E1E8D6', gradTo: '#B7CBA0', iconFg: '#3F5E3A' },
-  moving:  { icon: '&#128666;', gradFrom: '#F1E0B8', gradTo: '#E0C070', iconFg: '#8A5A12' },
-  auction: { icon: '&#128296;', gradFrom: '#EAD9DE', gradTo: '#CDA2AE', iconFg: '#6B2A3E' },
+  estate: { glyph: 'E', color: '#B5542C', tint: '#F3E4DC' },
+  yard:   { glyph: 'Y', color: '#6B7A2A', tint: '#E9EDD9' },
+  moving: { glyph: 'M', color: '#2B6CB0', tint: '#DDE7F3' },
 };
 const DIGEST_MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const DIGEST_DAY_NAMES = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
 function digestCardHtml(l) {
   const style = DIGEST_TYPE_STYLES[l.type] || DIGEST_TYPE_STYLES.yard;
+  // A custom-scheme deep link (rummage://...) here looked right but isn't
+  // reliable from inside an email client -- confirmed live, it just didn't
+  // open anything. A real https:// link always works (worst case, opens a
+  // browser), so this stays on the one thing guaranteed to actually work
+  // for every subscriber today: the live web app at /app.
   const href = `${PUBLIC_BASE_URL}/app?sale=${encodeURIComponent(l.id)}`;
   // Escape each raw field individually, then join with the (already-safe,
   // not user data) &middot; entity -- escaping the joined string instead
@@ -4801,37 +4819,43 @@ function digestCardHtml(l) {
   const cityLine = [l.distanceMi != null ? `${l.distanceMi}&nbsp;mi` : null, digestEscapeHtml(l.neighborhood || l.address)]
     .filter(Boolean).join(' &middot; ');
   const dateLine = [digestEscapeHtml(l.dateLabel), digestEscapeHtml(l.timeLabel)].filter(Boolean).join(' &middot; ');
-  // Real photo when the listing has one; otherwise the same gradient + pin
-  // placeholder as before. bgcolor on the image cell (rather than just the
-  // <img> tag) gives a same-toned fallback if the photo is slow to load or
-  // gets blocked by the email client, instead of a bare broken-image icon.
+  // Real photo when the listing has one; otherwise a flat tint + the same
+  // letter badge the map uses for this type, not a gradient -- this app's
+  // own design tokens (replica/design/tokens.json) don't use gradients
+  // anywhere, so a flat tint reads as "this app's card," not a leftover
+  // from the old email's own unrelated style. bgcolor on the image cell
+  // (rather than just the <img> tag) gives a same-toned fallback if the
+  // photo is slow to load or gets blocked by the email client, instead of a
+  // bare broken-image icon.
   const media = l.images?.[0]
-    ? `<img src="${proxyImgUrlForEmail(l.images[0])}" width="100%" height="120" alt="" style="width:100%; height:120px; object-fit:cover; display:block; border-radius:17px 17px 0 0;" />`
-    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,${style.gradFrom},${style.gradTo}); border-radius:17px 17px 0 0;">
+    ? `<img src="${proxyImgUrlForEmail(l.images[0])}" width="100%" height="120" alt="" style="width:100%; height:120px; object-fit:cover; display:block; border-radius:12px 12px 0 0;" />`
+    : `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:${style.tint}; border-radius:12px 12px 0 0;">
                       <tr>
-                        <td height="120" align="center" valign="middle" style="font-family:Arial,sans-serif;">
-                          <div style="font-size:24px; color:${style.iconFg};">${style.icon}</div>
-                          <div style="font-size:11px; font-weight:600; color:${style.iconFg}; margin-top:3px;">No photo provided</div>
+                        <td height="120" align="center" valign="middle" style="font-family:'Plus Jakarta Sans',Arial,sans-serif;">
+                          <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                            <tr><td bgcolor="${style.color}" width="32" height="32" align="center" valign="middle" style="border-radius:50%; font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; line-height:32px; text-align:center;">${style.glyph}</td></tr>
+                          </table>
+                          <div style="font-size:11px; font-weight:600; color:${style.color}; margin-top:6px;">No photo provided</div>
                         </td>
                       </tr>
                     </table>`;
   return `
-              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:20px; box-shadow:0 2px 8px rgba(24,24,27,.10);">
+              <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; border:1px solid #E2E8F0;">
                 <tr>
-                  <td style="position:relative;" bgcolor="${style.gradFrom}">
+                  <td style="position:relative;" bgcolor="${style.tint}">
                     ${media}
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="position:absolute; top:10px; left:10px;">
-                      <tr><td bgcolor="#0D9488" width="30" height="30" align="center" valign="middle" style="border-radius:50%; font-family:Arial,sans-serif; font-size:14px; line-height:30px; text-align:center;">${style.icon}</td></tr>
+                      <tr><td bgcolor="${style.color}" width="26" height="26" align="center" valign="middle" style="border-radius:50%; font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:12px; font-weight:700; color:#FFFFFF; line-height:26px; text-align:center;">${style.glyph}</td></tr>
                     </table>
                   </td>
                 </tr>
                 <tr>
                   <td style="padding:14px 16px 16px 16px;">
-                    <div style="font-family:'Inter',Arial,sans-serif; font-size:17px; font-weight:700; color:#18181B; line-height:1.3; max-height:2.6em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${digestEscapeHtml(l.title || 'Sale')}</div>
-                    <div style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#52525B; padding-top:6px;">${cityLine}</div>
-                    <div style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#71717A; padding-top:2px;">${dateLine}</div>
+                    <div style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:17px; font-weight:700; color:#0F172A; line-height:1.3; max-height:2.6em; overflow:hidden; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">${digestEscapeHtml(l.title || 'Sale')}</div>
+                    <div style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#64748B; padding-top:6px;">${cityLine}</div>
+                    <div style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:12px; color:#64748B; padding-top:2px;">${dateLine}</div>
                     <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:12px;">
-                      <tr><td style="font-family:Arial,sans-serif; font-size:13px; font-weight:700;"><a href="${href}" style="color:#0F766E;">View sale &rarr;</a></td></tr>
+                      <tr><td style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:13px; font-weight:700;"><a href="${href}" style="color:#0F172A;">View sale &rarr;</a></td></tr>
                     </table>
                   </td>
                 </tr>
@@ -4862,16 +4886,16 @@ function buildDigestHtml(listings, { zip, email }) {
   const moreSection = remaining > 0 ? `
     <tr>
       <td style="padding:8px 20px 32px 20px;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#211D17; border-radius:20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0F172A; border-radius:12px;">
           <tr>
             <td align="center" style="padding:32px 24px;">
-              <div style="font-family:'Inter',Arial,sans-serif; font-size:20px; font-weight:800; color:#FFFFFF; line-height:1.3;">
+              <div style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:20px; font-weight:800; color:#FFFFFF; line-height:1.3;">
                 ${remaining} more sale${remaining===1?'':'s'} ${remaining===1?'is':'are'} waiting on the map.
               </div>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
                 <tr>
-                  <td bgcolor="#FFFFFF" style="border-radius:45px;">
-                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 26px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:700; color:#211D17; border-radius:45px;">Open Rummage</a>
+                  <td bgcolor="#FFFFFF" style="border-radius:8px;">
+                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 26px; font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:14px; font-weight:700; color:#0F172A; border-radius:8px;">Open Rummage</a>
                   </td>
                 </tr>
               </table>
@@ -4887,6 +4911,11 @@ function buildDigestHtml(listings, { zip, email }) {
   const typesPresent = [...new Set(shown.map(l => `${l.type} sale`))];
   const preheader = `${listings.length} sale${listings.length===1?'':'s'} near you today${closestMi!=null?`, starting ${closestMi} mi away`:''}${typesPresent.length?` — ${typesPresent.join(', ')} and more.`:'.'}`;
   const unsubUrl = `${PUBLIC_BASE_URL}/unsubscribe?email=${encodeURIComponent(email)}`;
+  // No reliable web page to land a subscriber on their actual preferences
+  // (those live in the new app's Settings tab, not reachable over the web
+  // yet) -- same reliable-everywhere /app link as everything else here
+  // until that's true. Unsubscribing still works instantly via unsubUrl
+  // above regardless.
   const prefsUrl = `${PUBLIC_BASE_URL}/app`;
 
   return `<!DOCTYPE html>
@@ -4900,7 +4929,7 @@ function buildDigestHtml(listings, { zip, email }) {
 <title>Rummage — Sales near you today</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <!--[if mso]>
 <noscript>
 <xml>
@@ -4927,22 +4956,22 @@ function buildDigestHtml(listings, { zip, email }) {
   }
 </style>
 </head>
-<body style="margin:0; padding:0; background-color:#F6F6F6; width:100%;">
-  <span style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all; font-family:Arial,sans-serif; color:#F6F6F6;">
+<body style="margin:0; padding:0; background-color:#F8FAFC; width:100%;">
+  <span style="display:none; font-size:1px; line-height:1px; max-height:0; max-width:0; opacity:0; overflow:hidden; mso-hide:all; font-family:Arial,sans-serif; color:#F8FAFC;">
     ${preheader}
   </span>
 
-  <center style="width:100%; background-color:#F6F6F6;">
+  <center style="width:100%; background-color:#F8FAFC;">
   <div style="max-width:600px; margin:0 auto;" class="rm-container">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:600px; margin:0 auto; width:100%;" class="rm-container">
     <tr>
-      <td style="padding:24px 20px 12px 20px; background-color:#F6F6F6;">
+      <td style="padding:24px 20px 12px 20px; background-color:#F8FAFC;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td style="font-family:'Inter',Arial,sans-serif; font-size:19px; font-weight:800; color:#211D17; vertical-align:middle;">
-              <span style="color:#0D9488; font-size:18px;">&#9679;</span>&nbsp;Rummage
+            <td style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:19px; font-weight:800; color:#0F172A; vertical-align:middle;">
+              <span style="color:#0F172A; font-size:18px;">&#9679;</span>&nbsp;Rummage
             </td>
-            <td align="right" style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#8A8069; vertical-align:middle;">
+            <td align="right" style="font-family:'JetBrains Mono',monospace; font-size:12px; color:#64748B; vertical-align:middle;">
               ${dateStr}
             </td>
           </tr>
@@ -4951,20 +4980,24 @@ function buildDigestHtml(listings, { zip, email }) {
     </tr>
 
     <tr>
-      <td style="padding:8px 20px 24px 20px; background-color:#F6F6F6;">
-        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:20px; box-shadow:0 2px 8px rgba(24,24,27,.10);">
+      <td style="padding:8px 20px 24px 20px; background-color:#F8FAFC;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#FFFFFF; border-radius:12px; border:1px solid #E2E8F0;">
           <tr>
             <td style="padding:28px 24px;">
-              <div style="font-family:'Inter',Arial,sans-serif; font-size:28px; line-height:1.15; color:#211D17; font-weight:800;">
+              <div style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:28px; line-height:1.15; color:#0F172A; font-weight:800;">
                 Good morning. Here's what's nearby today.
               </div>
-              <div style="font-family:'Inter',Arial,sans-serif; font-size:14px; line-height:1.5; color:#6B6252; padding-top:8px;">
+              <div style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:14px; line-height:1.5; color:#64748B; padding-top:8px;">
                 ${listings.length} sale${listings.length===1?'':'s'} near ${digestEscapeHtml(zip)}, closest first.
               </div>
               <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin-top:18px;">
                 <tr>
-                  <td bgcolor="#000000" style="border-radius:45px;">
-                    <a href="${PUBLIC_BASE_URL}/app" style="display:block; padding:13px 24px; font-family:'Inter',Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; border-radius:45px; white-space:nowrap;">Open the app</a>
+                  <td bgcolor="#0F172A" style="border-radius:8px;">
+                    <a href="${APP_STORE_URL}" style="display:block; padding:13px 20px; font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:14px; font-weight:700; color:#FFFFFF; border-radius:8px; white-space:nowrap;">Download the app</a>
+                  </td>
+                  <td width="10"></td>
+                  <td style="border-radius:8px; border:1px solid #E2E8F0;">
+                    <a href="${PUBLIC_BASE_URL}/" style="display:block; padding:13px 20px; font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:14px; font-weight:700; color:#0F172A; border-radius:8px; white-space:nowrap;">Visit the website</a>
                   </td>
                 </tr>
               </table>
@@ -4975,10 +5008,10 @@ function buildDigestHtml(listings, { zip, email }) {
     </tr>
 
     <tr>
-      <td style="padding:0 24px 12px 24px; background-color:#F6F6F6;">
+      <td style="padding:0 24px 12px 24px; background-color:#F8FAFC;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td style="font-family:'Inter',Arial,sans-serif; font-size:11px; letter-spacing:0.06em; color:#8A8069; text-transform:uppercase; font-weight:700;">
+            <td style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:11px; letter-spacing:0.06em; color:#64748B; text-transform:uppercase; font-weight:700;">
               Nearest to furthest
             </td>
           </tr>
@@ -4992,13 +5025,13 @@ ${moreSection}
       <td style="padding:8px 24px 32px 24px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
           <tr>
-            <td align="center" style="font-family:'Inter',Arial,sans-serif; font-size:12px; color:#8A8069; line-height:1.7; padding-top:8px;">
-              <span style="color:#0D9488;">&#9679;</span>&nbsp;Rummage &middot; Find the good stuff nearby.<br>
+            <td align="center" style="font-family:'Plus Jakarta Sans',Arial,sans-serif; font-size:12px; color:#64748B; line-height:1.7; padding-top:8px;">
+              <span style="color:#0F172A;">&#9679;</span>&nbsp;Rummage &middot; Find the good stuff nearby.<br>
               You're getting this because you opted into the daily digest.<br>
-              <a href="${prefsUrl}" style="color:#0F766E;">Manage email preferences</a>
+              <a href="${prefsUrl}" style="color:#0F172A; font-weight:600;">Manage email preferences</a>
               &nbsp;&middot;&nbsp;
-              <a href="${unsubUrl}" style="color:#0F766E;">Unsubscribe</a><br>
-              <span style="color:#9C9280;">Rummage &middot; 12313 Orange Dr, Whittier, CA 90601</span>
+              <a href="${unsubUrl}" style="color:#0F172A; font-weight:600;">Unsubscribe</a><br>
+              <span style="color:#94A3B8;">Rummage &middot; 12313 Orange Dr, Whittier, CA 90601</span>
             </td>
           </tr>
         </table>

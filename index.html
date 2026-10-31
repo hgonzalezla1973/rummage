@@ -7,43 +7,42 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* "Carbon Copy Classifieds": newsprint ground, carbon-ink neutral scale,
-     and a single hot poster-orange accent -- the color of the actual
-     cardboard signs people staple to telephone poles. Hard-edged borders
-     do the separation work (no soft blurred elevation), corners are small
-     and crisp, not rounded pills. Every color below is still read through
-     the same --semantic-alias tokens the whole app already used, so
-     retuning here is enough to recolor/reshape the app without touching
-     components. */
-  --paper:#F1EFE9; --paper-2:#E7E3D8; --surface:#FFFFFF; --surface-tint:#FFFFFF;
+  /* Retokened to match the app's own design system (components/ui/colors.ts
+     / replica/design/tokens.json) -- navy-on-white "Field Utility Modern"
+     instead of this page's old "Carbon Copy Classifieds" newsprint/orange
+     theme. Every color below is still read through the same
+     --semantic-alias tokens the whole app already used, so retuning here
+     is enough to recolor/reshape the app without touching components. */
+  --paper:#F8FAFC; --paper-2:#F1F5F9; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
-  /* Neutral ink — carbon/newsprint black-gray scale */
-  --ink-900:#1A1A1A; --ink-800:#2B2B28; --ink-700:#46453F; --ink-600:#5C5B54;
-  --ink-500:#76756C; --ink-400:#949289; --ink-300:#B8B6AB; --ink-200:#D6D3C6; --ink-100:#E7E3D8; --line:#2A2A26;
+  /* Neutral ink — slate scale, matching the app's own text/border tokens */
+  --ink-900:#0F172A; --ink-800:#1E293B; --ink-700:#334155; --ink-600:#475569;
+  --ink-500:#64748B; --ink-400:#94A3B8; --ink-300:#CBD5E1; --ink-200:#E2E8F0; --ink-100:#F1F5F9; --line:#E2E8F0;
 
-  /* Primary — one hot poster-orange accent, spent on the primary action,
-     "live now", and links. (Still named --brand-* so every existing call
-     site just picks up the new color without edits.) */
-  --brand-50:#FDE8DF; --brand-100:#F8C3AC; --brand-200:#F29B79; --brand-300:#EC7249;
-  --brand-400:#E8491D; --brand-500:#C23814; --brand-600:#9C2D10; --brand-700:#76220C; --brand-800:#551809;
-  --brand-grad:#E8491D;
+  /* Primary — the app's own "the brand color IS the near-black text color"
+     choice (see components/ui/colors.ts's own comment), not a separate
+     hue. Still named --brand-* so every existing call site just picks up
+     the new color without edits. */
+  --brand-50:#F1F5F9; --brand-100:#E2E8F0; --brand-200:#CBD5E1; --brand-300:#94A3B8;
+  --brand-400:#0F172A; --brand-500:#0B1220; --brand-600:#0B1220; --brand-700:#060A12; --brand-800:#000000;
+  --brand-grad:#0F172A;
 
-  --tape-50:#E7E3D8; --tape-100:#DBD7C9; --tape-300:#C7C2B0; --tape-500:#FFFFFF; --tape-600:#DBD7C9; --tape-700:#76756C;
-  --teal-50:#E4EFEE; --teal-100:#B8D3D2; --teal-300:#7AACAA; --teal-500:#146664; --teal-600:#0F504E; --teal-700:#093230;
-  --green-600:#1E8E5A; --green-bg:#E3F5EC; --amber-600:#9A7B0A; --amber-bg:#FDF3D6; --red-600:#D6392F; --red-bg:#FBE4E2;
-  --coral:#C2453B; --coral-bg:#FBE4E2;
+  --tape-50:#F1F5F9; --tape-100:#E2E8F0; --tape-300:#CBD5E1; --tape-500:#FFFFFF; --tape-600:#E2E8F0; --tape-700:#64748B;
+  --teal-50:#F1F5F9; --teal-100:#E2E8F0; --teal-300:#94A3B8; --teal-500:#0F172A; --teal-600:#0B1220; --teal-700:#060A12;
+  --green-600:#047857; --green-bg:#ECFDF5; --amber-600:#9A5B00; --amber-bg:#FEF3E2; --red-600:#A01F1F; --red-bg:#FEF2F2;
+  --coral:#0F172A; --coral-bg:#F1F5F9;
 
-  /* Sale type: plain text labels now, not colored pills -- these three
-     stay defined (a couple of call sites still read them for icon tint on
-     a neutral surface) but no longer drive a per-category background. */
-  --type-estate-fg:var(--ink-600); --type-estate-bg:var(--paper-2);
-  --type-yard-fg:var(--ink-600);   --type-yard-bg:var(--paper-2);
-  --type-moving-fg:var(--ink-600); --type-moving-bg:var(--paper-2);
+  /* Sale type: the app's real category colors (same as its map pins and
+     ListingCard badges) -- a couple of call sites read just the fg value
+     for icon tint on a neutral surface. */
+  --type-estate-fg:#B5542C; --type-estate-bg:#F3E4DC;
+  --type-yard-fg:#6B7A2A;   --type-yard-bg:#E9EDD9;
+  --type-moving-fg:#2B6CB0; --type-moving-bg:#DDE7F3;
 
   /* Semantic aliases */
   --text-primary:var(--ink-900); --text-secondary:var(--ink-600); --text-muted:var(--ink-500); --text-faint:var(--ink-400);
@@ -57,8 +56,8 @@
   --danger:var(--red-600); --danger-bg:var(--red-bg);
   --pin:var(--ink-900); --pin-saved:var(--coral);
 
-  --font-display:'Anton',system-ui,-apple-system,sans-serif;
-  --font-sans:'Work Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+  --font-sans:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
@@ -69,23 +68,22 @@
 
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  /* Small, crisp corners -- a printed card, not a rounded app tile.
-     --radius-pill stays a true pill: it's spent only on genuinely round
-     shapes (carousel dots, badges, a progress bar's rounded end), not on
-     buttons/chips/cards, which get the flat --radius-btn/--radius-xl scale
-     below instead. */
-  --radius-xs:2px; --radius-sm:3px; --radius-md:3px; --radius-lg:4px;
-  --radius-xl:4px; --radius-2xl:6px; --radius-pill:999px; --radius-btn:4px;
+  /* Rounded-md corners throughout, matching the app -- not this page's old
+     flat "cut paper" 2-4px corners, and not a full pill either except
+     where --radius-pill is spent on genuinely round shapes (carousel dots,
+     a progress bar's rounded end). */
+  --radius-xs:4px; --radius-sm:6px; --radius-md:8px; --radius-lg:10px;
+  --radius-xl:12px; --radius-2xl:16px; --radius-pill:999px; --radius-btn:8px;
 
-  /* Hard, unblurred "cut paper" shadows -- an offset, not a glow. Borders
-     do most of the separation work in this system; these are a light
-     lift for the few things that still need to read as layered on top. */
-  --shadow-xs:0 1px 0 rgba(26,26,26,.1);
-  --shadow-sm:1px 2px 0 rgba(26,26,26,.14);
-  --shadow-md:2px 3px 0 rgba(26,26,26,.18);
-  --shadow-lg:3px 5px 0 rgba(26,26,26,.22);
-  --shadow-sheet:0 -2px 0 rgba(26,26,26,.14);
-  --shadow-pin:1px 2px 0 rgba(26,26,26,.3);
+  /* Soft, blurred elevation instead of the old hard "cut paper" offset
+     shadows -- matching shadow-card's rgba(15,23,42,...) treatment used
+     throughout the rest of the app. */
+  --shadow-xs:0 1px 2px rgba(15,23,42,.06);
+  --shadow-sm:0 1px 3px rgba(15,23,42,.08);
+  --shadow-md:0 4px 12px rgba(15,23,42,.10);
+  --shadow-lg:0 12px 32px rgba(15,23,42,.14);
+  --shadow-sheet:0 -2px 12px rgba(15,23,42,.10);
+  --shadow-pin:0 2px 6px rgba(15,23,42,.18);
   --shadow-focus:0 0 0 3px var(--brand-200);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
