@@ -2621,11 +2621,39 @@ async function scrapeGsalr(zip, radiusMi, centerLat, centerLng) {
 // Scoped to sale_type=Estate (its own "Estate Sales" category), so this
 // result set is inherently all real sale events -- no title filter needed,
 // same as GSALR/EstateSale.com/GarageSaleFinder.
+// A sale's own page is plain HTML with its whole gallery: the cover photo plus
+// one full-size link per photo, class "esld-left-thumbnials" (their spelling).
+// Stops starting new batches at the deadline, because going past the 15s
+// per-source ceiling would throw away this source's listings entirely; any
+// sale not reached just keeps its search-card photo.
+async function fetchAuctionNinjaPhotos(listings, deadline, concurrency = 6) {
+  const photoMap = new Map();
+  const IMG = 'https:\\/\\/www\\.auctionninja\\.com\\/estate_images\\/[^"]+';
+  const coverRe = new RegExp(`esld-left-main-img">\\s*<img src="(${IMG})"`);
+  const galleryRe = new RegExp(`<a href="(${IMG})" class="esld-left-thumbnials"`, 'g');
+  for (let i = 0; i < listings.length && Date.now() < deadline; i += concurrency) {
+    await Promise.all(listings.slice(i, i + concurrency).map(async listing => {
+      try {
+        const res = await fetchTimeout(listing.url, 3500, { headers: { 'User-Agent': SCRAPE_UA } });
+        if (!res.ok) return;
+        const html = await res.text();
+        const cover = html.match(coverRe)?.[1];
+        const urls = [...new Set([...(cover ? [cover] : []), ...[...html.matchAll(galleryRe)].map(m => m[1])])];
+        if (urls.length) photoMap.set(listing.url, urls);
+      } catch (_) {
+        // Non-fatal: the listing keeps its search-card photo
+      }
+    }));
+  }
+  return photoMap;
+}
+
 async function scrapeAuctionNinja(zip, radiusMi, centerLat, centerLng) {
   const cacheKey = `an:${zip}:${radiusMi}`;
   const cached = fromCache(cacheKey);
   if (cached) { console.log('  AN cache hit'); return cached; }
 
+  const startedAt = Date.now();
   const results = [];
   try {
     const url = `https://www.auctionninja.com/estate-sales-ajax.php?srt=Date&miles=${Math.min(radiusMi, 250)}&auc_date=&sale_type=Estate&seller=&view=&city=&state=&zip=${encodeURIComponent(zip)}&auctiontype=&pgtype=${encodeURIComponent('https://www.auctionninja.com/estate-sales')}&shipping=s&pickup=p&ninjaship=`;
@@ -2711,6 +2739,12 @@ async function scrapeAuctionNinja(zip, radiusMi, centerLat, centerLng) {
         x:            Math.max(10, Math.min(90, px.x)),
         y:            Math.max(10, Math.min(90, px.y)),
       });
+    }
+
+    const photoMap = await fetchAuctionNinjaPhotos(results, startedAt + 10000);
+    for (const listing of results) {
+      const urls = photoMap.get(listing.url);
+      if (urls?.length) { listing.images = capPhotos(urls); listing.photoCount = listing.images.length; }
     }
 
     console.log(`  AN done — ${results.length} listings`);
@@ -3217,6 +3251,13 @@ const YSN_SALE_TYPES = {
   3: 'estate',  // Estate Sale
 };
 
+// Search cards carry a small rendition (w300, or a -t thumbnail on the eso-cdn
+// root bucket). The same path serves the 700px or original version the sale's
+// own page uses. eso-cdn's /f/ bucket only stores -t, so that one is left alone.
+const ysnLargeImageUrl = url => url && url
+  .replace(/\/image\/w\d+(?:-[a-z]\d+(?::\d+)?)?\//, '/image/w700-h500/')
+  .replace(/(eso-cdn\.tlcdn\.workers\.dev\/s-[^/]+)-t\.(jpg|webp)$/, '$1.$2');
+
 async function scrapeYardSalesNet(zip, radiusMi, centerLat, centerLng) {
   const cacheKey = `ysn:${zip}:${radiusMi}`;
   const cached = fromCache(cacheKey);
@@ -3265,7 +3306,7 @@ async function scrapeYardSalesNet(zip, radiusMi, centerLat, centerLng) {
       const rawDates = (block.match(/card__dates-wrap[\s\S]{0,400}?<div>([\s\S]*?)<\/div>/) || [])[1] || '';
       cardInfo.set(id, {
         dateLabel: decodeHtmlEntities(rawDates.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()),
-        image: (block.match(/data-src="(https?:\/\/[^"]+)"/) || block.match(/<img[^>]+src="(https?:\/\/[^"]+)"/) || [])[1] || null,
+        image: ysnLargeImageUrl((block.match(/data-src="(https?:\/\/[^"]+)"/) || block.match(/<img[^>]+src="(https?:\/\/[^"]+)"/) || [])[1] || null),
       });
     }
 
@@ -3774,7 +3815,12 @@ app.get('/api/vintage-stores', async (req, res) => {
 // seconds, and almost nothing about "what sales are nearby" actually
 // changes minute to minute, so making a user sit through that on every
 // cache expiry was pure waste.
-async function getListingsForZip(zip, radiusMi) {
+//
+// waitForFresh is for callers already showing a list and asking for a newer
+// one (pull-to-refresh, returning to the app): handing back the stale copy
+// would change nothing on screen. It waits on the same deduped refresh, so it
+// never adds a scrape -- a list under 8 minutes old is still returned as is.
+async function getListingsForZip(zip, radiusMi, { waitForFresh = false } = {}) {
   const cacheKey = `all:${zip}:${radiusMi}`;
   const hit = cache.get(cacheKey);
   const isFresh = hit && (Date.now() - hit.ts < CACHE_TTL);
@@ -3795,7 +3841,7 @@ async function getListingsForZip(zip, radiusMi) {
         .finally(() => inFlight.delete(cacheKey));
       inFlight.set(cacheKey, refresh);
     }
-    return hit.data;
+    return waitForFresh ? inFlight.get(cacheKey) : hit.data;
   }
 
   // Nothing cached at all yet — this request has to wait for the real thing.
@@ -4186,7 +4232,7 @@ app.get('/api/listings', async (req, res) => {
   if (zip.length !== 5) return res.status(400).json({ error: 'Invalid ZIP' });
 
   try {
-    const all = await getListingsForZip(zip, radiusMi);
+    const all = await getListingsForZip(zip, radiusMi, { waitForFresh: req.query.fresh === '1' });
     // geocodeZip is cheap here -- fetchListingsFresh already resolved and
     // cached this exact zip moments ago, so this is a guaranteed cache hit,
     // not a second real lookup. Sent along so the client can center its map

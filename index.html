@@ -234,32 +234,60 @@ const SORT_MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9
 // Sortable timestamp for a sale's start date, parsed from its display label
 // (e.g. "Sat, Jul 4 – Sun, Jul 5" → the Jul 4 start). Sales with no
 // parseable date sort to the very end rather than the very start.
+// Every date a sale's dateLabel mentions, in order. Source labels almost never
+// carry a year, so each resolves to the year that puts it nearest today: in
+// November "Jan 3" is next January, and in January "Dec 30" was last December.
+function saleLabelDates(dateLabel) {
+  const now = new Date();
+  const HALF_YEAR_MS = 183 * 24 * 60 * 60 * 1000;
+  return [...(dateLabel || '').matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
+    .filter(m => SORT_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined)
+    .map(m => {
+      const mo = SORT_MO_IDX[m[1].toLowerCase().slice(0,3)];
+      const day = parseInt(m[2]);
+      if (m[3]) return new Date(parseInt(m[3]), mo, day);
+      const date = new Date(now.getFullYear(), mo, day);
+      if (date - now > HALF_YEAR_MS) date.setFullYear(date.getFullYear() - 1);
+      else if (now - date > HALF_YEAR_MS) date.setFullYear(date.getFullYear() + 1);
+      return date;
+    });
+}
+
+// First and last day a sale runs (ms), or null if its label has no usable date.
+function saleDayRange(dateLabel) {
+  const dates = saleLabelDates(dateLabel);
+  return dates.length ? { start: dates[0].getTime(), end: dates[dates.length - 1].getTime() } : null;
+}
+
+// The two month buttons: the current month and the next. Derived from today,
+// so they roll forward on their own when a month ends.
+function saleMonthOptions(today) {
+  return [0, 1].map(offset => {
+    const first = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    return {
+      key: `${first.getFullYear()}-${first.getMonth() + 1}`,
+      label: first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      start: first.getTime(),
+      end: new Date(first.getFullYear(), first.getMonth() + 1, 0).getTime(),
+    };
+  });
+}
+
+// "Soonest" means the next day you could actually go: a sale already running
+// counts as today, and one that has ended sorts last.
 function saleSortDate(dateLabel) {
-  const label = dateLabel || '';
-  if (!label) return Infinity;
-  const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-    .filter(m => SORT_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
-  if (!hits.length) return Infinity;
-  const m = hits[0];
-  const mo = SORT_MO_IDX[m[1].toLowerCase().slice(0,3)];
-  const day = parseInt(m[2]);
-  const year = m[3] ? parseInt(m[3]) : new Date().getFullYear();
-  return new Date(year, mo, day).getTime();
+  const range = saleDayRange(dateLabel);
+  if (!range) return Infinity;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return range.end < today.getTime() ? Infinity : Math.max(range.start, today.getTime());
 }
 
 // Every day-of-week (0=Sun..6=Sat) a sale's dateLabel actually mentions —
 // a multi-day label like "Sat, Oct 3 - Sun, Oct 4" matches both days, so a
 // "Sunday" filter correctly still surfaces a sale that started Saturday.
 function saleWeekdays(dateLabel) {
-  const label = dateLabel || '';
-  const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-    .filter(m => SORT_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
-  return hits.map(m => {
-    const mo = SORT_MO_IDX[m[1].toLowerCase().slice(0,3)];
-    const day = parseInt(m[2]);
-    const year = m[3] ? parseInt(m[3]) : new Date().getFullYear();
-    return new Date(year, mo, day).getDay();
-  });
+  return saleLabelDates(dateLabel).map(d => d.getDay());
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -442,6 +470,16 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children,
       {children}
       {trailingIcon && <span style={{display:'inline-flex',opacity:.8}}>{trailingIcon}</span>}
     </button>
+  );
+}
+
+function MonthChips({ months, value, onChange, style }) {
+  return (
+    <div style={{display:'flex',gap:8,...style}}>
+      {months.map(m => (
+        <FilterChip key={m.key} selected={value===m.key} onClick={()=>onChange(value===m.key ? null : m.key)}>{m.label}</FilterChip>
+      ))}
+    </div>
   );
 }
 
@@ -1538,13 +1576,94 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
   );
 }
 
-function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage, mapCenter,
+// A vertical scroller that calls onRefresh (returning a promise) when pulled
+// down from the top. Touch listeners are attached natively with
+// {passive:false} for the same reason as the Lightbox above: preventDefault()
+// has to really work to stop iOS's rubber-band scroll taking over the drag.
+// The drag writes straight to the DOM rather than through state, so a move
+// event doesn't re-render a whole list of sales.
+const PULL_TRIGGER_PX = 64;
+const PULL_MAX_PX = 96;
+const PULL_HOLD_PX = 48;
+function PullToRefreshScroller({ onRefresh, style, children }) {
+  const scrollerRef = useRef(null);
+  const indicatorRef = useRef(null);
+  const iconRef = useRef(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    let startY = null, pull = 0, busy = false;
+    const setPull = (px, animate) => {
+      pull = px;
+      const indicator = indicatorRef.current, icon = iconRef.current;
+      if (!indicator || !icon) return; // unmounted mid-refresh (tab or Map switch)
+      indicator.style.transition = animate ? 'height .2s ease-out' : 'none';
+      indicator.style.height = `${px}px`;
+      icon.style.opacity = Math.min(1, px / PULL_TRIGGER_PX);
+      icon.style.transform = `rotate(${px * 4}deg)`;
+    };
+    const start = e => {
+      startY = (!busy && e.touches.length === 1 && el.scrollTop <= 0) ? e.touches[0].clientY : null;
+    };
+    const move = e => {
+      if (startY == null) return;
+      const dy = e.touches[0].clientY - startY;
+      if (el.scrollTop > 0 || e.touches.length > 1 || (dy <= 0 && pull === 0)) { // an ordinary scroll
+        startY = null;
+        if (pull > 0) setPull(0, true);
+        return;
+      }
+      if (e.cancelable) e.preventDefault();
+      setPull(Math.min(PULL_MAX_PX, Math.max(0, dy) * 0.5), false);
+    };
+    const end = () => {
+      if (startY == null) return;
+      startY = null;
+      if (pull < PULL_TRIGGER_PX) { setPull(0, true); return; }
+      busy = true;
+      setRefreshing(true);
+      setPull(PULL_HOLD_PX, true);
+      Promise.resolve(onRefreshRef.current()).catch(() => {}).finally(() => {
+        busy = false;
+        setRefreshing(false);
+        setPull(0, true);
+      });
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end);
+    el.addEventListener('touchcancel', end);
+    return () => {
+      el.removeEventListener('touchstart', start);
+      el.removeEventListener('touchmove', move);
+      el.removeEventListener('touchend', end);
+      el.removeEventListener('touchcancel', end);
+    };
+  }, []);
+
+  return (
+    <div ref={scrollerRef} style={{overflowY:'auto',overscrollBehaviorY:'contain',...style}}>
+      <div ref={indicatorRef} role="status" aria-label={refreshing ? 'Refreshing sales' : undefined}
+        style={{height:0,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--accent)'}}>
+        <span style={{display:'inline-flex',animation:refreshing?'spin 1s linear infinite':'none'}}>
+          <span ref={iconRef} style={{display:'inline-flex',opacity:0}}>{Icon('Loader2',22,{stroke:'currentColor'})}</span>
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, onRefresh, monthOptions, activeMonthKey, onChangeMonth, radiusMi, zip, apiStatus, coverageMessage, mapCenter,
     homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
     setZip, locating, locationDenied, onRequestLocation,
     activeTypes, setActiveTypes, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
-  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
+  const [sortBy, setSortBy] = useState('date'); // 'date' | 'distance'
   const { isLandscape } = useViewport();
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
   // Both sort modes are a compound sort — the toggle just picks which
@@ -1614,6 +1733,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
             activeBg="var(--brand-grad)" activeFg="#fff" activeBorder="none" />
         </div>
+        <MonthChips months={monthOptions} value={activeMonthKey} onChange={onChangeMonth}
+          style={{justifyContent:'center',padding:'0 16px 12px'}} />
         <div className="rmg-eyebrow" style={{padding:'0 16px 6px'}}>Categories</div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
           <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
@@ -1679,7 +1800,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           )}
         </div>
       ) : (
-        <div style={{flex:1,overflowY:'auto',padding:'14px 16px calc(120px + var(--safe-bottom))',background:'rgba(246,246,246,0.96)'}}>
+        <PullToRefreshScroller onRefresh={onRefresh} style={{flex:1,padding:'14px 16px calc(120px + var(--safe-bottom))',background:'rgba(246,246,246,0.96)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:15,color:'var(--text-primary)'}}>{shown.length} {shown.length===1?'sale':'sales'} nearby</span>
             <button type="button" onClick={()=>setSortBy(s=>s==='date'?'distance':'date')} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:0,fontFamily:'inherit'}}>
@@ -1723,7 +1844,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             ))}
           </div>
           )}
-        </div>
+        </PullToRefreshScroller>
       )}
     </div>
   );
@@ -1734,20 +1855,12 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
   const { isLandscape } = useViewport();
   const saved = sales.filter(s=>s.saved);
   const now = new Date();
-  const MO = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 
   const saleEndDate = (s) => {
-    const label = s.dateLabel || '';
-    const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-      .filter(m => MO[m[1].toLowerCase().slice(0,3)] !== undefined);
-    if (hits.length) {
-      const m = hits[hits.length-1];
-      const mo = MO[m[1].toLowerCase().slice(0,3)];
-      const day = parseInt(m[2]);
-      const yr = m[3] ? parseInt(m[3]) : now.getFullYear();
-      return new Date(yr, mo, day, 23, 59, 59);
-    }
-    return null;
+    const dates = saleLabelDates(s.dateLabel);
+    if (!dates.length) return null;
+    const last = dates[dates.length - 1];
+    return new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59);
   };
 
   const upcoming  = saved.filter(s => { const d=saleEndDate(s); return !d || d >= now; });
@@ -4768,6 +4881,7 @@ function WebHomeScreen({
   sales, zip, setZip, locating, locationDenied, onRequestLocation,
   radiusMi, setRadiusMi, activeTypes, setActiveTypes, keyword, setKeyword,
   apiStatus, coverageMessage, mapCenter, onOpenPost,
+  monthOptions, activeMonthKey, onChangeMonth,
 }) {
   const [dayFilter, setDayFilter] = useState(null); // null = All, else 0 (Sun) .. 6 (Sat)
   const [showMap, setShowMap] = useState(false);
@@ -4787,7 +4901,7 @@ function WebHomeScreen({
 
   const scoped = sales.filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type));
   const shown = (dayFilter==null ? scoped : scoped.filter(s => saleWeekdays(s.dateLabel).includes(dayFilter)))
-    .slice().sort((a,b) => (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
+    .slice().sort((a,b) => (saleSortDate(a.dateLabel) - saleSortDate(b.dateLabel)) || ((a.distanceMi ?? 999) - (b.distanceMi ?? 999)));
 
   const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const dayCounts = DAY_LABELS.map((_,d) => scoped.filter(s => saleWeekdays(s.dateLabel).includes(d)).length);
@@ -4906,6 +5020,9 @@ function WebHomeScreen({
                   <FilterChip key={lbl} selected={dayFilter===i} onClick={()=>setDayFilter(d=>d===i?null:i)}>{lbl}</FilterChip>
                 ))}
               </div>
+
+              <MonthChips months={monthOptions} value={activeMonthKey} onChange={onChangeMonth}
+                style={{flexWrap:'wrap',marginBottom:14}} />
 
               <div style={{display:'flex', flexWrap:'wrap', alignItems:'center', gap:10}}>
                 <div style={{flex:'1 1 260px', minWidth:220}}>
@@ -5253,6 +5370,7 @@ function App() {
   };
   const [apiListings, setApiListings]   = useState([]);
   const [apiStatus, setApiStatus]       = useState('idle'); // idle | loading | ok | error
+  const [monthFilter, setMonthFilter]   = useState(null); // null = default near-today window, else a saleMonthOptions key
   const [coverageMessage, setCoverageMessage] = useState(null);
   const [mapCenter, setMapCenter] = useState(null); // {lat,lng} of the searched zip, from the API response
   const [scale, setScale] = useState(1);
@@ -5331,17 +5449,37 @@ function App() {
   const effectiveZip = (awayFromHome && !useHomeZip) ? detectedZip : zip;
 
   // Fetch live listings from local backend
-  const fetchApiListings = (zip, radius) => {
-    setApiStatus('loading');
-    fetch(`${API_BASE}/api/listings?zip=${zip}&radius=${radius}`)
-      .then(r => r.json())
+  // A background load (pull-to-refresh, returning to the app) keeps the
+  // current list on screen, shows no loading banner, and leaves that list
+  // alone if it fails. Only the newest request may apply its result, so a
+  // slow refresh for an old ZIP can't overwrite a newer search.
+  const listingsRequestSeq = useRef(0);
+  const listingsInFlight = useRef(false);
+  const listingsLoadedAt = useRef(0);
+  const fetchApiListings = (zip, radius, { background = false } = {}) => {
+    const seq = ++listingsRequestSeq.current;
+    listingsInFlight.current = true;
+    if (!background) setApiStatus('loading');
+    return fetch(`${API_BASE}/api/listings?zip=${zip}&radius=${radius}${background ? '&fresh=1' : ''}`)
+      .then(r => {
+        if (background && !r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(data => {
+        if (seq !== listingsRequestSeq.current) return;
         setApiListings(data.listings || []);
         setCoverageMessage(data.outOfCoverage ? data.message : null);
         setMapCenter(data.center || null);
         setApiStatus('ok');
+        listingsLoadedAt.current = Date.now();
       })
-      .catch(() => setApiStatus('error'));
+      .catch(() => {
+        if (seq !== listingsRequestSeq.current) return;
+        setApiStatus(s => (background && s !== 'loading') ? s : 'error');
+      })
+      .finally(() => {
+        if (seq === listingsRequestSeq.current) listingsInFlight.current = false;
+      });
   };
 
   useEffect(() => {
@@ -5368,7 +5506,20 @@ function App() {
     return () => clearTimeout(t);
   }, [effectiveZip, radiusMi]);
 
-  const MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  // Reload when the app comes back to the foreground. The minimum gap stops
+  // a quick trip to Maps or the share sheet from reshuffling the list.
+  useEffect(() => {
+    if (!effectiveZip) return;
+    const FOREGROUND_REFRESH_MIN_MS = 2 * 60 * 1000;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || listingsInFlight.current) return;
+      if (Date.now() - listingsLoadedAt.current < FOREGROUND_REFRESH_MIN_MS) return;
+      fetchApiListings(effectiveZip, radiusMi, { background: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [effectiveZip, radiusMi]);
+
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
 
   const kwMatch = (s) => {
@@ -5385,6 +5536,11 @@ function App() {
   const windowStart = todayStart.getTime() - PAST_WINDOW_MS;
   const windowEnd   = todayStart.getTime() + FUTURE_WINDOW_MS;
 
+  // A selected month replaces that default window while browsing. A selection
+  // from a month that has since rolled off simply stops applying.
+  const monthOptions = saleMonthOptions(todayStart);
+  const activeMonth = monthOptions.find(m => m.key === monthFilter) || null;
+
   // userListings not already reflected in apiListings (the server now folds
   // a user's posted/edited listings into /api/listings itself, within their
   // own search radius) covers the gap right after publishing/editing, before
@@ -5396,18 +5552,17 @@ function App() {
     .filter(s => {
       // If we can't determine when a sale is/was happening, we can't show it —
       // no date means no way to tell it apart from a stale, long-dead listing.
-      const label = s.dateLabel || '';
-      if (!label) return false;
-      // Scan for every "MonthName DD" or "MonthName DD, YYYY" — first match is
-      // the start of the range, last match is the end (a single date has both
-      // point to the same hit).
-      const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-        .filter(m => MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
-      if (!hits.length) return false; // dateLabel present but unparseable → can't confirm it's current
-      const toDate = m => new Date(m[3] ? parseInt(m[3]) : todayStart.getFullYear(), MO_IDX[m[1].toLowerCase().slice(0,3)], parseInt(m[2])).getTime();
-      const startDay = toDate(hits[0]);
-      const endDay   = toDate(hits[hits.length - 1]);
-      // A user-posted listing is real, durable data -- the server already
+      const range = saleDayRange(s.dateLabel);
+      if (!range) return false; // missing or unparseable → can't confirm it's current
+      // Kept through the end of the last month button, not just the browse
+      // window, so a December sale saved from the December view stays in
+      // Saved, My Trip and its detail page after the button is turned off.
+      return range.end >= windowStart && (s.source === 'user' || range.start <= monthOptions[1].end);
+    });
+  const inBrowseWindow = s => {
+    const { start, end } = saleDayRange(s.dateLabel);
+    if (activeMonth) return end >= Math.max(windowStart, activeMonth.start) && start <= activeMonth.end;
+    // A user-posted listing is real, durable data -- the server already
       // drops it the moment it ends (see isUserListingActive server-side),
       // so it doesn't need the scraped-content assumption that anything
       // dated further out is a stale, abandoned posting. Someone posting a
@@ -5418,12 +5573,10 @@ function App() {
       // posts. Confirmed live: without this, a freshly posted sale more
       // than 2 days out was invisible to its own poster right after
       // publishing, which read as the post having silently failed.
-      const effectiveWindowEnd = s.source === 'user' ? Infinity : windowEnd;
-      // Overlap test: the sale's [startDay, endDay] range must intersect [windowStart, windowEnd].
-      return endDay >= windowStart && startDay <= effectiveWindowEnd;
-    });
-  let salesInRadius = allSales.filter(s=>s.distanceMi<=radiusMi).filter(kwMatch);
-  if (salesInRadius.length===0 && !keyword) salesInRadius = allSales.slice(0,1);
+    return end >= windowStart && (s.source === 'user' || start <= windowEnd);
+  };
+  let salesInRadius = allSales.filter(s=>s.distanceMi<=radiusMi).filter(kwMatch).filter(inBrowseWindow);
+  if (salesInRadius.length===0 && !keyword && !activeMonth) salesInRadius = allSales.filter(inBrowseWindow).slice(0,1);
   const detailSale = allSales.find(s=>s.id===detailId)||null;
 
   // Deep link support (?sale=<id>, used by the daily digest email's "Open
@@ -5536,6 +5689,8 @@ function App() {
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
             setZip={setZip} locating={locating} locationDenied={locationDenied} onRequestLocation={requestLocation}
             onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
+            onRefresh={()=>fetchApiListings(effectiveZip, radiusMi, { background: true })}
+            monthOptions={monthOptions} activeMonthKey={activeMonth?.key ?? null} onChangeMonth={setMonthFilter}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             keyword={keyword} onClearKeyword={()=>setKeyword('')}
             tripIds={tripIds} onToggleTrip={toggleTrip}
@@ -5712,6 +5867,7 @@ function App() {
         keyword={keyword} setKeyword={setKeyword}
         apiStatus={apiStatus} coverageMessage={coverageMessage} mapCenter={mapCenter}
         onOpenPost={()=>{ window.location.href = '/app?post=1'; }}
+        monthOptions={monthOptions} activeMonthKey={activeMonth?.key ?? null} onChangeMonth={setMonthFilter}
       />
 
       {detailSale && (
