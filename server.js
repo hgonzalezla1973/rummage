@@ -69,7 +69,7 @@ app.use(cors());
 // Default 100kb is way too small for a base64-encoded photo upload (Price
 // Check feature) -- the client downscales images before sending, but a
 // generous limit is still needed as headroom.
-app.use(express.json({ limit: '12mb' }));
+app.use(express.json({ limit: '20mb' })); // Fits four scan photos.
 app.use('/assets', express.static(path.join(__dirname, 'assets')));
 
 // In-memory verification codes: email → { code, expiresAt }
@@ -3628,18 +3628,20 @@ async function prepareScanImage(raw) {
 }
 
 async function identifyItemFromImage(images, visualMatches = []) {
-  const prompt = images.length > 1
-    ? `Look at these two photos of a secondhand item (from a yard sale, estate sale, or thrift store). The first shows the item itself; the second is a close-up of an identifying mark, label, or signature on it. Identify the item as specifically as possible, using the close-up to read any text, maker's mark, or signature the first photo doesn't show clearly.
+  const prompt = `${images.length > 1 ? `These ${images.length} photos all show the same` : 'This photo shows a'} secondhand item from a yard sale, estate sale or thrift store. Examine ${images.length > 1 ? 'every photo' : 'it'} closely and identify the item as specifically as you can, looking for everything that changes its resale value:
 
-Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName": string or null, "category": string or null}. "category" is a short physical-format word if identifiable (e.g. "vinyl record", "paperback book", "board game") -- this matters because the same title can have very different resale value in a different format. If you genuinely cannot identify the item, respond with {"itemName": null, "category": null}.`
-    : `Look at this photo of a secondhand item (from a yard sale, estate sale, or thrift store) and identify it as specifically as possible. Read any visible text on the item or its packaging -- an exact title/model read directly off the item is far more useful than a generic guess (e.g. the specific album and artist on a CD, not just "CD").
+- Who made it: read any signature, maker's mark, hallmark, stamp, label, model number or title exactly as written, and note where it is.
+- How it was made. For artwork, tell an original (visible brushstrokes, raised paint, canvas weave, uneven edges) from a reproduction (flat surface, uniform dot pattern, giclee or poster). Note the medium, such as oil, acrylic, watercolor, lithograph or screenprint, and any edition number such as 45/200 or pencil signature. For ceramics and glass, tell hand-painted (brush variation, irregular lines) from transfer or decal decoration (perfectly repeated pattern).
+- Age and origin: dates, gallery or framer labels on the back, patent numbers, country marks, construction clues.
+- Material and scale: for example sterling or plate, solid wood or veneer, and any size that can be judged.
+- Condition: chips, cracks, repairs, fading, foxing, stains or missing parts.
 
-Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName": string or null, "category": string or null}. "category" is a short physical-format word if identifiable (e.g. "vinyl record", "paperback book", "board game") -- this matters because the same title can have very different resale value in a different format. If you genuinely cannot identify the item, respond with {"itemName": null, "category": null}.`;
+Report only what you can actually see. A signature shows that a name is present, not that it is genuine, so say "signed" and never claim a piece is authentic. If a signature is hard to read, say so instead of guessing a famous name.`;
 
   const visualHint = visualMatches.length
     ? `\n\nA reverse image search of the photo returned these page titles. They can be wrong or about a different item, so use one only if it agrees with what you can actually see:\n${visualMatches.map(t => `- ${t}`).join('\n')}`
     : '';
-  const extraFields = `\n\nInclude two more fields in that same JSON object. "identityConfidence": "high" only if you can read or clearly see the exact maker and model or title, "medium" if the maker or type is clear but not the exact model or edition, "low" if it is a generic guess. "photoTip": when confidence is not high, one short instruction for the single extra photo most likely to settle it, saying where to look (for example "Photograph the maker's mark on the base"), otherwise null.`;
+  const extraFields = `\n\nRespond with ONLY a JSON object, no markdown fences, no other text: {"itemName": string or null, "category": string or null, "identityConfidence": "high" | "medium" | "low", "photoTip": string or null, "details": [string]}. "itemName" is the most specific name you can give, including the facts that decide its value, for example "Signed original oil landscape painting on canvas, signature reads J. Smith". "category" is a short physical-format word such as "oil painting", "vinyl record", "board game" or "stoneware vase", because the same title can have very different value in a different format. "identityConfidence" is "high" only if you can read or clearly see the exact maker and model or title, "medium" if the maker or type is clear but not the exact model or edition, "low" if it is a generic guess. "photoTip" is, when confidence is not high${images.length >= 4 ? ' and only if it would change the answer' : ''}, one short instruction for the single extra photo most likely to settle it, saying where to look, otherwise null. "details" is up to six short facts you actually observed, such as "Signature lower right reads J. Smith", "Visible brushstrokes, appears hand-painted" or "Small chip on rim". If you genuinely cannot identify the item, set "itemName" to null.`;
 
   const text = await callClaude([{
     role: 'user',
@@ -3647,7 +3649,7 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName":
       ...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })),
       { type: 'text', text: prompt + visualHint + extraFields },
     ],
-  }], 1000); // Thinking counts against this limit, so it needs real headroom.
+  }], 2000); // Thinking counts against this limit, so it needs real headroom.
 
   let parsed;
   try { parsed = parseJsonResponse(text); } catch { parsed = {}; }
@@ -3657,7 +3659,8 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName":
   const identityConfidence = ['high', 'medium', 'low'].includes(parsed.identityConfidence) ? parsed.identityConfidence : 'medium';
   const photoTip = identityConfidence !== 'high' && typeof parsed.photoTip === 'string' ? parsed.photoTip : null;
   console.log(`Price Check identification -> itemName="${itemName}" category="${category}" confidence=${identityConfidence}`);
-  return { itemName, category, identityConfidence, photoTip };
+  const details = Array.isArray(parsed.details) ? parsed.details.filter(d => typeof d === 'string').slice(0, 6) : [];
+  return { itemName, category, identityConfidence, photoTip, details };
 }
 
 // Grounds the price estimate in real, current web results instead of only
@@ -3797,11 +3800,12 @@ const WITHHELD_MESSAGES = {
   'prices-disagree': 'Comparable prices disagree too much to give a reliable range, which usually means the exact model or edition matters. Try a more specific name.',
 };
 
-async function extractComparables(itemName, category, results) {
+async function extractComparables(itemName, category, details, results) {
   const listings = results.map((r, i) => `${i + 1}. ${r.title} -- ${r.snippet}${r.date ? ` (dated ${r.date})` : ''}`).join('\n');
-  const prompt = `We are pricing this secondhand item: "${itemName}"${category ? ` (${category})` : ''}.
+  const prompt = `We are pricing this secondhand item: "${itemName}"${category ? ` (${category})` : ''}.${details.length ? `
+Seen in the photos: ${details.join('; ')}.` : ''}
 
-Below are search results from resale marketplaces. Pick out the ones that are the same item: same maker, model or title, and format. Leave out different brands, lookalikes, accessories or parts, and lots or bundles of several items, along with category pages and any result without a price for one specific item.
+Below are search results from resale marketplaces. Pick out the ones that are the same item: same maker, model or title, and format. Leave out different brands, lookalikes, accessories or parts, and lots or bundles of several items, along with category pages and any result without a price for one specific item. An original artwork and a print of it are different items, as are hand-painted and transfer-decorated pieces, and work signed by a named artist versus unsigned work.
 
 For each match, report the single price in the text for that one item, exactly as written. Never estimate or calculate a price.
 - status "sold": only when the text explicitly says this item sold for that price. "Ended" alone is not a sale, and a quantity counter such as "9225 sold" does NOT make the listed price a sale price.
@@ -3816,7 +3820,7 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"comps": [{
   try { return parseJsonResponse(text); } catch { throw new Error("Couldn't parse a price estimate -- try again."); }
 }
 
-async function estimateItemValue(itemName, category, identityConfidence = 'high') {
+async function estimateItemValue(itemName, category, identityConfidence = 'high', details = []) {
   const [webResults, shoppingResults] = await Promise.all([
     fetchPriceSearchSnippets(itemName, category),
     fetchShoppingResults(itemName, category),
@@ -3833,7 +3837,7 @@ async function estimateItemValue(itemName, category, identityConfidence = 'high'
   });
   if (results.length === 0) return withheld('not-enough-evidence');
 
-  const { comps: extracted = [], note = null } = await extractComparables(itemName, category, results);
+  const { comps: extracted = [], note = null } = await extractComparables(itemName, category, details, results);
   const seen = new Set();
   const comps = [];
   for (const entry of Array.isArray(extracted) ? extracted : []) {
@@ -3895,15 +3899,15 @@ function priceCheckRateLimit(req, res, next) {
 // recognizing the band, for example), and there's no fixing that after the
 // fact once an estimate already ran on the wrong name.
 //
-// `images` (plural) is the newer, "Multi Mode" shape -- up to 2 photos, the
-// second a close-up mark/signature. `image` (singular) still works for the
-// original one-photo call.
+// `images` (plural) takes up to 4 photos of one item, such as the whole piece,
+// a signature, the back and any damage. `image` (singular) still works for
+// the original one-photo call.
 app.post('/api/identify-item', priceCheckRateLimit, async (req, res) => {
   if (!process.env.ANTHROPIC_API_KEY) {
     return res.status(503).json({ error: "Price Check isn't set up yet — add ANTHROPIC_API_KEY in the server environment." });
   }
   const rawImages = Array.isArray(req.body.images) ? req.body.images : [req.body.image];
-  const rawPhotos = rawImages.filter(Boolean).slice(0, 2);
+  const rawPhotos = rawImages.filter(Boolean).slice(0, 4);
   if (rawPhotos.length === 0) return res.status(400).json({ error: 'No photo provided' });
 
   try {
@@ -3936,7 +3940,8 @@ app.post('/api/price-check', priceCheckRateLimit, async (req, res) => {
   const identityConfidence = ['high', 'medium', 'low'].includes(req.body.identityConfidence) ? req.body.identityConfidence : 'high';
 
   try {
-    res.json({ itemName, ...(await estimateItemValue(itemName, category, identityConfidence)) });
+    const details = Array.isArray(req.body.details) ? req.body.details.filter(d => typeof d === 'string').slice(0, 6) : [];
+    res.json({ itemName, ...(await estimateItemValue(itemName, category, identityConfidence, details)) });
   } catch (err) {
     console.error('Price Check error:', err.message);
     res.status(500).json({ error: err.message });
