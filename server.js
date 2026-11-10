@@ -3557,7 +3557,8 @@ async function callClaude(messages, maxTokens) {
   });
   const data = await res.json();
   if (!res.ok) throw new Error(data.error?.message || 'Claude API error');
-  return data.content?.[0]?.text || '';
+  // A response can open with a thinking block, so the text isn't always first.
+  return (data.content || []).filter(block => block.type === 'text').map(block => block.text).join('');
 }
 
 // Claude sometimes wraps JSON in a ```json fence despite being told not to --
@@ -3587,7 +3588,7 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName":
       ...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })),
       { type: 'text', text: prompt },
     ],
-  }], 300);
+  }], 1000); // Thinking counts against this limit, so it needs real headroom.
 
   let parsed;
   try { parsed = parseJsonResponse(text); } catch { parsed = {}; }
@@ -3662,7 +3663,7 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"low": numb
 
 Before you output the JSON, work through this check: write down the lowest and highest specific dollar figures your "reasoning" is actually going to cite (from the listings above, or from your own general knowledge if ungrounded). Those two numbers are a hard floor and ceiling -- "mid" MUST fall between them, inclusive. It is not acceptable to cite "$75-265" in reasoning and then output a mid below $75; if your true best guess is below the cited range, that means the range you're about to cite is wrong -- cite the right one instead. The only exception: if you are deliberately excluding a specific cited figure as an outlier or mismatch (wrong item, implausible price), say so by name in "reasoning", and the floor/ceiling rule then applies to the remaining figures you do cite.`;
 
-  const text = await callClaude([{ role: 'user', content: prompt }], 350);
+  const text = await callClaude([{ role: 'user', content: prompt }], 1500);
   try { return parseJsonResponse(text); } catch { throw new Error("Couldn't parse a price estimate -- try again."); }
 }
 
