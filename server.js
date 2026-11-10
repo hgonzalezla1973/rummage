@@ -3565,7 +3565,9 @@ async function callClaude(messages, maxTokens) {
 // strip it before parsing rather than trusting the instruction alone.
 function parseJsonResponse(text) {
   const stripped = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/i, '');
-  return JSON.parse(stripped);
+  // Tolerates a sentence before or after the object as well as a code fence.
+  const start = stripped.indexOf('{'), end = stripped.lastIndexOf('}');
+  return JSON.parse(start >= 0 && end > start ? stripped.slice(start, end + 1) : stripped);
 }
 
 // `images`: [{ data: base64string, mediaType: 'image/jpeg' }, ...], 1-2
@@ -3573,7 +3575,59 @@ function parseJsonResponse(text) {
 // mark, label or signature the first photo doesn't resolve clearly --
 // mentioned explicitly in the prompt when present so Claude knows what it's
 // for rather than treating it as a second, unrelated item.
-async function identifyItemFromImage(images) {
+// Serper's Lens search needs a public image URL, so the scan photo is served
+// from memory at an unguessable address for the length of that one request.
+const scanImageStore = new Map();
+app.get('/api/scan-image/:id', (req, res) => {
+  const image = scanImageStore.get(req.params.id);
+  if (!image) return res.sendStatus(404);
+  res.type('jpeg').send(image);
+});
+
+async function fetchVisualMatches(imageBuffer) {
+  const key = process.env.SERPER_API_KEY;
+  if (!key || !imageBuffer) return [];
+  const id = crypto.randomUUID();
+  scanImageStore.set(id, imageBuffer);
+  try {
+    const res = await fetchTimeout('https://google.serper.dev/lens', 8000, {
+      method: 'POST',
+      headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: `${PUBLIC_BASE_URL}/api/scan-image/${id}`, gl: 'us', hl: 'en' }),
+    });
+    const data = await res.json();
+    if (!Array.isArray(data.organic)) return [];
+    // Sale-event pages match on the room in the photo, not the item.
+    return data.organic
+      .map(match => match.title || '')
+      .filter(title => title && !/\b(estate|yard|garage) sale/i.test(title))
+      .slice(0, 10);
+  } catch (err) {
+    console.warn('Visual match error:', err.message);
+    return [];
+  } finally {
+    scanImageStore.delete(id);
+  }
+}
+
+// Sized to what the vision model actually uses, which also keeps uploads and
+// the Lens lookup fast. Falls back to the original if the photo can't be read.
+async function prepareScanImage(raw) {
+  const match = /^data:image\/(\w+);base64,(.+)$/.exec(raw);
+  const original = { data: match ? match[2] : raw, mediaType: match ? `image/${match[1]}` : 'image/jpeg', buffer: null };
+  try {
+    const buffer = await sharp(Buffer.from(original.data, 'base64'))
+      .rotate()
+      .resize({ width: 1568, height: 1568, fit: 'inside', withoutEnlargement: true })
+      .jpeg({ quality: 85 })
+      .toBuffer();
+    return { data: buffer.toString('base64'), mediaType: 'image/jpeg', buffer };
+  } catch {
+    return original;
+  }
+}
+
+async function identifyItemFromImage(images, visualMatches = []) {
   const prompt = images.length > 1
     ? `Look at these two photos of a secondhand item (from a yard sale, estate sale, or thrift store). The first shows the item itself; the second is a close-up of an identifying mark, label, or signature on it. Identify the item as specifically as possible, using the close-up to read any text, maker's mark, or signature the first photo doesn't show clearly.
 
@@ -3582,11 +3636,16 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName":
 
 Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName": string or null, "category": string or null}. "category" is a short physical-format word if identifiable (e.g. "vinyl record", "paperback book", "board game") -- this matters because the same title can have very different resale value in a different format. If you genuinely cannot identify the item, respond with {"itemName": null, "category": null}.`;
 
+  const visualHint = visualMatches.length
+    ? `\n\nA reverse image search of the photo returned these page titles. They can be wrong or about a different item, so use one only if it agrees with what you can actually see:\n${visualMatches.map(t => `- ${t}`).join('\n')}`
+    : '';
+  const extraFields = `\n\nInclude two more fields in that same JSON object. "identityConfidence": "high" only if you can read or clearly see the exact maker and model or title, "medium" if the maker or type is clear but not the exact model or edition, "low" if it is a generic guess. "photoTip": when confidence is not high, one short instruction for the single extra photo most likely to settle it, saying where to look (for example "Photograph the maker's mark on the base"), otherwise null.`;
+
   const text = await callClaude([{
     role: 'user',
     content: [
       ...images.map(img => ({ type: 'image', source: { type: 'base64', media_type: img.mediaType, data: img.data } })),
-      { type: 'text', text: prompt },
+      { type: 'text', text: prompt + visualHint + extraFields },
     ],
   }], 1000); // Thinking counts against this limit, so it needs real headroom.
 
@@ -3595,8 +3654,10 @@ Respond with ONLY a JSON object, no markdown fences, no other text: {"itemName":
   const { itemName, category } = parsed;
   if (!itemName) throw new Error("Couldn't identify this item from the photo -- try a clearer or closer shot.");
 
-  console.log(`Price Check identification -> itemName="${itemName}" category="${category}"`);
-  return { itemName, category };
+  const identityConfidence = ['high', 'medium', 'low'].includes(parsed.identityConfidence) ? parsed.identityConfidence : 'medium';
+  const photoTip = identityConfidence !== 'high' && typeof parsed.photoTip === 'string' ? parsed.photoTip : null;
+  console.log(`Price Check identification -> itemName="${itemName}" category="${category}" confidence=${identityConfidence}`);
+  return { itemName, category, identityConfidence, photoTip };
 }
 
 // Grounds the price estimate in real, current web results instead of only
@@ -3639,32 +3700,164 @@ async function fetchPriceSearchSnippets(itemName, category) {
     });
     const data = await res.json();
     if (!Array.isArray(data.organic)) return [];
-    return data.organic.slice(0, 10).map(item => ({ title: item.title || '', snippet: item.snippet || '' }));
+    return data.organic.slice(0, 10).map(item => ({
+      title: item.title || '',
+      snippet: item.snippet || '',
+      link: item.link || '',
+      date: item.date || null,
+    }));
   } catch (err) {
     console.warn('Price search error:', err.message);
     return [];
   }
 }
 
-async function estimateItemValue(itemName, category) {
-  const categoryPart = category ? ` (${category})` : '';
-  const snippets = await fetchPriceSearchSnippets(itemName, category);
-  const searchContext = snippets.length
-    ? `\n\nReal, current marketplace listings for this item -- weigh these over generic knowledge wherever they're relevant.
+const LOWER_CONFIDENCE = (a, b) => (['low', 'medium', 'high'].indexOf(a) < ['low', 'medium', 'high'].indexOf(b) ? a : b);
 
-If they name different makers/brands for what looks like the same item, that usually means the item's exact maker is genuinely uncertain from the name alone -- prefer listings whose description most closely matches the full item name given above, and say so in "reasoning" rather than silently averaging across unrelated brands (a well-known collectible brand and a generic mass-produced equivalent are not interchangeable even if the item type matches).
+function median(sorted) {
+  const m = Math.floor(sorted.length / 2);
+  return sorted.length % 2 ? sorted[m] : (sorted[m - 1] + sorted[m]) / 2;
+}
 
-Separately, and just as important: a listing's displayed price is not the same as what it actually sold for. "or Best Offer", "New", "Buy It Now" asking prices, and un-sold "for sale" pages are what a seller *wants*, often optimistically -- treat these as weaker evidence. An explicit "sold", "sold for", or a completed-sale price is real evidence of what buyers actually paid -- treat these as stronger evidence and prefer them when both kinds appear. If every price you have is an asking price with no confirmed sales, say so plainly in "reasoning" (e.g. "based on current asking prices; no confirmed sales found") rather than presenting the estimate as if it reflects real transactions.\n${snippets.map((s, i) => `${i + 1}. "${s.title}" -- ${s.snippet}`).join('\n')}`
-    : '';
+// Guards against a model-extracted price that isn't really in the listing.
+function priceAppearsIn(price, text) {
+  const cents = Math.round(price * 100) % 100;
+  const figure = cents === 0 ? `${Math.round(price)}(?:\\.00)?` : price.toFixed(2).replace('.', '\\.');
+  return new RegExp(`\\$\\s*${figure}(?![\\d])`).test(text.replace(/,/g, ''));
+}
 
-  const prompt = `Estimate a realistic secondhand resale price range in USD for this item: "${itemName}"${categoryPart}. Base this on typical resale prices for this kind of item on marketplaces like eBay, Etsy, Mercari, and similar secondhand/collectibles markets, assuming used/good condition unless the name implies otherwise.${searchContext}
+function listingSource(link) {
+  try { return new URL(link).hostname.replace(/^www\./, ''); } catch { return ''; }
+}
 
-Respond with ONLY a JSON object, no markdown fences, no other text: {"low": number or null, "mid": number or null, "high": number or null, "reasoning": string, "groundedInSearch": boolean, "basedOnAskingPrices": boolean}. "mid" is your single best-guess typical resale price -- not necessarily the arithmetic midpoint of low/high, since real pricing is rarely symmetric. "groundedInSearch" is true only if the search results above meaningfully informed this estimate (false if there were none, or none were relevant). "basedOnAskingPrices" is true if the estimate leans on asking/listed prices because no confirmed sold price was found among the results (false if grounded in explicit sold prices, or if not grounded in search at all). "reasoning" is one short sentence explaining the basis (condition/edition assumptions, what the search results showed, or why you couldn't estimate it). If you have no reasonable basis to estimate a price, set low/mid/high to null and explain why in "reasoning".
+// Shopping results name a seller ("eBay - someuser") instead of giving a page.
+function sourceKey(source) {
+  return source.toLowerCase().split(' - ')[0].replace(/\.[a-z]+$/, '').trim();
+}
 
-Before you output the JSON, work through this check: write down the lowest and highest specific dollar figures your "reasoning" is actually going to cite (from the listings above, or from your own general knowledge if ungrounded). Those two numbers are a hard floor and ceiling -- "mid" MUST fall between them, inclusive. It is not acceptable to cite "$75-265" in reasoning and then output a mid below $75; if your true best guess is below the cited range, that means the range you're about to cite is wrong -- cite the right one instead. The only exception: if you are deliberately excluding a specific cited figure as an outlier or mismatch (wrong item, implausible price), say so by name in "reasoning", and the floor/ceiling rule then applies to the remaining figures you do cite.`;
+// Adds structured prices. Web snippets only include a price about a third of
+// the time, which left ordinary items with too little evidence to price.
+async function fetchShoppingResults(itemName, category) {
+  const key = process.env.SERPER_API_KEY;
+  if (!key) return [];
+  try {
+    const res = await fetchTimeout('https://google.serper.dev/shopping', 8000, {
+      method: 'POST',
+      headers: { 'X-API-KEY': key, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ q: `${itemName}${category ? ' ' + category : ''}`, gl: 'us', hl: 'en' }),
+    });
+    const data = await res.json();
+    if (!Array.isArray(data.shopping)) return [];
+    return data.shopping.filter(item => item.price).slice(0, 12).map(item => ({
+      title: item.title || '',
+      snippet: `${item.price} at ${item.source || 'an online seller'}`,
+      // Shopping results carry no page address, so this opens that search.
+      link: `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(item.title || itemName)}`,
+      date: null,
+      sellerName: item.source || '',
+    }));
+  } catch (err) {
+    console.warn('Shopping search error:', err.message);
+    return [];
+  }
+}
 
-  const text = await callClaude([{ role: 'user', content: prompt }], 1500);
+// The range and confidence are decided here, never by the model. Sold prices
+// are used whenever there are at least two, since asking prices run high.
+function computeValuation(comps, identityConfidence) {
+  const sold = comps.filter(c => c.status === 'sold');
+  const pool = sold.length >= 2 ? sold : comps;
+  if (pool.length === 0) return { withheldReason: 'not-enough-evidence' };
+
+  const typical = median(pool.map(c => c.price).sort((a, b) => a - b));
+  const kept = pool.filter(c => c.price >= typical / 3 && c.price <= typical * 3);
+  kept.forEach(c => { c.used = true; });
+  if (kept.length < 2) return { withheldReason: 'not-enough-evidence' };
+
+  const prices = kept.map(c => c.price).sort((a, b) => a - b);
+  const low = prices[0], high = prices[prices.length - 1];
+  if (high / low >= 5) return { withheldReason: 'prices-disagree' };
+
+  const datedSold = kept.filter(c => c.status === 'sold' && c.date);
+  let evidence = 'low';
+  if (datedSold.length >= 3 && new Set(datedSold.map(c => sourceKey(c.source))).size >= 3) evidence = 'high';
+  else if (kept.length >= 3 && new Set(kept.map(c => sourceKey(c.source))).size >= 2) evidence = 'medium';
+
+  return {
+    low: Math.round(low),
+    mid: Math.round(median(prices)),
+    high: Math.round(high),
+    confidence: LOWER_CONFIDENCE(evidence, identityConfidence),
+    basedOnAskingPrices: !kept.some(c => c.status === 'sold'),
+  };
+}
+
+const WITHHELD_MESSAGES = {
+  'not-enough-evidence': "We couldn't find enough comparable listings to price this reliably. Try a more specific name, or add a close-up of a label or mark.",
+  'prices-disagree': 'Comparable prices disagree too much to give a reliable range, which usually means the exact model or edition matters. Try a more specific name.',
+};
+
+async function extractComparables(itemName, category, results) {
+  const listings = results.map((r, i) => `${i + 1}. ${r.title} -- ${r.snippet}${r.date ? ` (dated ${r.date})` : ''}`).join('\n');
+  const prompt = `We are pricing this secondhand item: "${itemName}"${category ? ` (${category})` : ''}.
+
+Below are search results from resale marketplaces. Pick out the ones that are the same item: same maker, model or title, and format. Leave out different brands, lookalikes, accessories or parts, and lots or bundles of several items, along with category pages and any result without a price for one specific item.
+
+For each match, report the single price in the text for that one item, exactly as written. Never estimate or calculate a price.
+- status "sold": only when the text explicitly says this item sold for that price. "Ended" alone is not a sale, and a quantity counter such as "9225 sold" does NOT make the listed price a sale price.
+- status "new": a new or sealed retail item.
+- status "asking": everything else, including Buy It Now, Best Offer and for-sale listings.
+
+${listings}
+
+Respond with ONLY a JSON object, no markdown fences, no other text: {"comps": [{"i": number, "price": number, "status": "sold" | "asking" | "new", "date": string or null}], "note": string}. "i" is the result number. "price" is a plain number with no currency symbol. "date" is when it sold or was listed, only if the text gives one. "note" is one short sentence on what most affects this item's price, such as condition, edition or completeness, with no dollar figures.`;
+
+  const text = await callClaude([{ role: 'user', content: prompt }], 4000);
   try { return parseJsonResponse(text); } catch { throw new Error("Couldn't parse a price estimate -- try again."); }
+}
+
+async function estimateItemValue(itemName, category, identityConfidence = 'high') {
+  const [webResults, shoppingResults] = await Promise.all([
+    fetchPriceSearchSnippets(itemName, category),
+    fetchShoppingResults(itemName, category),
+  ]);
+  const results = [...webResults, ...shoppingResults];
+  const withheld = (reason, comps = []) => ({
+    low: null, mid: null, high: null,
+    reasoning: WITHHELD_MESSAGES[reason],
+    groundedInSearch: comps.length > 0,
+    basedOnAskingPrices: false,
+    confidence: null,
+    withheldReason: reason,
+    comps,
+  });
+  if (results.length === 0) return withheld('not-enough-evidence');
+
+  const { comps: extracted = [], note = null } = await extractComparables(itemName, category, results);
+  const seen = new Set();
+  const comps = [];
+  for (const entry of Array.isArray(extracted) ? extracted : []) {
+    const result = results[entry.i - 1];
+    const price = parseFloat(String(entry.price).replace(/[^0-9.]/g, ''));
+    if (!result || seen.has(entry.i) || !(price > 0)) continue;
+    if (!/^https:\/\//.test(result.link) || !priceAppearsIn(price, `${result.title} ${result.snippet}`)) continue;
+    if (entry.status === 'new') continue; // Retail new isn't resale evidence.
+    seen.add(entry.i);
+    comps.push({
+      title: result.title,
+      url: result.link,
+      source: result.sellerName || listingSource(result.link),
+      price,
+      status: entry.status === 'sold' ? 'sold' : 'asking',
+      date: typeof entry.date === 'string' ? entry.date : null,
+      used: false,
+    });
+  }
+
+  const valuation = computeValuation(comps, identityConfidence);
+  const shown = [...comps].sort((a, b) => Number(b.used) - Number(a.used) || Number(b.status === 'sold') - Number(a.status === 'sold')).slice(0, 8);
+  if (valuation.withheldReason) return withheld(valuation.withheldReason, shown);
+  return { ...valuation, reasoning: typeof note === 'string' ? note : null, groundedInSearch: true, withheldReason: null, comps: shown };
 }
 
 // There's no billing gate on this feature yet (the client app's own paywall
@@ -3710,15 +3903,22 @@ app.post('/api/identify-item', priceCheckRateLimit, async (req, res) => {
     return res.status(503).json({ error: "Price Check isn't set up yet — add ANTHROPIC_API_KEY in the server environment." });
   }
   const rawImages = Array.isArray(req.body.images) ? req.body.images : [req.body.image];
-  const images = rawImages.filter(Boolean).slice(0, 2).map(raw => {
-    const match = /^data:image\/(\w+);base64,(.+)$/.exec(raw);
-    return { data: match ? match[2] : raw, mediaType: match ? `image/${match[1]}` : 'image/jpeg' };
-  });
-  if (images.length === 0) return res.status(400).json({ error: 'No photo provided' });
+  const rawPhotos = rawImages.filter(Boolean).slice(0, 2);
+  if (rawPhotos.length === 0) return res.status(400).json({ error: 'No photo provided' });
 
   try {
-    const { itemName, category } = await identifyItemFromImage(images);
-    res.json({ itemName, category });
+    const images = await Promise.all(rawPhotos.map(prepareScanImage));
+    // The image match only runs when reading the photo wasn't enough, which
+    // keeps its noisier hints away from items the model already recognizes.
+    const firstPass = await identifyItemFromImage(images).catch(() => null);
+    if (firstPass?.identityConfidence === 'high') return res.json(firstPass);
+    const visualMatches = await fetchVisualMatches(images[0].buffer);
+    if (firstPass && visualMatches.length === 0) return res.json(firstPass);
+    const secondPass = await identifyItemFromImage(images, visualMatches).catch(err => {
+      if (!firstPass) throw err;
+      return firstPass;
+    });
+    res.json(secondPass);
   } catch (err) {
     console.error('Identify item error:', err.message);
     res.status(500).json({ error: err.message });
@@ -3733,18 +3933,10 @@ app.post('/api/price-check', priceCheckRateLimit, async (req, res) => {
   const itemName = (req.body.itemName || '').trim();
   if (!itemName) return res.status(400).json({ error: 'No item name provided' });
   const category = req.body.category || null;
+  const identityConfidence = ['high', 'medium', 'low'].includes(req.body.identityConfidence) ? req.body.identityConfidence : 'high';
 
   try {
-    const { low, mid, high, reasoning, groundedInSearch, basedOnAskingPrices } = await estimateItemValue(itemName, category);
-    res.json({
-      itemName,
-      low: low ?? null,
-      mid: mid ?? null,
-      high: high ?? null,
-      reasoning: reasoning ?? null,
-      groundedInSearch: Boolean(groundedInSearch),
-      basedOnAskingPrices: Boolean(basedOnAskingPrices),
-    });
+    res.json({ itemName, ...(await estimateItemValue(itemName, category, identityConfidence)) });
   } catch (err) {
     console.error('Price Check error:', err.message);
     res.status(500).json({ error: err.message });
