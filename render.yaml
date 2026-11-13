@@ -2,7 +2,7 @@ services:
   - type: web
     name: rummage
     runtime: node
-    plan: free
+    plan: standard
     buildCommand: npm install && npx puppeteer browsers install chrome
     startCommand: npm start
     healthCheckPath: /api/health
