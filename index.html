@@ -2549,7 +2549,7 @@ function TermsScreen({ onBack }) {
         </Section>
 
         <Section title="Sale listings aren't verified">
-          Rummage aggregates listings from third-party sources (OfferUp, EstateSales.org, Facebook Marketplace, and others) in addition to sales users list directly. We don't inspect, verify, or endorse any listing. Use your own judgment when visiting a sale or contacting a seller.
+          Rummage aggregates listings from third-party sources (EstateSales.org, EstateSales.net, Nextdoor, Facebook Marketplace, and others) in addition to sales users list directly. We don't inspect, verify, or endorse any listing. Use your own judgment when visiting a sale or contacting a seller.
         </Section>
 
         <Section title="No warranty">
@@ -2626,52 +2626,87 @@ function downscalePhoto(file, maxEdge = 1024, quality = 0.82) {
 }
 
 // ── Price Check ───────────────────────────────────────────────────────────────
+const PRICE_CHECK_MAX_PHOTOS = 4;
+const CONFIDENCE_LABEL = { high: 'High confidence', medium: 'Medium confidence', low: 'Low confidence' };
+
 function PriceCheckScreen({ onBack }) {
-  const [photo, setPhoto]           = useState(null); // data URL, downscaled
+  const [photos, setPhotos]         = useState([]);    // data URLs, downscaled, up to PRICE_CHECK_MAX_PHOTOS
   const [identifying, setIdentifying] = useState(false);
-  const [category, setCategory]     = useState(null); // supporting context from identify step, passed through to search
+  const [identified, setIdentified] = useState(null);  // { itemName, category, identityConfidence, photoTip, details }
   const [itemName, setItemName]     = useState('');    // editable -- pre-filled from the identify step, user can correct it
   const [checking, setChecking]     = useState(false);
-  const [result, setResult]         = useState(null); // { itemName, low, high, sources }
+  const [result, setResult]         = useState(null);  // { itemName, low, mid, high, confidence, withheldReason, comps, ... }
   const [error, setError]           = useState(null);
   const fileInputRef = useRef(null);
 
-  const onFilePicked = async (e) => {
-    const file = e.target.files?.[0];
+  const room = PRICE_CHECK_MAX_PHOTOS - photos.length;
+
+  const onFilesPicked = async (e) => {
+    const files = Array.from(e.target.files || []).slice(0, room);
     e.target.value = ''; // allow picking the same file again later
-    if (!file) return;
-    setError(null); setResult(null); setItemName(''); setCategory(null);
+    if (!files.length) return;
+    setError(null); setResult(null);
     try {
-      const dataUrl = await downscalePhoto(file);
-      setPhoto(dataUrl);
-      setIdentifying(true);
-      const data = await fetch(`${API_BASE}/api/identify-item`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image: dataUrl }),
-      }).then(r => r.json());
-      setIdentifying(false);
-      if (data.error) { setError(data.error); return; }
-      setItemName(data.itemName); setCategory(data.category || null);
+      const added = await Promise.all(files.map(f => downscalePhoto(f)));
+      // New photos change what the item might be, so the old guess is stale.
+      setPhotos(p => [...p, ...added].slice(0, PRICE_CHECK_MAX_PHOTOS));
+      setIdentified(null); setItemName('');
     } catch (err) {
-      setIdentifying(false);
-      setError(err.message || 'Could not reach the server.');
+      setError(err.message || 'Could not read that photo.');
     }
   };
 
-  const checkValue = () => {
-    if (!itemName.trim()) return;
-    setChecking(true); setError(null); setResult(null);
-    fetch(`${API_BASE}/api/price-check`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemName: itemName.trim(), category }),
-    }).then(r => r.json()).then(data => {
-      setChecking(false);
-      if (data.error) { setError(data.error); return; }
-      setResult(data);
-    }).catch(() => { setChecking(false); setError('Could not reach the server. Make sure server.js is running.'); });
+  const removePhoto = (i) => {
+    setPhotos(p => p.filter((_, j) => j !== i));
+    setIdentified(null); setItemName(''); setResult(null);
   };
 
-  const reset = () => { setPhoto(null); setItemName(''); setCategory(null); setResult(null); setError(null); };
+  const identify = async () => {
+    if (!photos.length) return;
+    setError(null); setResult(null); setIdentifying(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/identify-item`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ images: photos }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) { setError(data.error || 'Could not identify the item.'); return; }
+      setIdentified(data); setItemName(data.itemName || '');
+    } catch (err) {
+      setError(err.message || 'Could not reach the server.');
+    } finally {
+      setIdentifying(false);
+    }
+  };
+
+  const checkValue = async () => {
+    if (!itemName.trim()) return;
+    setChecking(true); setError(null); setResult(null);
+    try {
+      const res = await fetch(`${API_BASE}/api/price-check`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itemName: itemName.trim(),
+          category: identified?.category || null,
+          identityConfidence: identified?.identityConfidence || 'high',
+          details: identified?.details || [],
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.error) { setError(data.error || 'Could not check the value.'); return; }
+      setResult(data);
+    } catch {
+      setError('Could not reach the server. Try again in a moment.');
+    } finally {
+      setChecking(false);
+    }
+  };
+
+  const reset = () => { setPhotos([]); setIdentified(null); setItemName(''); setResult(null); setError(null); };
+
+  const muted = { fontFamily:'var(--font-sans)', fontSize:13, color:'var(--text-muted)', lineHeight:1.5 };
+  // Comparables that set the range first; ones left out (outliers) after.
+  const comps = (result?.comps || []).slice().sort((a, b) => (b.used === a.used ? 0 : b.used ? 1 : -1));
 
   return (
     <div style={{position:'absolute',inset:0,background:'var(--surface-app)',zIndex:50,display:'flex',flexDirection:'column'}}>
@@ -2683,12 +2718,13 @@ function PriceCheckScreen({ onBack }) {
       </div>
 
       <div style={{flex:1,overflowY:'auto',padding:'20px 20px 48px',display:'flex',flexDirection:'column',gap:18}}>
-        {!photo && (
+        <input ref={fileInputRef} type="file" accept="image/*" multiple style={{display:'none'}} onChange={onFilesPicked} />
+
+        {photos.length === 0 && (
           <>
-            <p style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)',lineHeight:1.5,margin:0}}>
-              Snap or upload a photo of an item — Rummage identifies it and gives you an AI-estimated resale value range.
+            <p style={{...muted,fontSize:14,margin:0}}>
+              Add up to four photos of one item: the whole thing, plus close-ups of any marks, signatures or labels. Rummage identifies it and estimates its resale value from comparable listings.
             </p>
-            <input ref={fileInputRef} type="file" accept="image/*" style={{display:'none'}} onChange={onFilePicked} />
             <button type="button" onClick={()=>fileInputRef.current?.click()} style={{
               border:'1px solid var(--border-strong)', borderRadius:'var(--radius-xl)', background:'var(--surface-sunken)',
               padding:'48px 20px', display:'flex', flexDirection:'column', alignItems:'center', gap:10, cursor:'pointer',
@@ -2696,10 +2732,35 @@ function PriceCheckScreen({ onBack }) {
               <div style={{width:56,height:56,borderRadius:'50%',background:'var(--brand-50)',display:'flex',alignItems:'center',justifyContent:'center'}}>
                 {Icon('Camera',26,{stroke:'var(--brand-500)'})}
               </div>
-              <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--text-primary)'}}>Take or choose a photo</span>
-              <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)'}}>JPEG or PNG</span>
+              <span style={{fontFamily:'var(--font-sans)',fontWeight:700,fontSize:15,color:'var(--text-primary)'}}>Take or choose photos</span>
+              <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)'}}>Up to 4 · JPEG or PNG</span>
             </button>
           </>
+        )}
+
+        {photos.length > 0 && (
+          <div style={{display:'grid',gridTemplateColumns:'repeat(4, 1fr)',gap:8}}>
+            {photos.map((src, i) => (
+              <div key={i} style={{position:'relative',aspectRatio:'1',borderRadius:'var(--radius-lg)',overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
+                <img src={src} alt={`Photo ${i+1}`} style={{width:'100%',height:'100%',objectFit:'cover',display:'block'}} />
+                {!result && (
+                  <button type="button" aria-label={`Remove photo ${i+1}`} onClick={()=>removePhoto(i)} style={{
+                    position:'absolute',top:4,right:4,width:24,height:24,borderRadius:'50%',border:'none',cursor:'pointer',
+                    background:'rgba(16,24,40,0.7)',display:'flex',alignItems:'center',justifyContent:'center',padding:0,
+                  }}>{Icon('X',14,{stroke:'#fff'})}</button>
+                )}
+              </div>
+            ))}
+            {room > 0 && !result && (
+              <button type="button" onClick={()=>fileInputRef.current?.click()} aria-label="Add another photo" style={{
+                aspectRatio:'1',borderRadius:'var(--radius-lg)',border:'1px dashed var(--border-strong)',background:'var(--surface-sunken)',
+                display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',gap:4,cursor:'pointer',
+              }}>
+                {Icon('Plus',20,{stroke:'var(--text-muted)'})}
+                <span style={{fontFamily:'var(--font-sans)',fontSize:11,color:'var(--text-muted)'}}>Add photo</span>
+              </button>
+            )}
+          </div>
         )}
 
         {error && (
@@ -2709,28 +2770,39 @@ function PriceCheckScreen({ onBack }) {
           </div>
         )}
 
-        {photo && (
-          <div style={{borderRadius:'var(--radius-xl)',overflow:'hidden',boxShadow:'var(--shadow-sm)'}}>
-            <img src={photo} style={{width:'100%',display:'block',maxHeight:280,objectFit:'cover'}} />
-          </div>
+        {photos.length > 0 && !identified && (
+          <Btn variant="primary" size="lg" fullWidth onClick={identify}
+            style={{flex:'none',opacity:identifying?.6:1,pointerEvents:identifying?'none':'auto'}}
+            leadingIcon={identifying?Icon('Loader',18,{stroke:'#fff'}):Icon('Search',18)}>
+            {identifying ? 'Identifying item…' : 'Identify item'}
+          </Btn>
         )}
 
-        {photo && identifying && (
-          <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:8,padding:'16px 0'}}>
-            <span style={{display:'inline-flex',animation:'spin 1s linear infinite',color:'var(--accent)'}}>{Icon('Loader2',18,{stroke:'currentColor'})}</span>
-            <span style={{fontFamily:'var(--font-sans)',fontSize:14,color:'var(--text-muted)'}}>Identifying item…</span>
-          </div>
-        )}
-
-        {photo && !identifying && itemName && !result && (
+        {identified && !result && (
           <div style={{display:'flex',flexDirection:'column',gap:8}}>
             <div className="rmg-eyebrow">We think this is</div>
             <RmgInput size="lg" value={itemName} onChange={e=>setItemName(e.target.value)} placeholder="Item name" />
             <span style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)'}}>Not quite right? Edit it above before checking the value.</span>
+            {identified.details?.length > 0 && (
+              <div style={{display:'flex',flexWrap:'wrap',gap:6}}>
+                {identified.details.map((d, i) => (
+                  <span key={i} style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)',background:'var(--surface-sunken)',borderRadius:'var(--radius-pill)',padding:'4px 10px'}}>{d}</span>
+                ))}
+              </div>
+            )}
+            {identified.photoTip && room > 0 && (
+              <div style={{display:'flex',alignItems:'flex-start',gap:10,background:'var(--brand-50)',borderRadius:'var(--radius-lg)',padding:'12px 14px'}}>
+                {Icon('Camera',16,{stroke:'var(--brand-500)'})}
+                <span style={{...muted,flex:1}}>
+                  {identified.photoTip}{' '}
+                  <button type="button" onClick={()=>fileInputRef.current?.click()} style={{border:'none',background:'none',padding:0,cursor:'pointer',fontWeight:700,color:'var(--accent)',fontSize:13}}>Add a photo</button>
+                </span>
+              </div>
+            )}
           </div>
         )}
 
-        {photo && !identifying && itemName && !result && (
+        {identified && !result && (
           // flex:'none' overrides Btn's own flex:1 (meant for filling a row
           // next to a sibling button) -- inside this screen's vertical
           // scrolling column it would otherwise stretch to fill all the
@@ -2744,23 +2816,53 @@ function PriceCheckScreen({ onBack }) {
 
         {result && (
           <>
-            <div style={{textAlign:'center',padding:'8px 0'}}>
-              <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',marginBottom:6}}>{result.itemName}</div>
+            <div style={{textAlign:'center',padding:'8px 0',display:'flex',flexDirection:'column',alignItems:'center',gap:6}}>
+              <div style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)'}}>{result.itemName}</div>
               {result.low != null ? (
-                <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--secondary)'}}>
-                  ${result.low}{result.high !== result.low ? ` – $${result.high}` : ''}
-                </div>
+                <>
+                  <div style={{fontFamily:'var(--font-display)',fontSize:36,fontWeight:900,color:'var(--secondary)'}}>
+                    ${result.low}{result.high !== result.low ? ` – $${result.high}` : ''}
+                  </div>
+                  {result.mid != null && <div style={muted}>Typical: ${result.mid}</div>}
+                  {result.confidence && (
+                    <span style={{fontSize:12,fontWeight:700,color:'var(--secondary)',background:'var(--brand-50)',padding:'3px 10px',borderRadius:'var(--radius-pill)'}}>
+                      {CONFIDENCE_LABEL[result.confidence] || result.confidence}
+                    </span>
+                  )}
+                </>
               ) : (
-                <div style={{fontFamily:'var(--font-sans)',fontSize:15,color:'var(--text-muted)',padding:'12px 0'}}>
-                  Couldn't find pricing for this item — try a clearer photo or a different angle.
+                <div style={{fontFamily:'var(--font-sans)',fontSize:15,color:'var(--text-muted)',padding:'12px 0',lineHeight:1.5}}>
+                  {result.withheldReason || "Couldn't find reliable pricing for this item. Try a clearer photo or a close-up of any marks."}
                 </div>
+              )}
+              {result.low != null && result.basedOnAskingPrices && (
+                <div style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-faint)'}}>Based on asking prices, not confirmed sales.</div>
               )}
             </div>
 
             {result.reasoning && (
               <div style={{display:'flex',alignItems:'flex-start',gap:10,background:'var(--surface-sunken)',borderRadius:'var(--radius-lg)',padding:'12px 14px'}}>
                 {Icon('Info',16,{stroke:'var(--text-faint)'})}
-                <span style={{fontFamily:'var(--font-sans)',fontSize:13,color:'var(--text-muted)',lineHeight:1.5}}>{result.reasoning}</span>
+                <span style={muted}>{result.reasoning}</span>
+              </div>
+            )}
+
+            {comps.length > 0 && (
+              <div style={{display:'flex',flexDirection:'column',gap:8}}>
+                <div className="rmg-eyebrow">Comparable listings</div>
+                {comps.map((c, i) => (
+                  <a key={i} href={c.url} target="_blank" rel="noopener noreferrer"
+                    onClick={e=>{ e.preventDefault(); openExternalUrl(c.url); }}
+                    style={{display:'flex',alignItems:'center',gap:12,padding:'10px 12px',borderRadius:'var(--radius-lg)',background:'var(--surface-sunken)',textDecoration:'none',opacity:c.used?1:.55}}>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontFamily:'var(--font-sans)',fontSize:14,fontWeight:600,color:'var(--ink-900)',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{c.title}</div>
+                      <div style={{fontFamily:'var(--font-sans)',fontSize:12,color:'var(--text-muted)'}}>
+                        {[c.source, c.status === 'sold' ? 'Sold' : 'Asking', c.date, c.used ? null : 'Not used in range'].filter(Boolean).join(' · ')}
+                      </div>
+                    </div>
+                    <div style={{fontFamily:'var(--font-sans)',fontSize:15,fontWeight:800,color:'var(--secondary)'}}>${c.price}</div>
+                  </a>
+                ))}
               </div>
             )}
 
@@ -4965,7 +5067,7 @@ function WebHomeScreen({
             <>
               <h1 style={{color:'var(--ink-900)', fontSize:34, maxWidth:620, lineHeight:1.12, textTransform:'uppercase'}}>Yard sales, estate sales &amp; moving sales near {zip}.</h1>
               <p style={{color:'var(--ink-600)', fontFamily:'var(--font-mono)', fontSize:13.5, maxWidth:560, margin:'12px 0 0', lineHeight:1.6}}>
-                // Pulled live from OfferUp, EstateSales.org, Facebook Marketplace &amp; more — updated every few minutes.
+                // Pulled live from EstateSales.org, EstateSales.net, Nextdoor &amp; more — updated every few minutes.
               </p>
               <Btn variant="primary" size="sm" leadingIcon={Icon('Map',14)} onClick={()=>setShowMap(v=>!v)} style={{marginTop:16}}>
                 {showMap ? 'Hide map' : 'Show map'}
