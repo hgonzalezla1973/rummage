@@ -7,43 +7,42 @@
 <link rel="icon" href="/assets/logo-mark.svg" type="image/svg+xml">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Anton&family=Work+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
 :root {
-  /* "Carbon Copy Classifieds": newsprint ground, carbon-ink neutral scale,
-     and a single hot poster-orange accent -- the color of the actual
-     cardboard signs people staple to telephone poles. Hard-edged borders
-     do the separation work (no soft blurred elevation), corners are small
-     and crisp, not rounded pills. Every color below is still read through
-     the same --semantic-alias tokens the whole app already used, so
-     retuning here is enough to recolor/reshape the app without touching
-     components. */
-  --paper:#F1EFE9; --paper-2:#E7E3D8; --surface:#FFFFFF; --surface-tint:#FFFFFF;
+  /* Retokened to match the app's own design system (components/ui/colors.ts
+     / replica/design/tokens.json) -- navy-on-white "Field Utility Modern"
+     instead of this page's old "Carbon Copy Classifieds" newsprint/orange
+     theme. Every color below is still read through the same
+     --semantic-alias tokens the whole app already used, so retuning here
+     is enough to recolor/reshape the app without touching components. */
+  --paper:#F8FAFC; --paper-2:#F1F5F9; --surface:#FFFFFF; --surface-tint:#FFFFFF;
 
-  /* Neutral ink — carbon/newsprint black-gray scale */
-  --ink-900:#1A1A1A; --ink-800:#2B2B28; --ink-700:#46453F; --ink-600:#5C5B54;
-  --ink-500:#76756C; --ink-400:#949289; --ink-300:#B8B6AB; --ink-200:#D6D3C6; --ink-100:#E7E3D8; --line:#2A2A26;
+  /* Neutral ink — slate scale, matching the app's own text/border tokens */
+  --ink-900:#0F172A; --ink-800:#1E293B; --ink-700:#334155; --ink-600:#475569;
+  --ink-500:#64748B; --ink-400:#94A3B8; --ink-300:#CBD5E1; --ink-200:#E2E8F0; --ink-100:#F1F5F9; --line:#E2E8F0;
 
-  /* Primary — one hot poster-orange accent, spent on the primary action,
-     "live now", and links. (Still named --brand-* so every existing call
-     site just picks up the new color without edits.) */
-  --brand-50:#FDE8DF; --brand-100:#F8C3AC; --brand-200:#F29B79; --brand-300:#EC7249;
-  --brand-400:#E8491D; --brand-500:#C23814; --brand-600:#9C2D10; --brand-700:#76220C; --brand-800:#551809;
-  --brand-grad:#E8491D;
+  /* Primary — the app's own "the brand color IS the near-black text color"
+     choice (see components/ui/colors.ts's own comment), not a separate
+     hue. Still named --brand-* so every existing call site just picks up
+     the new color without edits. */
+  --brand-50:#F1F5F9; --brand-100:#E2E8F0; --brand-200:#CBD5E1; --brand-300:#94A3B8;
+  --brand-400:#0F172A; --brand-500:#0B1220; --brand-600:#0B1220; --brand-700:#060A12; --brand-800:#000000;
+  --brand-grad:#0F172A;
 
-  --tape-50:#E7E3D8; --tape-100:#DBD7C9; --tape-300:#C7C2B0; --tape-500:#FFFFFF; --tape-600:#DBD7C9; --tape-700:#76756C;
-  --teal-50:#E4EFEE; --teal-100:#B8D3D2; --teal-300:#7AACAA; --teal-500:#146664; --teal-600:#0F504E; --teal-700:#093230;
-  --green-600:#1E8E5A; --green-bg:#E3F5EC; --amber-600:#9A7B0A; --amber-bg:#FDF3D6; --red-600:#D6392F; --red-bg:#FBE4E2;
-  --coral:#C2453B; --coral-bg:#FBE4E2;
+  --tape-50:#F1F5F9; --tape-100:#E2E8F0; --tape-300:#CBD5E1; --tape-500:#FFFFFF; --tape-600:#E2E8F0; --tape-700:#64748B;
+  --teal-50:#F1F5F9; --teal-100:#E2E8F0; --teal-300:#94A3B8; --teal-500:#0F172A; --teal-600:#0B1220; --teal-700:#060A12;
+  --green-600:#047857; --green-bg:#ECFDF5; --amber-600:#9A5B00; --amber-bg:#FEF3E2; --red-600:#A01F1F; --red-bg:#FEF2F2;
+  --coral:#0F172A; --coral-bg:#F1F5F9;
 
-  /* Sale type: plain text labels now, not colored pills -- these three
-     stay defined (a couple of call sites still read them for icon tint on
-     a neutral surface) but no longer drive a per-category background. */
-  --type-estate-fg:var(--ink-600); --type-estate-bg:var(--paper-2);
-  --type-yard-fg:var(--ink-600);   --type-yard-bg:var(--paper-2);
-  --type-moving-fg:var(--ink-600); --type-moving-bg:var(--paper-2);
+  /* Sale type: the app's real category colors (same as its map pins and
+     ListingCard badges) -- a couple of call sites read just the fg value
+     for icon tint on a neutral surface. */
+  --type-estate-fg:#B5542C; --type-estate-bg:#F3E4DC;
+  --type-yard-fg:#6B7A2A;   --type-yard-bg:#E9EDD9;
+  --type-moving-fg:#2B6CB0; --type-moving-bg:#DDE7F3;
 
   /* Semantic aliases */
   --text-primary:var(--ink-900); --text-secondary:var(--ink-600); --text-muted:var(--ink-500); --text-faint:var(--ink-400);
@@ -57,8 +56,8 @@
   --danger:var(--red-600); --danger-bg:var(--red-bg);
   --pin:var(--ink-900); --pin-saved:var(--coral);
 
-  --font-display:'Anton',system-ui,-apple-system,sans-serif;
-  --font-sans:'Work Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
+  --font-display:'Plus Jakarta Sans',system-ui,-apple-system,sans-serif;
+  --font-sans:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif;
   --font-mono:'JetBrains Mono',ui-monospace,'SF Mono',Menlo,monospace;
 
   --text-2xs:11px; --text-xs:12px; --text-sm:13px; --text-base:15px; --text-md:17px;
@@ -69,23 +68,22 @@
 
   --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:20px;
   --space-6:24px; --space-8:32px; --space-10:40px; --space-12:48px;
-  /* Small, crisp corners -- a printed card, not a rounded app tile.
-     --radius-pill stays a true pill: it's spent only on genuinely round
-     shapes (carousel dots, badges, a progress bar's rounded end), not on
-     buttons/chips/cards, which get the flat --radius-btn/--radius-xl scale
-     below instead. */
-  --radius-xs:2px; --radius-sm:3px; --radius-md:3px; --radius-lg:4px;
-  --radius-xl:4px; --radius-2xl:6px; --radius-pill:999px; --radius-btn:4px;
+  /* Rounded-md corners throughout, matching the app -- not this page's old
+     flat "cut paper" 2-4px corners, and not a full pill either except
+     where --radius-pill is spent on genuinely round shapes (carousel dots,
+     a progress bar's rounded end). */
+  --radius-xs:4px; --radius-sm:6px; --radius-md:8px; --radius-lg:10px;
+  --radius-xl:12px; --radius-2xl:16px; --radius-pill:999px; --radius-btn:8px;
 
-  /* Hard, unblurred "cut paper" shadows -- an offset, not a glow. Borders
-     do most of the separation work in this system; these are a light
-     lift for the few things that still need to read as layered on top. */
-  --shadow-xs:0 1px 0 rgba(26,26,26,.1);
-  --shadow-sm:1px 2px 0 rgba(26,26,26,.14);
-  --shadow-md:2px 3px 0 rgba(26,26,26,.18);
-  --shadow-lg:3px 5px 0 rgba(26,26,26,.22);
-  --shadow-sheet:0 -2px 0 rgba(26,26,26,.14);
-  --shadow-pin:1px 2px 0 rgba(26,26,26,.3);
+  /* Soft, blurred elevation instead of the old hard "cut paper" offset
+     shadows -- matching shadow-card's rgba(15,23,42,...) treatment used
+     throughout the rest of the app. */
+  --shadow-xs:0 1px 2px rgba(15,23,42,.06);
+  --shadow-sm:0 1px 3px rgba(15,23,42,.08);
+  --shadow-md:0 4px 12px rgba(15,23,42,.10);
+  --shadow-lg:0 12px 32px rgba(15,23,42,.14);
+  --shadow-sheet:0 -2px 12px rgba(15,23,42,.10);
+  --shadow-pin:0 2px 6px rgba(15,23,42,.18);
   --shadow-focus:0 0 0 3px var(--brand-200);
 
   --safe-top:59px; --safe-bottom:0px; --safe-left:0px; --safe-right:0px; --tabbar-height:84px;
@@ -236,32 +234,60 @@ const SORT_MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9
 // Sortable timestamp for a sale's start date, parsed from its display label
 // (e.g. "Sat, Jul 4 – Sun, Jul 5" → the Jul 4 start). Sales with no
 // parseable date sort to the very end rather than the very start.
+// Every date a sale's dateLabel mentions, in order. Source labels almost never
+// carry a year, so each resolves to the year that puts it nearest today: in
+// November "Jan 3" is next January, and in January "Dec 30" was last December.
+function saleLabelDates(dateLabel) {
+  const now = new Date();
+  const HALF_YEAR_MS = 183 * 24 * 60 * 60 * 1000;
+  return [...(dateLabel || '').matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
+    .filter(m => SORT_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined)
+    .map(m => {
+      const mo = SORT_MO_IDX[m[1].toLowerCase().slice(0,3)];
+      const day = parseInt(m[2]);
+      if (m[3]) return new Date(parseInt(m[3]), mo, day);
+      const date = new Date(now.getFullYear(), mo, day);
+      if (date - now > HALF_YEAR_MS) date.setFullYear(date.getFullYear() - 1);
+      else if (now - date > HALF_YEAR_MS) date.setFullYear(date.getFullYear() + 1);
+      return date;
+    });
+}
+
+// First and last day a sale runs (ms), or null if its label has no usable date.
+function saleDayRange(dateLabel) {
+  const dates = saleLabelDates(dateLabel);
+  return dates.length ? { start: dates[0].getTime(), end: dates[dates.length - 1].getTime() } : null;
+}
+
+// The two month buttons: the current month and the next. Derived from today,
+// so they roll forward on their own when a month ends.
+function saleMonthOptions(today) {
+  return [0, 1].map(offset => {
+    const first = new Date(today.getFullYear(), today.getMonth() + offset, 1);
+    return {
+      key: `${first.getFullYear()}-${first.getMonth() + 1}`,
+      label: first.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }),
+      start: first.getTime(),
+      end: new Date(first.getFullYear(), first.getMonth() + 1, 0).getTime(),
+    };
+  });
+}
+
+// "Soonest" means the next day you could actually go: a sale already running
+// counts as today, and one that has ended sorts last.
 function saleSortDate(dateLabel) {
-  const label = dateLabel || '';
-  if (!label) return Infinity;
-  const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-    .filter(m => SORT_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
-  if (!hits.length) return Infinity;
-  const m = hits[0];
-  const mo = SORT_MO_IDX[m[1].toLowerCase().slice(0,3)];
-  const day = parseInt(m[2]);
-  const year = m[3] ? parseInt(m[3]) : new Date().getFullYear();
-  return new Date(year, mo, day).getTime();
+  const range = saleDayRange(dateLabel);
+  if (!range) return Infinity;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  return range.end < today.getTime() ? Infinity : Math.max(range.start, today.getTime());
 }
 
 // Every day-of-week (0=Sun..6=Sat) a sale's dateLabel actually mentions —
 // a multi-day label like "Sat, Oct 3 - Sun, Oct 4" matches both days, so a
 // "Sunday" filter correctly still surfaces a sale that started Saturday.
 function saleWeekdays(dateLabel) {
-  const label = dateLabel || '';
-  const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-    .filter(m => SORT_MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
-  return hits.map(m => {
-    const mo = SORT_MO_IDX[m[1].toLowerCase().slice(0,3)];
-    const day = parseInt(m[2]);
-    const year = m[3] ? parseInt(m[3]) : new Date().getFullYear();
-    return new Date(year, mo, day).getDay();
-  });
+  return saleLabelDates(dateLabel).map(d => d.getDay());
 }
 
 // ── Constants ─────────────────────────────────────────────────────────────────
@@ -444,6 +470,16 @@ function FilterChip({ selected, leadingIcon, trailingIcon, onClick, children,
       {children}
       {trailingIcon && <span style={{display:'inline-flex',opacity:.8}}>{trailingIcon}</span>}
     </button>
+  );
+}
+
+function MonthChips({ months, value, onChange, style }) {
+  return (
+    <div style={{display:'flex',gap:8,...style}}>
+      {months.map(m => (
+        <FilterChip key={m.key} selected={value===m.key} onClick={()=>onChange(value===m.key ? null : m.key)}>{m.label}</FilterChip>
+      ))}
+    </div>
   );
 }
 
@@ -1540,13 +1576,94 @@ function OnboardingScreen({ onAllow, onManual, sales }) {
   );
 }
 
-function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusMi, zip, apiStatus, coverageMessage, mapCenter,
+// A vertical scroller that calls onRefresh (returning a promise) when pulled
+// down from the top. Touch listeners are attached natively with
+// {passive:false} for the same reason as the Lightbox above: preventDefault()
+// has to really work to stop iOS's rubber-band scroll taking over the drag.
+// The drag writes straight to the DOM rather than through state, so a move
+// event doesn't re-render a whole list of sales.
+const PULL_TRIGGER_PX = 64;
+const PULL_MAX_PX = 96;
+const PULL_HOLD_PX = 48;
+function PullToRefreshScroller({ onRefresh, style, children }) {
+  const scrollerRef = useRef(null);
+  const indicatorRef = useRef(null);
+  const iconRef = useRef(null);
+  const [refreshing, setRefreshing] = useState(false);
+  const onRefreshRef = useRef(onRefresh);
+  onRefreshRef.current = onRefresh;
+
+  useEffect(() => {
+    const el = scrollerRef.current;
+    let startY = null, pull = 0, busy = false;
+    const setPull = (px, animate) => {
+      pull = px;
+      const indicator = indicatorRef.current, icon = iconRef.current;
+      if (!indicator || !icon) return; // unmounted mid-refresh (tab or Map switch)
+      indicator.style.transition = animate ? 'height .2s ease-out' : 'none';
+      indicator.style.height = `${px}px`;
+      icon.style.opacity = Math.min(1, px / PULL_TRIGGER_PX);
+      icon.style.transform = `rotate(${px * 4}deg)`;
+    };
+    const start = e => {
+      startY = (!busy && e.touches.length === 1 && el.scrollTop <= 0) ? e.touches[0].clientY : null;
+    };
+    const move = e => {
+      if (startY == null) return;
+      const dy = e.touches[0].clientY - startY;
+      if (el.scrollTop > 0 || e.touches.length > 1 || (dy <= 0 && pull === 0)) { // an ordinary scroll
+        startY = null;
+        if (pull > 0) setPull(0, true);
+        return;
+      }
+      if (e.cancelable) e.preventDefault();
+      setPull(Math.min(PULL_MAX_PX, Math.max(0, dy) * 0.5), false);
+    };
+    const end = () => {
+      if (startY == null) return;
+      startY = null;
+      if (pull < PULL_TRIGGER_PX) { setPull(0, true); return; }
+      busy = true;
+      setRefreshing(true);
+      setPull(PULL_HOLD_PX, true);
+      Promise.resolve(onRefreshRef.current()).catch(() => {}).finally(() => {
+        busy = false;
+        setRefreshing(false);
+        setPull(0, true);
+      });
+    };
+    el.addEventListener('touchstart', start, { passive: true });
+    el.addEventListener('touchmove', move, { passive: false });
+    el.addEventListener('touchend', end);
+    el.addEventListener('touchcancel', end);
+    return () => {
+      el.removeEventListener('touchstart', start);
+      el.removeEventListener('touchmove', move);
+      el.removeEventListener('touchend', end);
+      el.removeEventListener('touchcancel', end);
+    };
+  }, []);
+
+  return (
+    <div ref={scrollerRef} style={{overflowY:'auto',overscrollBehaviorY:'contain',...style}}>
+      <div ref={indicatorRef} role="status" aria-label={refreshing ? 'Refreshing sales' : undefined}
+        style={{height:0,overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center',color:'var(--accent)'}}>
+        <span style={{display:'inline-flex',animation:refreshing?'spin 1s linear infinite':'none'}}>
+          <span ref={iconRef} style={{display:'inline-flex',opacity:0}}>{Icon('Loader2',22,{stroke:'currentColor'})}</span>
+        </span>
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, onRefresh, monthOptions, activeMonthKey, onChangeMonth, radiusMi, zip, apiStatus, coverageMessage, mapCenter,
     homeZip, detectedCity, awayFromHome, useHomeZip, setUseHomeZip,
     setZip, locating, locationDenied, onRequestLocation,
     activeTypes, setActiveTypes, keyword, onClearKeyword, tripIds=[], onToggleTrip, onOpenVintageStores }) {
   const [view, setView] = useState('list');
   const [selected, setSelected] = useState(null);
-  const [sortBy, setSortBy] = useState('distance'); // 'distance' | 'date'
+  const [sortBy, setSortBy] = useState('date'); // 'date' | 'distance'
   const { isLandscape } = useViewport();
   const selectedTypes = Object.keys(activeTypes).filter(k => activeTypes[k] === true);
   // Both sort modes are a compound sort — the toggle just picks which
@@ -1616,6 +1733,8 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           <SegmentedControl options={[{value:'map',label:'Map',icon:Icon('Map',16)},{value:'list',label:'List',icon:Icon('List',16)}]} value={view} onChange={setView}
             activeBg="var(--brand-grad)" activeFg="#fff" activeBorder="none" />
         </div>
+        <MonthChips months={monthOptions} value={activeMonthKey} onChange={onChangeMonth}
+          style={{justifyContent:'center',padding:'0 16px 12px'}} />
         <div className="rmg-eyebrow" style={{padding:'0 16px 6px'}}>Categories</div>
         <div style={{display:'flex',gap:8,overflowX:'auto',padding:'0 16px 12px',WebkitOverflowScrolling:'touch'}}>
           <FilterChip leadingIcon={Icon('SlidersHorizontal',15)} onClick={onOpenFilters}>Filters</FilterChip>
@@ -1681,7 +1800,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
           )}
         </div>
       ) : (
-        <div style={{flex:1,overflowY:'auto',padding:'14px 16px calc(120px + var(--safe-bottom))',background:'rgba(246,246,246,0.96)'}}>
+        <PullToRefreshScroller onRefresh={onRefresh} style={{flex:1,padding:'14px 16px calc(120px + var(--safe-bottom))',background:'rgba(246,246,246,0.96)'}}>
           <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:12}}>
             <span style={{fontFamily:'var(--font-sans)',fontWeight:600,fontSize:15,color:'var(--text-primary)'}}>{shown.length} {shown.length===1?'sale':'sales'} nearby</span>
             <button type="button" onClick={()=>setSortBy(s=>s==='date'?'distance':'date')} style={{display:'inline-flex',alignItems:'center',gap:5,fontSize:13,color:'var(--text-muted)',background:'none',border:'none',cursor:'pointer',padding:0,fontFamily:'inherit'}}>
@@ -1725,7 +1844,7 @@ function ExploreScreen({ sales, onOpenSale, onOpenFilters, onToggleSave, radiusM
             ))}
           </div>
           )}
-        </div>
+        </PullToRefreshScroller>
       )}
     </div>
   );
@@ -1736,20 +1855,12 @@ function SavedScreen({ sales, onOpenSale, onToggleSave, tripIds=[], onToggleTrip
   const { isLandscape } = useViewport();
   const saved = sales.filter(s=>s.saved);
   const now = new Date();
-  const MO = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
 
   const saleEndDate = (s) => {
-    const label = s.dateLabel || '';
-    const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-      .filter(m => MO[m[1].toLowerCase().slice(0,3)] !== undefined);
-    if (hits.length) {
-      const m = hits[hits.length-1];
-      const mo = MO[m[1].toLowerCase().slice(0,3)];
-      const day = parseInt(m[2]);
-      const yr = m[3] ? parseInt(m[3]) : now.getFullYear();
-      return new Date(yr, mo, day, 23, 59, 59);
-    }
-    return null;
+    const dates = saleLabelDates(s.dateLabel);
+    if (!dates.length) return null;
+    const last = dates[dates.length - 1];
+    return new Date(last.getFullYear(), last.getMonth(), last.getDate(), 23, 59, 59);
   };
 
   const upcoming  = saved.filter(s => { const d=saleEndDate(s); return !d || d >= now; });
@@ -4770,6 +4881,7 @@ function WebHomeScreen({
   sales, zip, setZip, locating, locationDenied, onRequestLocation,
   radiusMi, setRadiusMi, activeTypes, setActiveTypes, keyword, setKeyword,
   apiStatus, coverageMessage, mapCenter, onOpenPost,
+  monthOptions, activeMonthKey, onChangeMonth,
 }) {
   const [dayFilter, setDayFilter] = useState(null); // null = All, else 0 (Sun) .. 6 (Sat)
   const [showMap, setShowMap] = useState(false);
@@ -4789,7 +4901,7 @@ function WebHomeScreen({
 
   const scoped = sales.filter(s => selectedTypes.length === 0 || selectedTypes.includes(s.type));
   const shown = (dayFilter==null ? scoped : scoped.filter(s => saleWeekdays(s.dateLabel).includes(dayFilter)))
-    .slice().sort((a,b) => (a.distanceMi ?? 999) - (b.distanceMi ?? 999));
+    .slice().sort((a,b) => (saleSortDate(a.dateLabel) - saleSortDate(b.dateLabel)) || ((a.distanceMi ?? 999) - (b.distanceMi ?? 999)));
 
   const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
   const dayCounts = DAY_LABELS.map((_,d) => scoped.filter(s => saleWeekdays(s.dateLabel).includes(d)).length);
@@ -4908,6 +5020,9 @@ function WebHomeScreen({
                   <FilterChip key={lbl} selected={dayFilter===i} onClick={()=>setDayFilter(d=>d===i?null:i)}>{lbl}</FilterChip>
                 ))}
               </div>
+
+              <MonthChips months={monthOptions} value={activeMonthKey} onChange={onChangeMonth}
+                style={{flexWrap:'wrap',marginBottom:14}} />
 
               <div style={{display:'flex', flexWrap:'wrap', alignItems:'center', gap:10}}>
                 <div style={{flex:'1 1 260px', minWidth:220}}>
@@ -5255,6 +5370,7 @@ function App() {
   };
   const [apiListings, setApiListings]   = useState([]);
   const [apiStatus, setApiStatus]       = useState('idle'); // idle | loading | ok | error
+  const [monthFilter, setMonthFilter]   = useState(null); // null = default near-today window, else a saleMonthOptions key
   const [coverageMessage, setCoverageMessage] = useState(null);
   const [mapCenter, setMapCenter] = useState(null); // {lat,lng} of the searched zip, from the API response
   const [scale, setScale] = useState(1);
@@ -5333,17 +5449,37 @@ function App() {
   const effectiveZip = (awayFromHome && !useHomeZip) ? detectedZip : zip;
 
   // Fetch live listings from local backend
-  const fetchApiListings = (zip, radius) => {
-    setApiStatus('loading');
-    fetch(`${API_BASE}/api/listings?zip=${zip}&radius=${radius}`)
-      .then(r => r.json())
+  // A background load (pull-to-refresh, returning to the app) keeps the
+  // current list on screen, shows no loading banner, and leaves that list
+  // alone if it fails. Only the newest request may apply its result, so a
+  // slow refresh for an old ZIP can't overwrite a newer search.
+  const listingsRequestSeq = useRef(0);
+  const listingsInFlight = useRef(false);
+  const listingsLoadedAt = useRef(0);
+  const fetchApiListings = (zip, radius, { background = false } = {}) => {
+    const seq = ++listingsRequestSeq.current;
+    listingsInFlight.current = true;
+    if (!background) setApiStatus('loading');
+    return fetch(`${API_BASE}/api/listings?zip=${zip}&radius=${radius}${background ? '&fresh=1' : ''}`)
+      .then(r => {
+        if (background && !r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then(data => {
+        if (seq !== listingsRequestSeq.current) return;
         setApiListings(data.listings || []);
         setCoverageMessage(data.outOfCoverage ? data.message : null);
         setMapCenter(data.center || null);
         setApiStatus('ok');
+        listingsLoadedAt.current = Date.now();
       })
-      .catch(() => setApiStatus('error'));
+      .catch(() => {
+        if (seq !== listingsRequestSeq.current) return;
+        setApiStatus(s => (background && s !== 'loading') ? s : 'error');
+      })
+      .finally(() => {
+        if (seq === listingsRequestSeq.current) listingsInFlight.current = false;
+      });
   };
 
   useEffect(() => {
@@ -5370,7 +5506,20 @@ function App() {
     return () => clearTimeout(t);
   }, [effectiveZip, radiusMi]);
 
-  const MO_IDX = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+  // Reload when the app comes back to the foreground. The minimum gap stops
+  // a quick trip to Maps or the share sheet from reshuffling the list.
+  useEffect(() => {
+    if (!effectiveZip) return;
+    const FOREGROUND_REFRESH_MIN_MS = 2 * 60 * 1000;
+    const onVisible = () => {
+      if (document.visibilityState !== 'visible' || listingsInFlight.current) return;
+      if (Date.now() - listingsLoadedAt.current < FOREGROUND_REFRESH_MIN_MS) return;
+      fetchApiListings(effectiveZip, radiusMi, { background: true });
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [effectiveZip, radiusMi]);
+
   const todayStart = new Date(); todayStart.setHours(0,0,0,0);
 
   const kwMatch = (s) => {
@@ -5387,6 +5536,11 @@ function App() {
   const windowStart = todayStart.getTime() - PAST_WINDOW_MS;
   const windowEnd   = todayStart.getTime() + FUTURE_WINDOW_MS;
 
+  // A selected month replaces that default window while browsing. A selection
+  // from a month that has since rolled off simply stops applying.
+  const monthOptions = saleMonthOptions(todayStart);
+  const activeMonth = monthOptions.find(m => m.key === monthFilter) || null;
+
   // userListings not already reflected in apiListings (the server now folds
   // a user's posted/edited listings into /api/listings itself, within their
   // own search radius) covers the gap right after publishing/editing, before
@@ -5398,18 +5552,17 @@ function App() {
     .filter(s => {
       // If we can't determine when a sale is/was happening, we can't show it —
       // no date means no way to tell it apart from a stale, long-dead listing.
-      const label = s.dateLabel || '';
-      if (!label) return false;
-      // Scan for every "MonthName DD" or "MonthName DD, YYYY" — first match is
-      // the start of the range, last match is the end (a single date has both
-      // point to the same hit).
-      const hits = [...label.matchAll(/([A-Za-z]{3,9})\s+(\d{1,2})(?:,?\s*(\d{4}))?/g)]
-        .filter(m => MO_IDX[m[1].toLowerCase().slice(0,3)] !== undefined);
-      if (!hits.length) return false; // dateLabel present but unparseable → can't confirm it's current
-      const toDate = m => new Date(m[3] ? parseInt(m[3]) : todayStart.getFullYear(), MO_IDX[m[1].toLowerCase().slice(0,3)], parseInt(m[2])).getTime();
-      const startDay = toDate(hits[0]);
-      const endDay   = toDate(hits[hits.length - 1]);
-      // A user-posted listing is real, durable data -- the server already
+      const range = saleDayRange(s.dateLabel);
+      if (!range) return false; // missing or unparseable → can't confirm it's current
+      // Kept through the end of the last month button, not just the browse
+      // window, so a December sale saved from the December view stays in
+      // Saved, My Trip and its detail page after the button is turned off.
+      return range.end >= windowStart && (s.source === 'user' || range.start <= monthOptions[1].end);
+    });
+  const inBrowseWindow = s => {
+    const { start, end } = saleDayRange(s.dateLabel);
+    if (activeMonth) return end >= Math.max(windowStart, activeMonth.start) && start <= activeMonth.end;
+    // A user-posted listing is real, durable data -- the server already
       // drops it the moment it ends (see isUserListingActive server-side),
       // so it doesn't need the scraped-content assumption that anything
       // dated further out is a stale, abandoned posting. Someone posting a
@@ -5420,12 +5573,10 @@ function App() {
       // posts. Confirmed live: without this, a freshly posted sale more
       // than 2 days out was invisible to its own poster right after
       // publishing, which read as the post having silently failed.
-      const effectiveWindowEnd = s.source === 'user' ? Infinity : windowEnd;
-      // Overlap test: the sale's [startDay, endDay] range must intersect [windowStart, windowEnd].
-      return endDay >= windowStart && startDay <= effectiveWindowEnd;
-    });
-  let salesInRadius = allSales.filter(s=>s.distanceMi<=radiusMi).filter(kwMatch);
-  if (salesInRadius.length===0 && !keyword) salesInRadius = allSales.slice(0,1);
+    return end >= windowStart && (s.source === 'user' || start <= windowEnd);
+  };
+  let salesInRadius = allSales.filter(s=>s.distanceMi<=radiusMi).filter(kwMatch).filter(inBrowseWindow);
+  if (salesInRadius.length===0 && !keyword && !activeMonth) salesInRadius = allSales.filter(inBrowseWindow).slice(0,1);
   const detailSale = allSales.find(s=>s.id===detailId)||null;
 
   // Deep link support (?sale=<id>, used by the daily digest email's "Open
@@ -5538,6 +5689,8 @@ function App() {
             homeZip={zip} detectedCity={detectedCity} awayFromHome={awayFromHome} useHomeZip={useHomeZip} setUseHomeZip={setUseHomeZip}
             setZip={setZip} locating={locating} locationDenied={locationDenied} onRequestLocation={requestLocation}
             onOpenSale={openSaleDetail} onOpenFilters={()=>setFiltersOpen(true)} onToggleSave={toggleSave}
+            onRefresh={()=>fetchApiListings(effectiveZip, radiusMi, { background: true })}
+            monthOptions={monthOptions} activeMonthKey={activeMonth?.key ?? null} onChangeMonth={setMonthFilter}
             activeTypes={activeTypes} setActiveTypes={setActiveTypes}
             keyword={keyword} onClearKeyword={()=>setKeyword('')}
             tripIds={tripIds} onToggleTrip={toggleTrip}
@@ -5714,6 +5867,7 @@ function App() {
         keyword={keyword} setKeyword={setKeyword}
         apiStatus={apiStatus} coverageMessage={coverageMessage} mapCenter={mapCenter}
         onOpenPost={()=>{ window.location.href = '/app?post=1'; }}
+        monthOptions={monthOptions} activeMonthKey={activeMonth?.key ?? null} onChangeMonth={setMonthFilter}
       />
 
       {detailSale && (
